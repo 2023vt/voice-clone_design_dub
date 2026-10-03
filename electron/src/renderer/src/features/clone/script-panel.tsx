@@ -15,7 +15,7 @@ import { useTranslation } from 'react-i18next';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { TAGS } from '@/lib/languages';
+import { PERFORMANCE_TAGS, TAGS } from '@/lib/languages';
 import { setCloneSetting, useCloneSetting } from '@/lib/store/clone-settings';
 import { cn } from '@/lib/utils';
 import { SectionLabel } from './section-label';
@@ -305,7 +305,7 @@ export function ScriptPanel({
                       aria-label={t('clone.insert_token')}
                       className="fixed z-50 flex max-h-56 w-[min(360px,calc(100vw-16px))] flex-wrap gap-1 overflow-y-auto rounded-lg bg-popover p-2 text-popover-foreground shadow-md ring-1 ring-foreground/10 animate-in fade-in-0 zoom-in-95 motion-reduce:animate-none"
                     >
-                      {TAGS.map((tag) => (
+                      {[...PERFORMANCE_TAGS, ...TAGS].map((tag) => (
                         <button
                           key={tag}
                           type="button"

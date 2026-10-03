@@ -229,7 +229,8 @@
     "droppedChunks_other": "Passages sans audio dans cette prise : {{count}}. Relancez la génération.",
     "droppedChunksWithText_other": "Passages sans audio dans cette prise : {{count}} — « {{text}} ». Relancez la génération.",
     "droppedChunks_many": "Passages sans audio dans cette prise : {{count}}. Relancez la génération.",
-    "droppedChunksWithText_many": "Passages sans audio dans cette prise : {{count}} — « {{text}} ». Relancez la génération."
+    "droppedChunksWithText_many": "Passages sans audio dans cette prise : {{count}} — « {{text}} ». Relancez la génération.",
+    "expressionDropped": "Ce moteur vocal ne peut pas interpréter {{tags}} : ils ont été omis au lieu d’être lus à voix haute."
   },
   "permissions": {
     "title": "Autorisations",

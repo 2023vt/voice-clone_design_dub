@@ -227,7 +227,8 @@
     "droppedChunks_one": "Textdelar utan ljud i den här tagningen: {{count}}. Försök generera igen.",
     "droppedChunksWithText_one": "Textdelar utan ljud i den här tagningen: {{count}} — ”{{text}}”. Försök generera igen.",
     "droppedChunks_other": "Textdelar utan ljud i den här tagningen: {{count}}. Försök generera igen.",
-    "droppedChunksWithText_other": "Textdelar utan ljud i den här tagningen: {{count}} — ”{{text}}”. Försök generera igen."
+    "droppedChunksWithText_other": "Textdelar utan ljud i den här tagningen: {{count}} — ”{{text}}”. Försök generera igen.",
+    "expressionDropped": "Den här röstmotorn kan inte framföra {{tags}}, så de utelämnades i stället för att läsas upp."
   },
   "permissions": {
     "title": "Behörigheter",

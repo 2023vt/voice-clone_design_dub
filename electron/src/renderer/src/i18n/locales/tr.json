@@ -227,7 +227,8 @@
     "droppedChunks_one": "Bu kayıtta sesi üretilmeyen metin bölümleri: {{count}}. Yeniden üretmeyi deneyin.",
     "droppedChunksWithText_one": "Bu kayıtta sesi üretilmeyen metin bölümleri: {{count}} — “{{text}}”. Yeniden üretmeyi deneyin.",
     "droppedChunks_other": "Bu kayıtta sesi üretilmeyen metin bölümleri: {{count}}. Yeniden üretmeyi deneyin.",
-    "droppedChunksWithText_other": "Bu kayıtta sesi üretilmeyen metin bölümleri: {{count}} — “{{text}}”. Yeniden üretmeyi deneyin."
+    "droppedChunksWithText_other": "Bu kayıtta sesi üretilmeyen metin bölümleri: {{count}} — “{{text}}”. Yeniden üretmeyi deneyin.",
+    "expressionDropped": "Bu ses motoru {{tags}} uygulayamıyor; bu yüzden sesli okunmak yerine atlandı."
   },
   "permissions": {
     "title": "İzinler",

@@ -183,6 +183,8 @@ export interface GenerateResult {
   seed: number | null;
   routing: { status: string; reason: string } | null;
   dropped: { count: number; text: string } | null;
+  /** X-OmniVoice-Expression-Dropped: audio tags the engine could not perform. */
+  expressionDropped?: string[];
 }
 
 // ── Errors ────────────────────────────────────────────────────────────────

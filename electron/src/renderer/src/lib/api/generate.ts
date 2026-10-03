@@ -200,6 +200,10 @@ export function parseGenerateHeaders(headers: Headers): Omit<GenerateResult, 'bl
       droppedCount !== null && droppedCount > 0
         ? { count: droppedCount, text: headers.get('X-OmniVoice-Dropped-Text') ?? '' }
         : null,
+    expressionDropped: (headers.get('X-OmniVoice-Expression-Dropped') ?? '')
+      .split(',')
+      .map((tag) => tag.trim())
+      .filter(Boolean),
   };
 }
 
@@ -385,6 +389,7 @@ export async function generateCloneStreaming(
       seed: completed.seed ?? headers.seed,
       routing: headers.routing,
       dropped,
+      expressionDropped: headers.expressionDropped,
     };
   } catch (error) {
     (player as ReturnType<typeof createStreamingPreview> | null)?.fail();

@@ -227,7 +227,8 @@
     "droppedChunks_one": "ส่วนข้อความที่ไม่มีเสียงในเทคนี้: {{count}} ลองสร้างอีกครั้ง",
     "droppedChunksWithText_one": "ส่วนข้อความที่ไม่มีเสียงในเทคนี้: {{count}} — “{{text}}” ลองสร้างอีกครั้ง",
     "droppedChunks_other": "ส่วนข้อความที่ไม่มีเสียงในเทคนี้: {{count}} ลองสร้างอีกครั้ง",
-    "droppedChunksWithText_other": "ส่วนข้อความที่ไม่มีเสียงในเทคนี้: {{count}} — “{{text}}” ลองสร้างอีกครั้ง"
+    "droppedChunksWithText_other": "ส่วนข้อความที่ไม่มีเสียงในเทคนี้: {{count}} — “{{text}}” ลองสร้างอีกครั้ง",
+    "expressionDropped": "เอนจินเสียงนี้แสดง {{tags}} ไม่ได้ จึงข้ามไปแทนการอ่านออกเสียง"
   },
   "permissions": {
     "title": "สิทธิ์การเข้าถึง",

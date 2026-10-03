@@ -419,7 +419,10 @@ def _render_with_pauses(gen_span, segments, sample_rate):
     items = []  # ('a', tensor) for audio, ('s', n_samples) for silence
     for span_text, pause_ms in segments:
         if span_text and span_text.strip():
-            items.append(("a", gen_span(span_text)))
+            # Spans keep the spaces around the marker; the request text is
+            # stripped before synthesis and spans must be too — a trailing space
+            # after a non-verbal tag can render the whole span near-silent.
+            items.append(("a", gen_span(span_text.strip())))
             _note_generate_progress()
         if pause_ms > 0:
             n = int(round(sample_rate * pause_ms / 1000.0))
@@ -2060,6 +2063,28 @@ async def generate_speech(
     from services.text_normalization import normalize_for_tts
     text = normalize_for_tts(text, language)
 
+    # Spec 01: ElevenLabs-style cues ([laughs], [whispers], [excited]) lowered
+    # to what this engine can perform; the rest is removed and reported in a
+    # header rather than read aloud. Unknown bracket spans pass through.
+    from services.audio_tags import lower_audio_tags, with_whisper
+    _vocabulary = getattr(backend_cls, "instruct_vocabulary", "freeform")
+    _lowered = lower_audio_tags(
+        text,
+        engine_id,
+        _vocabulary,
+        takes_instruct=_vocabulary == "tags"
+        or str(engine_id).startswith(("cosyvoice", "voxcpm")),
+    )
+    text = _lowered.text
+    if _lowered.whisper:
+        instruct = with_whisper(instruct, _vocabulary)
+    # Cue literals are ASCII letters, spaces, hyphens and brackets: header-safe.
+    _expression_headers = (
+        {"X-OmniVoice-Expression-Dropped": ", ".join(_lowered.dropped)}
+        if _lowered.dropped
+        else {}
+    )
+
     # Expressive-TTS Spec 01: apply the user pronunciation dictionary + inline
     # [[…]] one-off overrides to the text, here — AFTER `language` is fully
     # resolved (a profile may fill it above) so per-language entries match the
@@ -2191,7 +2216,7 @@ async def generate_speech(
         # the finished take as a single chunk.
         _remote_headers = _apply_routing_headers(
             {"X-Seed": str(used_seed) if used_seed is not None else "",
-             "Cache-Control": "no-cache"},
+             "Cache-Control": "no-cache", **_expression_headers},
             None, _decision,
         )
 
@@ -2648,6 +2673,7 @@ async def generate_speech(
         _stream_headers = _apply_routing_headers({
             "X-Seed": str(used_seed) if used_seed is not None else "",
             "Cache-Control": "no-cache",
+            **_expression_headers,
         }, _routing_notice, _decision)
         return StreamingResponse(
             _stream_events(),
@@ -2760,6 +2786,7 @@ async def generate_speech(
         # machine this render ran on. The WAV body is binary so the header
         # channel is the carrier.
         _apply_routing_headers(_resp_headers, _routing_notice, _decision)
+        _resp_headers.update(_expression_headers)
         return StreamingResponse(
             _stream_wav(),
             media_type="audio/wav",

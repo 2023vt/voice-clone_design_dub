@@ -121,6 +121,13 @@ function announceResultNotices(result: GenerateResult): void {
       { duration: DROPPED_TOAST_MS },
     );
   }
+  // Audio tags this engine cannot perform were left out rather than spoken.
+  if (result.expressionDropped?.length) {
+    toast.warning(tr('tts.expressionDropped', { tags: result.expressionDropped.join(' ') }), {
+      id: 'expression-dropped',
+      duration: DROPPED_TOAST_MS,
+    });
+  }
   // The backend only sets the routing headers on cpu_fallback / accelerated-
   // with-caveat, so their presence is the signal.
   if (result.routing && result.routing.status !== lastRoutingStatus) {

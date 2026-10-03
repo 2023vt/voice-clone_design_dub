@@ -227,7 +227,8 @@
     "droppedChunks_one": "此版本中未生成音频的文本片段：{{count}} 个。请尝试重新生成。",
     "droppedChunksWithText_one": "此版本中未生成音频的文本片段：{{count}} 个 —“{{text}}”。请尝试重新生成。",
     "droppedChunks_other": "此版本中未生成音频的文本片段：{{count}} 个。请尝试重新生成。",
-    "droppedChunksWithText_other": "此版本中未生成音频的文本片段：{{count}} 个 —“{{text}}”。请尝试重新生成。"
+    "droppedChunksWithText_other": "此版本中未生成音频的文本片段：{{count}} 个 —“{{text}}”。请尝试重新生成。",
+    "expressionDropped": "此语音引擎无法表现 {{tags}}，因此已省略，而不是朗读出来。"
   },
   "permissions": {
     "title": "权限",

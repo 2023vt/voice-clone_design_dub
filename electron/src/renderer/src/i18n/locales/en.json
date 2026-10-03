@@ -556,7 +556,8 @@
     "droppedChunks_one": "Heads up: {{count}} part of your text produced no audio, so this take is missing it. Try re-generating.",
     "droppedChunks_other": "Heads up: {{count}} parts of your text produced no audio, so this take is missing them. Try re-generating.",
     "droppedChunksWithText_one": "Heads up: {{count}} part of your text produced no audio — “{{text}}”. Try re-generating.",
-    "droppedChunksWithText_other": "Heads up: {{count}} parts of your text produced no audio — “{{text}}”. Try re-generating."
+    "droppedChunksWithText_other": "Heads up: {{count}} parts of your text produced no audio — “{{text}}”. Try re-generating.",
+    "expressionDropped": "This voice engine can’t perform {{tags}}, so they were left out instead of being read aloud."
   },
   "player": {
     "generated_audio": "Generated audio",

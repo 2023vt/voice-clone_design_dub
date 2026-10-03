@@ -190,6 +190,7 @@ describe('parseGenerateHeaders', () => {
       'X-OmniVoice-Routing-Reason': 'no CUDA',
       'X-OmniVoice-Dropped-Chunks': '2',
       'X-OmniVoice-Dropped-Text': 'lost | words',
+      'X-OmniVoice-Expression-Dropped': '[excited], [inhales]',
     });
     expect(parseGenerateHeaders(headers)).toEqual({
       id: 'abc',
@@ -199,6 +200,7 @@ describe('parseGenerateHeaders', () => {
       seed: 42,
       routing: { status: 'cpu_fallback', reason: 'no CUDA' },
       dropped: { count: 2, text: 'lost | words' },
+      expressionDropped: ['[excited]', '[inhales]'],
     });
   });
 
@@ -212,6 +214,7 @@ describe('parseGenerateHeaders', () => {
       seed: null,
       routing: null,
       dropped: null,
+      expressionDropped: [],
     });
   });
 });

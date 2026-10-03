@@ -227,7 +227,8 @@
     "droppedChunks_one": "此版本中未產生音訊的文字片段：{{count}} 個。請嘗試重新產生。",
     "droppedChunksWithText_one": "此版本中未產生音訊的文字片段：{{count}} 個 —「{{text}}」。請嘗試重新產生。",
     "droppedChunks_other": "此版本中未產生音訊的文字片段：{{count}} 個。請嘗試重新產生。",
-    "droppedChunksWithText_other": "此版本中未產生音訊的文字片段：{{count}} 個 —「{{text}}」。請嘗試重新產生。"
+    "droppedChunksWithText_other": "此版本中未產生音訊的文字片段：{{count}} 個 —「{{text}}」。請嘗試重新產生。",
+    "expressionDropped": "此語音引擎無法表現 {{tags}}，因此已省略，而不是朗讀出來。"
   },
   "permissions": {
     "title": "權限",

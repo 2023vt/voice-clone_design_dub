@@ -227,7 +227,8 @@
     "droppedChunks_one": "Tekstdelen zonder audio in deze opname: {{count}}. Probeer opnieuw te genereren.",
     "droppedChunksWithText_one": "Tekstdelen zonder audio in deze opname: {{count}} — ‘{{text}}’. Probeer opnieuw te genereren.",
     "droppedChunks_other": "Tekstdelen zonder audio in deze opname: {{count}}. Probeer opnieuw te genereren.",
-    "droppedChunksWithText_other": "Tekstdelen zonder audio in deze opname: {{count}} — ‘{{text}}’. Probeer opnieuw te genereren."
+    "droppedChunksWithText_other": "Tekstdelen zonder audio in deze opname: {{count}} — ‘{{text}}’. Probeer opnieuw te genereren.",
+    "expressionDropped": "Deze stemengine kan {{tags}} niet uitvoeren, dus ze zijn weggelaten in plaats van voorgelezen."
   },
   "permissions": {
     "title": "Machtigingen",

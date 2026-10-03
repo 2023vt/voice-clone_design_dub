@@ -229,7 +229,8 @@
     "droppedChunks_other": "Trechos de texto sem áudio nesta gravação: {{count}}. Tente gerar novamente.",
     "droppedChunksWithText_other": "Trechos de texto sem áudio nesta gravação: {{count}} — “{{text}}”. Tente gerar novamente.",
     "droppedChunks_many": "Trechos de texto sem áudio nesta gravação: {{count}}. Tente gerar novamente.",
-    "droppedChunksWithText_many": "Trechos de texto sem áudio nesta gravação: {{count}} — “{{text}}”. Tente gerar novamente."
+    "droppedChunksWithText_many": "Trechos de texto sem áudio nesta gravação: {{count}} — “{{text}}”. Tente gerar novamente.",
+    "expressionDropped": "Este motor de voz não consegue interpretar {{tags}}, então eles foram omitidos em vez de lidos em voz alta."
   },
   "permissions": {
     "title": "Permissões",

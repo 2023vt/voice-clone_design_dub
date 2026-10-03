@@ -227,7 +227,8 @@
     "droppedChunks_one": "Textabschnitte ohne Audio in dieser Aufnahme: {{count}}. Versuche, erneut zu generieren.",
     "droppedChunksWithText_one": "Textabschnitte ohne Audio in dieser Aufnahme: {{count}} — „{{text}}“. Versuche, erneut zu generieren.",
     "droppedChunks_other": "Textabschnitte ohne Audio in dieser Aufnahme: {{count}}. Versuche, erneut zu generieren.",
-    "droppedChunksWithText_other": "Textabschnitte ohne Audio in dieser Aufnahme: {{count}} — „{{text}}“. Versuche, erneut zu generieren."
+    "droppedChunksWithText_other": "Textabschnitte ohne Audio in dieser Aufnahme: {{count}} — „{{text}}“. Versuche, erneut zu generieren.",
+    "expressionDropped": "Diese Stimm-Engine kann {{tags}} nicht umsetzen, daher wurden sie weggelassen statt vorgelesen."
   },
   "permissions": {
     "title": "Berechtigungen",

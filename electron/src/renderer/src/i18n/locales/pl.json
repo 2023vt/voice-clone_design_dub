@@ -3431,5 +3431,15 @@
     "error": "Nie udało się sprawdzić języków",
     "modelLanguages": "Języki tego modelu",
     "changeModel": "Zmień model"
+  },
+  "designVariations": {
+    "title": "Kandydaci głosu",
+    "hint": "Odsłuchaj każdy, wybierz głos, który ci się podoba, a potem nazwij go i zapisz jako profil głosu.",
+    "voice": "Głos {{number}}",
+    "choose": "Użyj tego głosu",
+    "chosen": "Wybrany",
+    "generate": "3 warianty",
+    "generate_hint": "Wygeneruj trzy różne głosy z tego opisu, aby je porównać",
+    "rendering": "Głos {{index}} z {{total}}…"
   }
 }

@@ -246,6 +246,50 @@ it('attributes generation to an explicitly selected designed voice', async () =>
   );
 });
 
+it('renders design variations from distinct fresh seeds and keeps each one', async () => {
+  const { designVariationsStore } = await import('@/lib/store/design-variations');
+  vi.mocked(toast.success).mockClear();
+  let call = 0;
+  vi.mocked(generateClone)
+    .mockReset()
+    .mockImplementation(async (input) => ({
+      blob: new Blob(),
+      id: 'take-' + ++call,
+      audioPath: `take-${call}.wav`,
+      durationSeconds: 1,
+      genTimeSeconds: 1,
+      seed: input.seed ?? null,
+      routing: null,
+      dropped: null,
+    }));
+  function VariationsConsumer() {
+    const state = useGenerateClone();
+    return (
+      <button
+        onClick={() =>
+          void state.generateDesign({ text: 'Hi', instruct: 'female', seed: 5, variations: 3 })
+        }
+      >
+        variations {state.isGenerating ? 'running' : 'idle'}
+      </button>
+    );
+  }
+  render(
+    <QueryClientProvider client={new QueryClient()}>
+      <GenerationProvider>
+        <VariationsConsumer />
+      </GenerationProvider>
+    </QueryClientProvider>,
+  );
+  fireEvent.click(screen.getByText('variations idle'));
+  await waitFor(() => expect(designVariationsStore.state).toHaveLength(3));
+  await screen.findByText('variations idle');
+  const seeds = vi.mocked(generateClone).mock.calls.map(([input]) => input.seed);
+  expect(new Set(seeds).size).toBe(3);
+  expect(designVariationsStore.state.map((variation) => variation.seed)).toEqual(seeds);
+  expect(toast.success).toHaveBeenCalledTimes(1);
+});
+
 it.each([
   ['freeform', 'raspy old female, scottish accent', 'freeform'],
   [undefined, '', 'tags'],

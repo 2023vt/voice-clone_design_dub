@@ -3427,5 +3427,15 @@
     "error": "Kunde inte kontrollera språk",
     "modelLanguages": "Språk för den här modellen",
     "changeModel": "Byt modell"
+  },
+  "designVariations": {
+    "title": "Röstkandidater",
+    "hint": "Lyssna på var och en, välj rösten du gillar och ge den sedan ett namn och spara den som röstprofil.",
+    "voice": "Röst {{number}}",
+    "choose": "Använd den här rösten",
+    "chosen": "Vald",
+    "generate": "3 varianter",
+    "generate_hint": "Skapa tre olika röster från den här beskrivningen för att jämföra",
+    "rendering": "Röst {{index}} av {{total}}…"
   }
 }

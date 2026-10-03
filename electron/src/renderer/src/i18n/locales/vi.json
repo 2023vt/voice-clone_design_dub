@@ -3427,5 +3427,15 @@
     "error": "Không thể kiểm tra ngôn ngữ",
     "modelLanguages": "Ngôn ngữ của mô hình này",
     "changeModel": "Đổi mô hình"
+  },
+  "designVariations": {
+    "title": "Giọng đề xuất",
+    "hint": "Nghe từng giọng, chọn giọng bạn thích, rồi đặt tên và lưu thành hồ sơ giọng.",
+    "voice": "Giọng {{number}}",
+    "choose": "Dùng giọng này",
+    "chosen": "Đã chọn",
+    "generate": "3 biến thể",
+    "generate_hint": "Tạo ba giọng khác nhau từ mô tả này để so sánh",
+    "rendering": "Giọng {{index}}/{{total}}…"
   }
 }

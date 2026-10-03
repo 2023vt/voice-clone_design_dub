@@ -3427,5 +3427,15 @@
     "error": "无法检查语言",
     "modelLanguages": "此模型的语言",
     "changeModel": "更换模型"
+  },
+  "designVariations": {
+    "title": "候选声音",
+    "hint": "逐个试听，选出喜欢的声音，然后命名并保存为声音档案。",
+    "voice": "声音 {{number}}",
+    "choose": "使用此声音",
+    "chosen": "已选择",
+    "generate": "3 个变体",
+    "generate_hint": "根据此描述生成三个不同的声音进行比较",
+    "rendering": "声音 {{index}}/{{total}}…"
   }
 }

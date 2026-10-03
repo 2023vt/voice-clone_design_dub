@@ -22,6 +22,7 @@ import {
   type DesignDraft,
 } from './design-draft';
 import { useDescription } from './use-description';
+import { DesignVariations } from './design-variations';
 import { useProfiles } from '@/hooks/use-profiles';
 import { AudioPreviewButton } from '@/components/audio-preview-button';
 import { apiJson, describeError, profileAudioUrl } from '@/lib/api/client';
@@ -140,7 +141,27 @@ export function DesignPage() {
       setSaving(false);
     }
   };
-  const generationLabel = generation.isGenerating
+  const designInput = (variations?: number) => ({
+    text: draft.text,
+    instruct: designInstruct(draft, generation.instructVocabulary),
+    recipe: designRecipe(draft),
+    seed: draft.seed,
+    // Candidates explore new seeds from the description, so no saved voice.
+    profileId:
+      !variations &&
+      profiles.data?.some((profile) => profile.id === draft.profileId && profile.kind === 'design')
+        ? draft.profileId
+        : null,
+    variations,
+  });
+  const canDesign =
+    Boolean(draft.text.trim()) &&
+    // Free-form engines take the description itself, not its mapping.
+    !(!freeform && mapper.pending) &&
+    generation.canGenerateDesign;
+  const generationLabel = generation.variation
+    ? t('designVariations.rendering', generation.variation)
+    : generation.isGenerating
     ? t(
         generation.stage === 'loading'
           ? generation.modelStage
@@ -499,6 +520,15 @@ export function DesignPage() {
             />
           </div>
           <div className="mx-auto w-full max-w-4xl shrink-0 px-6 pb-4">
+            <div className="mb-3">
+              <DesignVariations
+                seed={draft.seed}
+                disabled={generation.isGenerating}
+                onChoose={(seed) =>
+                  setDraft((current) => ({ ...current, seed, profileId: null }))
+                }
+              />
+            </div>
             {generation.designBlocker === 'engine' && !generation.isGenerating && (
               <div className="mb-3">
                 <EngineNotice operation="design" compact />
@@ -532,30 +562,24 @@ export function DesignPage() {
                   ? `${generationProgress == null ? '' : `${Math.round(generationProgress)}% · `}${generation.elapsedSeconds.toFixed(1)}s`
                   : null}
               </span>
-              <div className="flex w-64 justify-end gap-2 justify-self-end">
+              <div className="flex justify-end gap-2 justify-self-end">
+                <Button
+                  variant="outline"
+                  className="h-10 shrink-0 rounded-lg px-3 tabular-nums"
+                  disabled={!canDesign}
+                  title={t('designVariations.generate_hint')}
+                  aria-label={t('designVariations.generate')}
+                  onClick={() => void generation.generateDesign(designInput(3))}
+                >
+                  <ShuffleIcon />
+                  <span aria-hidden="true">3</span>
+                </Button>
                 <Button
                   className="h-10 w-52 shrink-0 overflow-hidden rounded-lg px-4"
-                  disabled={
-                    !draft.text.trim() ||
-                    // Free-form engines take the description itself, not its mapping.
-                    (!freeform && mapper.pending) ||
-                    !generation.canGenerateDesign
-                  }
+                  disabled={!canDesign}
                   aria-busy={generation.isGenerating}
                   aria-label={generationLabel}
-                  onClick={() =>
-                    void generation.generateDesign({
-                      text: draft.text,
-                      instruct: designInstruct(draft, generation.instructVocabulary),
-                      recipe: designRecipe(draft),
-                      seed: draft.seed,
-                      profileId: profiles.data?.some(
-                        (profile) => profile.id === draft.profileId && profile.kind === 'design',
-                      )
-                        ? draft.profileId
-                        : null,
-                    })
-                  }
+                  onClick={() => void generation.generateDesign(designInput())}
                 >
                   {generation.isGenerating ? (
                     <LoaderCircleIcon className="animate-spin motion-reduce:animate-none" />

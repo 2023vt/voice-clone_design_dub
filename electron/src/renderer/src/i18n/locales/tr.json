@@ -3427,5 +3427,15 @@
     "error": "Diller kontrol edilemedi",
     "modelLanguages": "Bu modelin dilleri",
     "changeModel": "Modeli değiştir"
+  },
+  "designVariations": {
+    "title": "Ses adayları",
+    "hint": "Her birini dinleyin, beğendiğiniz sesi seçin, ardından adlandırıp ses profili olarak kaydedin.",
+    "voice": "Ses {{number}}",
+    "choose": "Bu sesi kullan",
+    "chosen": "Seçildi",
+    "generate": "3 varyasyon",
+    "generate_hint": "Karşılaştırmak için bu açıklamadan üç farklı ses oluşturun",
+    "rendering": "Ses {{index}} / {{total}}…"
   }
 }

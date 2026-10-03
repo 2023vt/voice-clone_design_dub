@@ -3427,5 +3427,15 @@
     "error": "Could not check languages",
     "modelLanguages": "Languages for this model",
     "changeModel": "Change model"
+  },
+  "designVariations": {
+    "title": "Voice candidates",
+    "hint": "Listen to each one, pick the voice you like, then name it and save it as a voice profile.",
+    "voice": "Voice {{number}}",
+    "choose": "Use this voice",
+    "chosen": "Selected",
+    "generate": "3 variations",
+    "generate_hint": "Render three different voices from this description to compare",
+    "rendering": "Voice {{index}} of {{total}}…"
   }
 }

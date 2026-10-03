@@ -3427,5 +3427,15 @@
     "error": "Tidak dapat memeriksa bahasa",
     "modelLanguages": "Bahasa untuk model ini",
     "changeModel": "Ganti model"
+  },
+  "designVariations": {
+    "title": "Kandidat suara",
+    "hint": "Dengarkan masing-masing, pilih suara yang Anda sukai, lalu beri nama dan simpan sebagai profil suara.",
+    "voice": "Suara {{number}}",
+    "choose": "Gunakan suara ini",
+    "chosen": "Dipilih",
+    "generate": "3 variasi",
+    "generate_hint": "Buat tiga suara berbeda dari deskripsi ini untuk dibandingkan",
+    "rendering": "Suara {{index}} dari {{total}}…"
   }
 }

@@ -3427,5 +3427,15 @@
     "error": "Talen konden niet worden gecontroleerd",
     "modelLanguages": "Talen voor dit model",
     "changeModel": "Model wijzigen"
+  },
+  "designVariations": {
+    "title": "Stemkandidaten",
+    "hint": "Beluister ze allemaal, kies de stem die je mooi vindt en sla die met een naam op als stemprofiel.",
+    "voice": "Stem {{number}}",
+    "choose": "Deze stem gebruiken",
+    "chosen": "Geselecteerd",
+    "generate": "3 varianten",
+    "generate_hint": "Maak drie verschillende stemmen van deze beschrijving om te vergelijken",
+    "rendering": "Stem {{index}} van {{total}}…"
   }
 }

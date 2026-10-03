@@ -3427,5 +3427,15 @@
     "error": "言語を確認できませんでした",
     "modelLanguages": "このモデルの言語",
     "changeModel": "モデルを変更"
+  },
+  "designVariations": {
+    "title": "声の候補",
+    "hint": "それぞれを聴いて気に入った声を選び、名前を付けてボイスプロファイルとして保存します。",
+    "voice": "声 {{number}}",
+    "choose": "この声を使う",
+    "chosen": "選択中",
+    "generate": "3つのバリエーション",
+    "generate_hint": "この説明から異なる3つの声を生成して比較します",
+    "rendering": "声 {{index}} / {{total}}…"
   }
 }

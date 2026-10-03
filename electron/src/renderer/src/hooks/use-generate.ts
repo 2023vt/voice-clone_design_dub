@@ -31,6 +31,8 @@ import { beginAppActivity } from '@/lib/app-activity';
 import { useTtsReadiness } from './use-tts-readiness';
 import { useEngines } from './use-engines';
 import { recordActionBreadcrumb } from '@/lib/report-breadcrumb';
+import { addDesignVariation, clearDesignVariations } from '@/lib/store/design-variations';
+import { pickDesignSeed } from '@shared/utils/seed';
 
 const TIMER_TICK_MS = 100;
 const PROGRESS_THROTTLE_MS = 100;
@@ -54,6 +56,8 @@ export interface DesignGenerateInput {
   profileId?: string | null;
   /** Stored with the take so reopening it rebuilds the same draft (#2389). */
   recipe?: DesignRecipe;
+  /** Render this many candidate voices, each from a fresh seed, to compare. */
+  variations?: number;
 }
 
 export interface UseGenerateClone {
@@ -65,6 +69,8 @@ export interface UseGenerateClone {
   /** 0..100 while the WAV body streams in; null when unknown. */
   progress: number | null;
   stage: 'preparing' | 'loading' | 'generating' | 'receiving';
+  /** Which candidate is rendering during a variations run (1-based). */
+  variation: { index: number; total: number } | null;
   modelStage: 'importing' | 'loading_weights' | 'loading_asr' | 'compiling' | null;
   /** 0..100 reported while model weights or runtime are loading. */
   modelProgress: number | null;
@@ -142,6 +148,7 @@ function useGenerateController(): UseGenerateClone {
   const [stage, setStage] = useState<UseGenerateClone['stage']>('preparing');
   const [modelStage, setModelStage] = useState<UseGenerateClone['modelStage']>(null);
   const [modelProgress, setModelProgress] = useState<number | null>(null);
+  const [variation, setVariation] = useState<UseGenerateClone['variation']>(null);
   const abortRef = useRef<AbortController | null>(null);
   const reportModeRef = useRef<'clone' | 'design' | null>(null);
   const cancelledRef = useRef(false);
@@ -306,6 +313,27 @@ function useGenerateController(): UseGenerateClone {
           postprocess: settings.postprocess,
           duration: settings.duration,
         };
+        const variations = design?.variations ?? 0;
+        if (variations > 0) {
+          clearDesignVariations();
+          for (let index = 1; index <= variations; index += 1) {
+            setVariation({ index, total: variations });
+            setStage('preparing');
+            setProgress(null);
+            const seed = pickDesignSeed(false, null);
+            const result = await generateClone(
+              { ...input, seed },
+              { signal: controller.signal, onProgress },
+            );
+            announceResultNotices(result);
+            setLatestOutput(result, input.text);
+            addDesignVariation(result, seed);
+          }
+          recordActionBreadcrumb(`generate:${reportMode}:complete`);
+          toast.success(tr('tts.generationComplete'));
+          void queryClient.invalidateQueries({ queryKey: queryKeys.history }).catch(() => {});
+          return;
+        }
         const result = await generateClone(input, {
           signal: controller.signal,
           onProgress,
@@ -340,6 +368,7 @@ function useGenerateController(): UseGenerateClone {
         if (timerRef.current) clearInterval(timerRef.current);
         timerRef.current = null;
         setIsGenerating(false);
+        setVariation(null);
         setProgress(null);
         setModelStage(null);
         setModelProgress(null);
@@ -369,6 +398,7 @@ function useGenerateController(): UseGenerateClone {
     elapsedSeconds,
     progress,
     stage,
+    variation,
     modelStage,
     modelProgress,
     error,

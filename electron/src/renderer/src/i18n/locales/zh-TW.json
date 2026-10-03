@@ -3427,5 +3427,15 @@
     "error": "無法檢查語言",
     "modelLanguages": "此模型的語言",
     "changeModel": "更換模型"
+  },
+  "designVariations": {
+    "title": "候選聲音",
+    "hint": "逐一試聽，選出喜歡的聲音，然後命名並儲存為聲音設定檔。",
+    "voice": "聲音 {{number}}",
+    "choose": "使用此聲音",
+    "chosen": "已選取",
+    "generate": "3 個變體",
+    "generate_hint": "根據此描述產生三個不同的聲音進行比較",
+    "rendering": "聲音 {{index}}/{{total}}…"
   }
 }

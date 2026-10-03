@@ -3427,5 +3427,15 @@
     "error": "언어를 확인할 수 없습니다",
     "modelLanguages": "이 모델의 언어",
     "changeModel": "모델 변경"
+  },
+  "designVariations": {
+    "title": "음성 후보",
+    "hint": "각 음성을 들어 보고 마음에 드는 음성을 고른 뒤 이름을 붙여 음성 프로필로 저장하세요.",
+    "voice": "음성 {{number}}",
+    "choose": "이 음성 사용",
+    "chosen": "선택됨",
+    "generate": "변형 3개",
+    "generate_hint": "이 설명으로 서로 다른 음성 세 개를 만들어 비교합니다",
+    "rendering": "음성 {{index}}/{{total}}…"
   }
 }

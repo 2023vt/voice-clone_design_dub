@@ -3429,5 +3429,15 @@
     "error": "Não foi possível verificar os idiomas",
     "modelLanguages": "Idiomas deste modelo",
     "changeModel": "Alterar modelo"
+  },
+  "designVariations": {
+    "title": "Vozes candidatas",
+    "hint": "Ouça cada uma, escolha a voz de que gostar e depois dê um nome e salve como perfil de voz.",
+    "voice": "Voz {{number}}",
+    "choose": "Usar esta voz",
+    "chosen": "Selecionada",
+    "generate": "3 variações",
+    "generate_hint": "Gere três vozes diferentes a partir desta descrição para comparar",
+    "rendering": "Voz {{index}} de {{total}}…"
   }
 }

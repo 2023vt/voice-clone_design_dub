@@ -3427,5 +3427,15 @@
     "error": "Sprachen konnten nicht geprüft werden",
     "modelLanguages": "Sprachen dieses Modells",
     "changeModel": "Modell wechseln"
+  },
+  "designVariations": {
+    "title": "Stimmkandidaten",
+    "hint": "Hör dir jede an, wähle die Stimme, die dir gefällt, und speichere sie dann benannt als Stimmprofil.",
+    "voice": "Stimme {{number}}",
+    "choose": "Diese Stimme verwenden",
+    "chosen": "Ausgewählt",
+    "generate": "3 Varianten",
+    "generate_hint": "Drei verschiedene Stimmen aus dieser Beschreibung zum Vergleich erzeugen",
+    "rendering": "Stimme {{index}} von {{total}}…"
   }
 }

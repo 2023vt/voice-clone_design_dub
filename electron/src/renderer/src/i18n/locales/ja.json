@@ -3460,5 +3460,27 @@
     "example_whoosh": "Fast cinematic whoosh transition",
     "example_footsteps": "Footsteps on gravel",
     "example_thunder": "Distant rolling thunder"
+  },
+  "music": {
+    "title": "音楽",
+    "description": "スタイル・雰囲気・楽器を説明すると、このコンピューター上でインストゥルメンタル曲が作られます。",
+    "install_body": "音楽には MusicGen ステレオモデルを使用します：初回のみ {{size}} GB のダウンロード（ライセンス {{license}}、非商用利用のみ）。ダウンロードをクリックするまで何もダウンロードされません。",
+    "install": "音楽モデルをダウンロード",
+    "installing": "インストール中…",
+    "downloading": "モデルをダウンロード中…",
+    "prompt_label": "音楽を説明してください（英語）",
+    "prompt_placeholder": "例: Relaxing flute and tabla with soft rain in the background",
+    "seconds_label": "長さ（秒、5–{{max}}）",
+    "variations_label": "バージョン",
+    "generate": "音楽を生成",
+    "generating": "作曲中…",
+    "results": "バージョン",
+    "take": "バージョン {{number}}",
+    "example_lofi": "Chill lo-fi hip hop beat with soft piano and vinyl crackle",
+    "example_cinematic": "Epic cinematic orchestral score with drums and strings",
+    "example_bollywood": "Upbeat Bollywood dance track with dhol, tabla and sitar",
+    "example_edm": "Energetic EDM drop with heavy bass and synth leads",
+    "example_piano": "Calm solo piano melody, gentle and emotional",
+    "example_acoustic": "Warm acoustic guitar folk tune, relaxed and sunny"
   }
 }

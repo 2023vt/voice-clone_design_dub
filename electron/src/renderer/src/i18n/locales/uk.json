@@ -3464,5 +3464,27 @@
     "example_whoosh": "Fast cinematic whoosh transition",
     "example_footsteps": "Footsteps on gravel",
     "example_thunder": "Distant rolling thunder"
+  },
+  "music": {
+    "title": "Музика",
+    "description": "Опишіть стиль, настрій та інструменти — і отримайте інструментальну композицію, створену на цьому комп’ютері.",
+    "install_body": "Музику створює стереомодель MusicGen: одноразове завантаження {{size}} ГБ (ліцензія {{license}}, лише некомерційне використання). Нічого не завантажується, доки ви не натиснете «Завантажити».",
+    "install": "Завантажити музичну модель",
+    "installing": "Установлення…",
+    "downloading": "Завантаження моделі…",
+    "prompt_label": "Опишіть музику (англійською)",
+    "prompt_placeholder": "наприклад, Relaxing flute and tabla with soft rain in the background",
+    "seconds_label": "Тривалість у секундах (5–{{max}})",
+    "variations_label": "Версії",
+    "generate": "Створити музику",
+    "generating": "Компонуємо…",
+    "results": "Версії",
+    "take": "Версія {{number}}",
+    "example_lofi": "Chill lo-fi hip hop beat with soft piano and vinyl crackle",
+    "example_cinematic": "Epic cinematic orchestral score with drums and strings",
+    "example_bollywood": "Upbeat Bollywood dance track with dhol, tabla and sitar",
+    "example_edm": "Energetic EDM drop with heavy bass and synth leads",
+    "example_piano": "Calm solo piano melody, gentle and emotional",
+    "example_acoustic": "Warm acoustic guitar folk tune, relaxed and sunny"
   }
 }

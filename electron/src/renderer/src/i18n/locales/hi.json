@@ -3460,5 +3460,27 @@
     "example_whoosh": "Fast cinematic whoosh transition",
     "example_footsteps": "Footsteps on gravel",
     "example_thunder": "Distant rolling thunder"
+  },
+  "music": {
+    "title": "म्यूज़िक",
+    "description": "स्टाइल, मूड और वाद्य लिखें और इसी कंप्यूटर पर बना इंस्ट्रुमेंटल पीस पाएँ।",
+    "install_body": "म्यूज़िक MusicGen स्टीरियो मॉडल से बनता है: एक बार {{size}} GB डाउनलोड (लाइसेंस {{license}}, केवल गैर-व्यावसायिक उपयोग)। डाउनलोड पर क्लिक करने तक कुछ भी डाउनलोड नहीं होता।",
+    "install": "म्यूज़िक मॉडल डाउनलोड करें",
+    "installing": "इंस्टॉल हो रहा है…",
+    "downloading": "मॉडल डाउनलोड हो रहा है…",
+    "prompt_label": "म्यूज़िक का वर्णन करें (अंग्रेज़ी में)",
+    "prompt_placeholder": "जैसे Relaxing flute and tabla with soft rain in the background",
+    "seconds_label": "लंबाई सेकंड में (5–{{max}})",
+    "variations_label": "वर्ज़न",
+    "generate": "म्यूज़िक बनाएँ",
+    "generating": "धुन बन रही है…",
+    "results": "वर्ज़न",
+    "take": "वर्ज़न {{number}}",
+    "example_lofi": "Chill lo-fi hip hop beat with soft piano and vinyl crackle",
+    "example_cinematic": "Epic cinematic orchestral score with drums and strings",
+    "example_bollywood": "Upbeat Bollywood dance track with dhol, tabla and sitar",
+    "example_edm": "Energetic EDM drop with heavy bass and synth leads",
+    "example_piano": "Calm solo piano melody, gentle and emotional",
+    "example_acoustic": "Warm acoustic guitar folk tune, relaxed and sunny"
   }
 }

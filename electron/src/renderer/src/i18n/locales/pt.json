@@ -3462,5 +3462,27 @@
     "example_whoosh": "Fast cinematic whoosh transition",
     "example_footsteps": "Footsteps on gravel",
     "example_thunder": "Distant rolling thunder"
+  },
+  "music": {
+    "title": "Música",
+    "description": "Descreva um estilo, clima e instrumentos e receba uma peça instrumental criada neste computador.",
+    "install_body": "A música usa o modelo estéreo MusicGen: um download único de {{size}} GB (licença {{license}}, uso não comercial). Nada é baixado até você clicar em Baixar.",
+    "install": "Baixar modelo de música",
+    "installing": "Instalando…",
+    "downloading": "Baixando modelo…",
+    "prompt_label": "Descreva a música (em inglês)",
+    "prompt_placeholder": "ex. Relaxing flute and tabla with soft rain in the background",
+    "seconds_label": "Duração em segundos (5–{{max}})",
+    "variations_label": "Versões",
+    "generate": "Gerar música",
+    "generating": "Compondo…",
+    "results": "Versões",
+    "take": "Versão {{number}}",
+    "example_lofi": "Chill lo-fi hip hop beat with soft piano and vinyl crackle",
+    "example_cinematic": "Epic cinematic orchestral score with drums and strings",
+    "example_bollywood": "Upbeat Bollywood dance track with dhol, tabla and sitar",
+    "example_edm": "Energetic EDM drop with heavy bass and synth leads",
+    "example_piano": "Calm solo piano melody, gentle and emotional",
+    "example_acoustic": "Warm acoustic guitar folk tune, relaxed and sunny"
   }
 }

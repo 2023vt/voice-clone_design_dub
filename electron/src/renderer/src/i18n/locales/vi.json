@@ -3460,5 +3460,27 @@
     "example_whoosh": "Fast cinematic whoosh transition",
     "example_footsteps": "Footsteps on gravel",
     "example_thunder": "Distant rolling thunder"
+  },
+  "music": {
+    "title": "Âm nhạc",
+    "description": "Mô tả phong cách, tâm trạng và nhạc cụ để nhận một bản nhạc không lời được tạo trên máy tính này.",
+    "install_body": "Âm nhạc dùng mô hình stereo MusicGen: tải xuống một lần {{size}} GB (giấy phép {{license}}, chỉ dùng phi thương mại). Không có gì được tải xuống cho đến khi bạn nhấn Tải xuống.",
+    "install": "Tải mô hình âm nhạc",
+    "installing": "Đang cài đặt…",
+    "downloading": "Đang tải mô hình…",
+    "prompt_label": "Mô tả bản nhạc (bằng tiếng Anh)",
+    "prompt_placeholder": "vd. Relaxing flute and tabla with soft rain in the background",
+    "seconds_label": "Độ dài tính bằng giây (5–{{max}})",
+    "variations_label": "Phiên bản",
+    "generate": "Tạo nhạc",
+    "generating": "Đang soạn nhạc…",
+    "results": "Phiên bản",
+    "take": "Phiên bản {{number}}",
+    "example_lofi": "Chill lo-fi hip hop beat with soft piano and vinyl crackle",
+    "example_cinematic": "Epic cinematic orchestral score with drums and strings",
+    "example_bollywood": "Upbeat Bollywood dance track with dhol, tabla and sitar",
+    "example_edm": "Energetic EDM drop with heavy bass and synth leads",
+    "example_piano": "Calm solo piano melody, gentle and emotional",
+    "example_acoustic": "Warm acoustic guitar folk tune, relaxed and sunny"
   }
 }

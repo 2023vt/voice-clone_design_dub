@@ -3460,5 +3460,27 @@
     "example_whoosh": "Fast cinematic whoosh transition",
     "example_footsteps": "Footsteps on gravel",
     "example_thunder": "Distant rolling thunder"
+  },
+  "music": {
+    "title": "음악",
+    "description": "스타일, 분위기, 악기를 설명하면 이 컴퓨터에서 연주곡을 만들어 줍니다.",
+    "install_body": "음악은 MusicGen 스테레오 모델을 사용합니다: 한 번만 {{size}}GB 다운로드(라이선스 {{license}}, 비상업적 용도). 다운로드를 클릭하기 전에는 아무것도 다운로드하지 않습니다.",
+    "install": "음악 모델 다운로드",
+    "installing": "설치 중…",
+    "downloading": "모델 다운로드 중…",
+    "prompt_label": "음악을 설명하세요(영어로)",
+    "prompt_placeholder": "예: Relaxing flute and tabla with soft rain in the background",
+    "seconds_label": "길이(초, 5–{{max}})",
+    "variations_label": "버전",
+    "generate": "음악 생성",
+    "generating": "작곡 중…",
+    "results": "버전",
+    "take": "버전 {{number}}",
+    "example_lofi": "Chill lo-fi hip hop beat with soft piano and vinyl crackle",
+    "example_cinematic": "Epic cinematic orchestral score with drums and strings",
+    "example_bollywood": "Upbeat Bollywood dance track with dhol, tabla and sitar",
+    "example_edm": "Energetic EDM drop with heavy bass and synth leads",
+    "example_piano": "Calm solo piano melody, gentle and emotional",
+    "example_acoustic": "Warm acoustic guitar folk tune, relaxed and sunny"
   }
 }

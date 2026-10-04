@@ -3460,5 +3460,27 @@
     "example_whoosh": "Fast cinematic whoosh transition",
     "example_footsteps": "Footsteps on gravel",
     "example_thunder": "Distant rolling thunder"
+  },
+  "music": {
+    "title": "Musik",
+    "description": "Beskriv stil, stämning och instrument och få ett instrumentalt stycke, skapat på den här datorn.",
+    "install_body": "Musik använder stereomodellen MusicGen: en engångsnedladdning på {{size}} GB (licens {{license}}, icke-kommersiell användning). Inget laddas ned förrän du klickar på Ladda ned.",
+    "install": "Ladda ned musikmodell",
+    "installing": "Installerar…",
+    "downloading": "Laddar ned modell…",
+    "prompt_label": "Beskriv musiken (på engelska)",
+    "prompt_placeholder": "t.ex. Relaxing flute and tabla with soft rain in the background",
+    "seconds_label": "Längd i sekunder (5–{{max}})",
+    "variations_label": "Versioner",
+    "generate": "Skapa musik",
+    "generating": "Komponerar…",
+    "results": "Versioner",
+    "take": "Version {{number}}",
+    "example_lofi": "Chill lo-fi hip hop beat with soft piano and vinyl crackle",
+    "example_cinematic": "Epic cinematic orchestral score with drums and strings",
+    "example_bollywood": "Upbeat Bollywood dance track with dhol, tabla and sitar",
+    "example_edm": "Energetic EDM drop with heavy bass and synth leads",
+    "example_piano": "Calm solo piano melody, gentle and emotional",
+    "example_acoustic": "Warm acoustic guitar folk tune, relaxed and sunny"
   }
 }

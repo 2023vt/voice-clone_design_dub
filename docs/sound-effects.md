@@ -43,4 +43,4 @@ engine (about 3 GB extra VRAM in fp16) and also runs on CPU, slowly.
 
 Implementation: `backend/services/sound_effects.py`,
 `backend/api/routers/sound_effects.py`,
-`electron/src/renderer/src/features/tools/sound-effects.tsx`.
+`electron/src/renderer/src/features/tools/audio-generator.tsx`.

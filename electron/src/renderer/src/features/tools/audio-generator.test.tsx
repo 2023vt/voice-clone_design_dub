@@ -3,7 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import '@/i18n';
 import { apiJson } from '@/lib/api/client';
-import { SoundEffects } from './sound-effects';
+import { MusicGenerator, SoundEffects } from './audio-generator';
 
 vi.mock('@/lib/api/client', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@/lib/api/client')>()),
@@ -22,12 +22,8 @@ const base = {
   max_variations: 4,
 };
 
-function renderPage() {
-  return render(
-    <QueryClientProvider client={new QueryClient()}>
-      <SoundEffects />
-    </QueryClientProvider>,
-  );
+function renderPage(page = <SoundEffects />) {
+  return render(<QueryClientProvider client={new QueryClient()}>{page}</QueryClientProvider>);
 }
 
 describe('SoundEffects', () => {
@@ -44,9 +40,7 @@ describe('SoundEffects', () => {
     expect(screen.getByText(/4\.5 GB/)).toBeInTheDocument();
     expect(apiJson).not.toHaveBeenCalledWith('/sfx/install', expect.anything());
     fireEvent.click(install);
-    await waitFor(() =>
-      expect(apiJson).toHaveBeenCalledWith('/sfx/install', { method: 'POST' }),
-    );
+    await waitFor(() => expect(apiJson).toHaveBeenCalledWith('/sfx/install', { method: 'POST' }));
     expect(await screen.findByRole('button', { name: /Installing/ })).toBeDisabled();
   });
 
@@ -72,5 +66,26 @@ describe('SoundEffects', () => {
     expect(body.get('prompt')).toBe('Heavy rain on a tin roof');
     expect(body.get('variations')).toBe('2');
     expect(body.get('seconds')).toBe('5');
+  });
+
+  it('music talks to its own endpoints with music defaults', async () => {
+    vi.mocked(apiJson).mockImplementation(async (path) =>
+      path === '/music/generate'
+        ? {
+            prompt: 'Calm solo piano melody, gentle and emotional',
+            takes: [{ id: 'm', audio_url: '/audio/m.wav', duration_s: 15 }],
+          }
+        : { ...base, ready: true, stage: 'ready', max_seconds: 30 },
+    );
+    renderPage(<MusicGenerator />);
+    fireEvent.click(await screen.findByRole('button', { name: /Calm solo piano melody/ }));
+    expect(screen.getByRole('button', { name: '1' })).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(screen.getByRole('button', { name: /Generate music/ }));
+    expect(await screen.findAllByTestId('preview')).toHaveLength(1);
+    expect(apiJson).toHaveBeenCalledWith('/music/status');
+    const call = vi.mocked(apiJson).mock.calls.find(([path]) => path === '/music/generate');
+    const body = call?.[1]?.body as FormData;
+    expect(body.get('seconds')).toBe('15');
+    expect(body.get('variations')).toBe('1');
   });
 });

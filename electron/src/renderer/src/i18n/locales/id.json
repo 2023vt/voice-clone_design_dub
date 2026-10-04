@@ -3460,5 +3460,27 @@
     "example_whoosh": "Fast cinematic whoosh transition",
     "example_footsteps": "Footsteps on gravel",
     "example_thunder": "Distant rolling thunder"
+  },
+  "music": {
+    "title": "Musik",
+    "description": "Jelaskan gaya, suasana, dan instrumen lalu dapatkan karya instrumental yang dibuat di komputer ini.",
+    "install_body": "Musik memakai model stereo MusicGen: unduhan sekali sebesar {{size}} GB (lisensi {{license}}, penggunaan non-komersial). Tidak ada yang diunduh sampai Anda mengeklik Unduh.",
+    "install": "Unduh model musik",
+    "installing": "Menginstal…",
+    "downloading": "Mengunduh model…",
+    "prompt_label": "Jelaskan musiknya (dalam bahasa Inggris)",
+    "prompt_placeholder": "mis. Relaxing flute and tabla with soft rain in the background",
+    "seconds_label": "Durasi dalam detik (5–{{max}})",
+    "variations_label": "Versi",
+    "generate": "Buat musik",
+    "generating": "Menyusun…",
+    "results": "Versi",
+    "take": "Versi {{number}}",
+    "example_lofi": "Chill lo-fi hip hop beat with soft piano and vinyl crackle",
+    "example_cinematic": "Epic cinematic orchestral score with drums and strings",
+    "example_bollywood": "Upbeat Bollywood dance track with dhol, tabla and sitar",
+    "example_edm": "Energetic EDM drop with heavy bass and synth leads",
+    "example_piano": "Calm solo piano melody, gentle and emotional",
+    "example_acoustic": "Warm acoustic guitar folk tune, relaxed and sunny"
   }
 }

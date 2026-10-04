@@ -165,14 +165,17 @@ def _load_pipeline():
         import torch
         from diffusers import AudioLDM2Pipeline
 
+        from services.model_loading import exclusive_model_load
+
         cuda = torch.cuda.is_available()
-        pipe = AudioLDM2Pipeline.from_pretrained(
-            SFX_REPO,
-            torch_dtype=torch.float16 if cuda else torch.float32,
-            local_files_only=True,
-        )
-        pipe.generate_language_model = types.MethodType(_generate_language_model, pipe)
-        _pipeline = pipe.to("cuda" if cuda else "cpu")
+        with exclusive_model_load("Sound effects"):
+            pipe = AudioLDM2Pipeline.from_pretrained(
+                SFX_REPO,
+                torch_dtype=torch.float16 if cuda else torch.float32,
+                local_files_only=True,
+            )
+            pipe.generate_language_model = types.MethodType(_generate_language_model, pipe)
+            _pipeline = pipe.to("cuda" if cuda else "cpu")
         return _pipeline
 
 

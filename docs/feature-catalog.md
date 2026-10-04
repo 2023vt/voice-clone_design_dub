@@ -8,6 +8,7 @@ Engine availability depends on installed models, hardware, and configured provid
 - **Voice Design** - three candidate voices per description to compare and keep
 - **Audio Tags** - [ElevenLabs-style `[laughs]` / `[whispers]` / `[short pause]` cues](expressive-speech.md#elevenlabs-style-tags)
 - **Sound Effects** - [Text → SFX with AudioLDM2, installed on request](sound-effects.md)
+- **Music** - [Text → instrumental music with MusicGen, downloaded on request](music.md)
 - **Video Dubbing**
 - **Dictation Widget**
 - **Vocal Isolation**

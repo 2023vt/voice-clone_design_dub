@@ -132,6 +132,7 @@ GET /model/status
 GET /models
 GET /models/access/status
 GET /models/install/status
+GET /music/status
 GET /openapi.json
 GET /personalities
 GET /preview/{filename}
@@ -268,6 +269,8 @@ POST /media-tools/{tool}/use-system
 POST /model/unload/{model_id}
 POST /models/install
 POST /models/install/cancel
+POST /music/generate
+POST /music/install
 POST /personas/export/{profile_id}
 POST /personas/import
 POST /personas/inspect

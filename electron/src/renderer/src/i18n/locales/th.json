@@ -3460,5 +3460,27 @@
     "example_whoosh": "Fast cinematic whoosh transition",
     "example_footsteps": "Footsteps on gravel",
     "example_thunder": "Distant rolling thunder"
+  },
+  "music": {
+    "title": "เพลง",
+    "description": "อธิบายสไตล์ อารมณ์ และเครื่องดนตรี แล้วรับเพลงบรรเลงที่สร้างบนคอมพิวเตอร์เครื่องนี้",
+    "install_body": "เพลงใช้โมเดลสเตอริโอ MusicGen: ดาวน์โหลดครั้งเดียว {{size}} GB (สัญญาอนุญาต {{license}} ใช้เพื่อการที่ไม่ใช่เชิงพาณิชย์) จะไม่มีการดาวน์โหลดจนกว่าคุณจะคลิกดาวน์โหลด",
+    "install": "ดาวน์โหลดโมเดลเพลง",
+    "installing": "กำลังติดตั้ง…",
+    "downloading": "กำลังดาวน์โหลดโมเดล…",
+    "prompt_label": "อธิบายเพลง (เป็นภาษาอังกฤษ)",
+    "prompt_placeholder": "เช่น Relaxing flute and tabla with soft rain in the background",
+    "seconds_label": "ความยาวเป็นวินาที (5–{{max}})",
+    "variations_label": "เวอร์ชัน",
+    "generate": "สร้างเพลง",
+    "generating": "กำลังแต่งเพลง…",
+    "results": "เวอร์ชัน",
+    "take": "เวอร์ชัน {{number}}",
+    "example_lofi": "Chill lo-fi hip hop beat with soft piano and vinyl crackle",
+    "example_cinematic": "Epic cinematic orchestral score with drums and strings",
+    "example_bollywood": "Upbeat Bollywood dance track with dhol, tabla and sitar",
+    "example_edm": "Energetic EDM drop with heavy bass and synth leads",
+    "example_piano": "Calm solo piano melody, gentle and emotional",
+    "example_acoustic": "Warm acoustic guitar folk tune, relaxed and sunny"
   }
 }

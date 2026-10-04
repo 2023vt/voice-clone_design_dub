@@ -3460,5 +3460,27 @@
     "example_whoosh": "Fast cinematic whoosh transition",
     "example_footsteps": "Footsteps on gravel",
     "example_thunder": "Distant rolling thunder"
+  },
+  "music": {
+    "title": "音乐",
+    "description": "描述风格、情绪和乐器，即可在本机生成一段纯音乐。",
+    "install_body": "音乐使用 MusicGen 立体声模型：一次性下载 {{size}} GB（许可 {{license}}，仅限非商业用途）。点击“下载”之前不会下载任何内容。",
+    "install": "下载音乐模型",
+    "installing": "正在安装…",
+    "downloading": "正在下载模型…",
+    "prompt_label": "描述音乐（使用英文）",
+    "prompt_placeholder": "例如：Relaxing flute and tabla with soft rain in the background",
+    "seconds_label": "时长（秒，5–{{max}}）",
+    "variations_label": "版本",
+    "generate": "生成音乐",
+    "generating": "正在作曲…",
+    "results": "版本",
+    "take": "版本 {{number}}",
+    "example_lofi": "Chill lo-fi hip hop beat with soft piano and vinyl crackle",
+    "example_cinematic": "Epic cinematic orchestral score with drums and strings",
+    "example_bollywood": "Upbeat Bollywood dance track with dhol, tabla and sitar",
+    "example_edm": "Energetic EDM drop with heavy bass and synth leads",
+    "example_piano": "Calm solo piano melody, gentle and emotional",
+    "example_acoustic": "Warm acoustic guitar folk tune, relaxed and sunny"
   }
 }

@@ -3438,5 +3438,27 @@
     "generate": "3 个变体",
     "generate_hint": "根据此描述生成三个不同的声音进行比较",
     "rendering": "声音 {{index}}/{{total}}…"
+  },
+  "soundEffects": {
+    "title": "音效",
+    "description": "描述任何声音，即可在本机生成多个版本供你挑选。",
+    "install_body": "音效使用 AudioLDM2 模型：一次性下载 {{size}} GB（许可 {{license}}，仅限非商业用途）。点击“安装”之前不会下载任何内容。",
+    "install": "安装音效",
+    "installing": "正在安装…",
+    "downloading": "正在下载模型…",
+    "prompt_label": "描述声音（使用英文）",
+    "prompt_placeholder": "例如：Glass bottle shattering on a stone floor",
+    "seconds_label": "时长（秒，1–{{max}}）",
+    "variations_label": "版本",
+    "generate": "生成音效",
+    "generating": "正在生成…",
+    "results": "版本",
+    "take": "版本 {{number}}",
+    "example_rain": "Heavy rain on a tin roof",
+    "example_door": "A creaking wooden door slowly opening",
+    "example_crowd": "Crowd cheering in a stadium",
+    "example_whoosh": "Fast cinematic whoosh transition",
+    "example_footsteps": "Footsteps on gravel",
+    "example_thunder": "Distant rolling thunder"
   }
 }

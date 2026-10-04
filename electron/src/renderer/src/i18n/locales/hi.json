@@ -3438,5 +3438,27 @@
     "generate": "3 विकल्प",
     "generate_hint": "तुलना के लिए इस विवरण से तीन अलग आवाज़ें बनाएँ",
     "rendering": "आवाज़ {{index}} / {{total}}…"
+  },
+  "soundEffects": {
+    "title": "साउंड इफ़ेक्ट्स",
+    "description": "कोई भी आवाज़ लिखें और चुनने के लिए कई टेक पाएँ, इसी कंप्यूटर पर बने।",
+    "install_body": "साउंड इफ़ेक्ट्स AudioLDM2 मॉडल से बनते हैं: एक बार {{size}} GB डाउनलोड (लाइसेंस {{license}}, केवल गैर-व्यावसायिक उपयोग)। इंस्टॉल पर क्लिक करने तक कुछ भी डाउनलोड नहीं होता।",
+    "install": "साउंड इफ़ेक्ट्स इंस्टॉल करें",
+    "installing": "इंस्टॉल हो रहा है…",
+    "downloading": "मॉडल डाउनलोड हो रहा है…",
+    "prompt_label": "आवाज़ का वर्णन करें (अंग्रेज़ी में)",
+    "prompt_placeholder": "जैसे Glass bottle shattering on a stone floor",
+    "seconds_label": "लंबाई सेकंड में (1–{{max}})",
+    "variations_label": "टेक",
+    "generate": "साउंड इफ़ेक्ट्स बनाएँ",
+    "generating": "बन रहा है…",
+    "results": "टेक",
+    "take": "टेक {{number}}",
+    "example_rain": "Heavy rain on a tin roof",
+    "example_door": "A creaking wooden door slowly opening",
+    "example_crowd": "Crowd cheering in a stadium",
+    "example_whoosh": "Fast cinematic whoosh transition",
+    "example_footsteps": "Footsteps on gravel",
+    "example_thunder": "Distant rolling thunder"
   }
 }

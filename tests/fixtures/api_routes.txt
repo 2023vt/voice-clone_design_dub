@@ -149,6 +149,7 @@ GET /setup/download-stream
 GET /setup/preflight
 GET /setup/recommendations
 GET /setup/status
+GET /sfx/status
 GET /startup/progress
 GET /stats/usage
 GET /sysinfo
@@ -280,6 +281,8 @@ POST /pronunciation
 POST /pronunciation/import
 POST /pronunciation/test
 POST /setup/warmup
+POST /sfx/generate
+POST /sfx/install
 POST /stories/encode
 POST /system/crash/ack
 POST /system/diagnostic-bundle

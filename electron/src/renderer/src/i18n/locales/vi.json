@@ -3438,5 +3438,27 @@
     "generate": "3 biến thể",
     "generate_hint": "Tạo ba giọng khác nhau từ mô tả này để so sánh",
     "rendering": "Giọng {{index}}/{{total}}…"
+  },
+  "soundEffects": {
+    "title": "Hiệu ứng âm thanh",
+    "description": "Mô tả bất kỳ âm thanh nào và nhận nhiều bản để chọn, được tạo trên máy tính này.",
+    "install_body": "Hiệu ứng âm thanh dùng mô hình AudioLDM2: tải xuống một lần {{size}} GB (giấy phép {{license}}, chỉ dùng phi thương mại). Không có gì được tải xuống cho đến khi bạn nhấn Cài đặt.",
+    "install": "Cài đặt hiệu ứng âm thanh",
+    "installing": "Đang cài đặt…",
+    "downloading": "Đang tải mô hình…",
+    "prompt_label": "Mô tả âm thanh (bằng tiếng Anh)",
+    "prompt_placeholder": "vd. Glass bottle shattering on a stone floor",
+    "seconds_label": "Độ dài tính bằng giây (1–{{max}})",
+    "variations_label": "Bản",
+    "generate": "Tạo hiệu ứng âm thanh",
+    "generating": "Đang tạo…",
+    "results": "Bản",
+    "take": "Bản {{number}}",
+    "example_rain": "Heavy rain on a tin roof",
+    "example_door": "A creaking wooden door slowly opening",
+    "example_crowd": "Crowd cheering in a stadium",
+    "example_whoosh": "Fast cinematic whoosh transition",
+    "example_footsteps": "Footsteps on gravel",
+    "example_thunder": "Distant rolling thunder"
   }
 }

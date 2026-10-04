@@ -3438,5 +3438,27 @@
     "generate": "3つのバリエーション",
     "generate_hint": "この説明から異なる3つの声を生成して比較します",
     "rendering": "声 {{index}} / {{total}}…"
+  },
+  "soundEffects": {
+    "title": "効果音",
+    "description": "どんな音でも説明すると、このコンピューター上で複数のテイクが作られ、その中から選べます。",
+    "install_body": "効果音には AudioLDM2 モデルを使用します：初回のみ {{size}} GB のダウンロード（ライセンス {{license}}、非商用利用のみ）。インストールをクリックするまで何もダウンロードされません。",
+    "install": "効果音をインストール",
+    "installing": "インストール中…",
+    "downloading": "モデルをダウンロード中…",
+    "prompt_label": "音を説明してください（英語）",
+    "prompt_placeholder": "例: Glass bottle shattering on a stone floor",
+    "seconds_label": "長さ（秒、1–{{max}}）",
+    "variations_label": "テイク",
+    "generate": "効果音を生成",
+    "generating": "生成中…",
+    "results": "テイク",
+    "take": "テイク {{number}}",
+    "example_rain": "Heavy rain on a tin roof",
+    "example_door": "A creaking wooden door slowly opening",
+    "example_crowd": "Crowd cheering in a stadium",
+    "example_whoosh": "Fast cinematic whoosh transition",
+    "example_footsteps": "Footsteps on gravel",
+    "example_thunder": "Distant rolling thunder"
   }
 }

@@ -3438,5 +3438,27 @@
     "generate": "변형 3개",
     "generate_hint": "이 설명으로 서로 다른 음성 세 개를 만들어 비교합니다",
     "rendering": "음성 {{index}}/{{total}}…"
+  },
+  "soundEffects": {
+    "title": "효과음",
+    "description": "어떤 소리든 설명하면 이 컴퓨터에서 여러 테이크를 만들어 고를 수 있습니다.",
+    "install_body": "효과음은 AudioLDM2 모델을 사용합니다: 한 번만 {{size}}GB 다운로드(라이선스 {{license}}, 비상업적 용도). 설치를 클릭하기 전에는 아무것도 다운로드하지 않습니다.",
+    "install": "효과음 설치",
+    "installing": "설치 중…",
+    "downloading": "모델 다운로드 중…",
+    "prompt_label": "소리를 설명하세요(영어로)",
+    "prompt_placeholder": "예: Glass bottle shattering on a stone floor",
+    "seconds_label": "길이(초, 1–{{max}})",
+    "variations_label": "테이크",
+    "generate": "효과음 생성",
+    "generating": "생성 중…",
+    "results": "테이크",
+    "take": "테이크 {{number}}",
+    "example_rain": "Heavy rain on a tin roof",
+    "example_door": "A creaking wooden door slowly opening",
+    "example_crowd": "Crowd cheering in a stadium",
+    "example_whoosh": "Fast cinematic whoosh transition",
+    "example_footsteps": "Footsteps on gravel",
+    "example_thunder": "Distant rolling thunder"
   }
 }

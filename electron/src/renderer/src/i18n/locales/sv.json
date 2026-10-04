@@ -3438,5 +3438,27 @@
     "generate": "3 varianter",
     "generate_hint": "Skapa tre olika röster från den här beskrivningen för att jämföra",
     "rendering": "Röst {{index}} av {{total}}…"
+  },
+  "soundEffects": {
+    "title": "Ljudeffekter",
+    "description": "Beskriv vilket ljud som helst och få flera tagningar att välja mellan, skapade på den här datorn.",
+    "install_body": "Ljudeffekter använder modellen AudioLDM2: en engångsnedladdning på {{size}} GB (licens {{license}}, icke-kommersiell användning). Inget laddas ned förrän du klickar på Installera.",
+    "install": "Installera ljudeffekter",
+    "installing": "Installerar…",
+    "downloading": "Laddar ned modell…",
+    "prompt_label": "Beskriv ljudet (på engelska)",
+    "prompt_placeholder": "t.ex. Glass bottle shattering on a stone floor",
+    "seconds_label": "Längd i sekunder (1–{{max}})",
+    "variations_label": "Tagningar",
+    "generate": "Skapa ljudeffekter",
+    "generating": "Skapar…",
+    "results": "Tagningar",
+    "take": "Tagning {{number}}",
+    "example_rain": "Heavy rain on a tin roof",
+    "example_door": "A creaking wooden door slowly opening",
+    "example_crowd": "Crowd cheering in a stadium",
+    "example_whoosh": "Fast cinematic whoosh transition",
+    "example_footsteps": "Footsteps on gravel",
+    "example_thunder": "Distant rolling thunder"
   }
 }

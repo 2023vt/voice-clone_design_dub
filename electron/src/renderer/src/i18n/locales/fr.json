@@ -3440,5 +3440,27 @@
     "generate": "3 variantes",
     "generate_hint": "Générer trois voix différentes à partir de cette description pour les comparer",
     "rendering": "Voix {{index}} sur {{total}}…"
+  },
+  "soundEffects": {
+    "title": "Effets sonores",
+    "description": "Décrivez n’importe quel son et obtenez plusieurs prises au choix, créées sur cet ordinateur.",
+    "install_body": "Les effets sonores utilisent le modèle AudioLDM2 : un téléchargement unique de {{size}} Go (licence {{license}}, usage non commercial). Rien n’est téléchargé avant de cliquer sur Installer.",
+    "install": "Installer les effets sonores",
+    "installing": "Installation…",
+    "downloading": "Téléchargement du modèle…",
+    "prompt_label": "Décrivez le son (en anglais)",
+    "prompt_placeholder": "ex. Glass bottle shattering on a stone floor",
+    "seconds_label": "Durée en secondes (1–{{max}})",
+    "variations_label": "Prises",
+    "generate": "Générer les effets sonores",
+    "generating": "Génération…",
+    "results": "Prises",
+    "take": "Prise {{number}}",
+    "example_rain": "Heavy rain on a tin roof",
+    "example_door": "A creaking wooden door slowly opening",
+    "example_crowd": "Crowd cheering in a stadium",
+    "example_whoosh": "Fast cinematic whoosh transition",
+    "example_footsteps": "Footsteps on gravel",
+    "example_thunder": "Distant rolling thunder"
   }
 }

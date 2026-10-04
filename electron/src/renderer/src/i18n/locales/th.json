@@ -3438,5 +3438,27 @@
     "generate": "3 แบบ",
     "generate_hint": "สร้างเสียงที่ต่างกันสามเสียงจากคำอธิบายนี้เพื่อเปรียบเทียบ",
     "rendering": "เสียง {{index}} จาก {{total}}…"
+  },
+  "soundEffects": {
+    "title": "เอฟเฟกต์เสียง",
+    "description": "อธิบายเสียงใดก็ได้ แล้วรับหลายเทคให้เลือก สร้างบนคอมพิวเตอร์เครื่องนี้",
+    "install_body": "เอฟเฟกต์เสียงใช้โมเดล AudioLDM2: ดาวน์โหลดครั้งเดียว {{size}} GB (สัญญาอนุญาต {{license}} ใช้เพื่อการที่ไม่ใช่เชิงพาณิชย์) จะไม่มีการดาวน์โหลดจนกว่าคุณจะคลิกติดตั้ง",
+    "install": "ติดตั้งเอฟเฟกต์เสียง",
+    "installing": "กำลังติดตั้ง…",
+    "downloading": "กำลังดาวน์โหลดโมเดล…",
+    "prompt_label": "อธิบายเสียง (เป็นภาษาอังกฤษ)",
+    "prompt_placeholder": "เช่น Glass bottle shattering on a stone floor",
+    "seconds_label": "ความยาวเป็นวินาที (1–{{max}})",
+    "variations_label": "เทค",
+    "generate": "สร้างเอฟเฟกต์เสียง",
+    "generating": "กำลังสร้าง…",
+    "results": "เทค",
+    "take": "เทค {{number}}",
+    "example_rain": "Heavy rain on a tin roof",
+    "example_door": "A creaking wooden door slowly opening",
+    "example_crowd": "Crowd cheering in a stadium",
+    "example_whoosh": "Fast cinematic whoosh transition",
+    "example_footsteps": "Footsteps on gravel",
+    "example_thunder": "Distant rolling thunder"
   }
 }

@@ -3442,5 +3442,27 @@
     "generate": "3 варіанти",
     "generate_hint": "Створити три різні голоси за цим описом для порівняння",
     "rendering": "Голос {{index}} з {{total}}…"
+  },
+  "soundEffects": {
+    "title": "Звукові ефекти",
+    "description": "Опишіть будь-який звук і отримайте кілька дублів на вибір — усе створюється на цьому комп’ютері.",
+    "install_body": "Звукові ефекти використовують модель AudioLDM2: одноразове завантаження {{size}} ГБ (ліцензія {{license}}, лише некомерційне використання). Нічого не завантажується, доки ви не натиснете «Установити».",
+    "install": "Установити звукові ефекти",
+    "installing": "Установлення…",
+    "downloading": "Завантаження моделі…",
+    "prompt_label": "Опишіть звук (англійською)",
+    "prompt_placeholder": "наприклад, Glass bottle shattering on a stone floor",
+    "seconds_label": "Тривалість у секундах (1–{{max}})",
+    "variations_label": "Дублі",
+    "generate": "Створити звукові ефекти",
+    "generating": "Створення…",
+    "results": "Дублі",
+    "take": "Дубль {{number}}",
+    "example_rain": "Heavy rain on a tin roof",
+    "example_door": "A creaking wooden door slowly opening",
+    "example_crowd": "Crowd cheering in a stadium",
+    "example_whoosh": "Fast cinematic whoosh transition",
+    "example_footsteps": "Footsteps on gravel",
+    "example_thunder": "Distant rolling thunder"
   }
 }

@@ -3438,5 +3438,27 @@
     "generate": "3 varyasyon",
     "generate_hint": "Karşılaştırmak için bu açıklamadan üç farklı ses oluşturun",
     "rendering": "Ses {{index}} / {{total}}…"
+  },
+  "soundEffects": {
+    "title": "Ses efektleri",
+    "description": "Herhangi bir sesi tarif edin ve bu bilgisayarda oluşturulan birkaç kayıt arasından seçin.",
+    "install_body": "Ses efektleri AudioLDM2 modelini kullanır: tek seferlik {{size}} GB indirme (lisans {{license}}, ticari olmayan kullanım). Yükle’ye tıklayana kadar hiçbir şey indirilmez.",
+    "install": "Ses efektlerini yükle",
+    "installing": "Yükleniyor…",
+    "downloading": "Model indiriliyor…",
+    "prompt_label": "Sesi tarif edin (İngilizce)",
+    "prompt_placeholder": "örn. Glass bottle shattering on a stone floor",
+    "seconds_label": "Saniye cinsinden uzunluk (1–{{max}})",
+    "variations_label": "Kayıtlar",
+    "generate": "Ses efekti oluştur",
+    "generating": "Oluşturuluyor…",
+    "results": "Kayıtlar",
+    "take": "Kayıt {{number}}",
+    "example_rain": "Heavy rain on a tin roof",
+    "example_door": "A creaking wooden door slowly opening",
+    "example_crowd": "Crowd cheering in a stadium",
+    "example_whoosh": "Fast cinematic whoosh transition",
+    "example_footsteps": "Footsteps on gravel",
+    "example_thunder": "Distant rolling thunder"
   }
 }

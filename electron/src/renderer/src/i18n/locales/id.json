@@ -3438,5 +3438,27 @@
     "generate": "3 variasi",
     "generate_hint": "Buat tiga suara berbeda dari deskripsi ini untuk dibandingkan",
     "rendering": "Suara {{index}} dari {{total}}…"
+  },
+  "soundEffects": {
+    "title": "Efek suara",
+    "description": "Jelaskan suara apa pun dan dapatkan beberapa take untuk dipilih, dibuat di komputer ini.",
+    "install_body": "Efek suara memakai model AudioLDM2: unduhan sekali sebesar {{size}} GB (lisensi {{license}}, penggunaan non-komersial). Tidak ada yang diunduh sampai Anda mengeklik Instal.",
+    "install": "Instal efek suara",
+    "installing": "Menginstal…",
+    "downloading": "Mengunduh model…",
+    "prompt_label": "Jelaskan suaranya (dalam bahasa Inggris)",
+    "prompt_placeholder": "mis. Glass bottle shattering on a stone floor",
+    "seconds_label": "Durasi dalam detik (1–{{max}})",
+    "variations_label": "Take",
+    "generate": "Buat efek suara",
+    "generating": "Membuat…",
+    "results": "Take",
+    "take": "Take {{number}}",
+    "example_rain": "Heavy rain on a tin roof",
+    "example_door": "A creaking wooden door slowly opening",
+    "example_crowd": "Crowd cheering in a stadium",
+    "example_whoosh": "Fast cinematic whoosh transition",
+    "example_footsteps": "Footsteps on gravel",
+    "example_thunder": "Distant rolling thunder"
   }
 }

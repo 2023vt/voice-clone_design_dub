@@ -3446,5 +3446,27 @@
     "generate": "3 تنويعات",
     "generate_hint": "أنشئ ثلاثة أصوات مختلفة من هذا الوصف للمقارنة",
     "rendering": "الصوت {{index}} من {{total}}…"
+  },
+  "soundEffects": {
+    "title": "المؤثرات الصوتية",
+    "description": "صِف أي صوت واحصل على عدة نسخ للاختيار بينها، تُنشأ على هذا الجهاز.",
+    "install_body": "تستخدم المؤثرات الصوتية نموذج AudioLDM2: تنزيل لمرة واحدة بحجم {{size}} غيغابايت (الترخيص {{license}}، للاستخدام غير التجاري). لا يُنزَّل شيء حتى تنقر على تثبيت.",
+    "install": "تثبيت المؤثرات الصوتية",
+    "installing": "جارٍ التثبيت…",
+    "downloading": "جارٍ تنزيل النموذج…",
+    "prompt_label": "صِف الصوت (بالإنجليزية)",
+    "prompt_placeholder": "مثال: Glass bottle shattering on a stone floor",
+    "seconds_label": "المدة بالثواني (1–{{max}})",
+    "variations_label": "النسخ",
+    "generate": "إنشاء المؤثرات الصوتية",
+    "generating": "جارٍ الإنشاء…",
+    "results": "النسخ",
+    "take": "النسخة {{number}}",
+    "example_rain": "Heavy rain on a tin roof",
+    "example_door": "A creaking wooden door slowly opening",
+    "example_crowd": "Crowd cheering in a stadium",
+    "example_whoosh": "Fast cinematic whoosh transition",
+    "example_footsteps": "Footsteps on gravel",
+    "example_thunder": "Distant rolling thunder"
   }
 }

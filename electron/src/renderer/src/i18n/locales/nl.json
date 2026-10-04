@@ -3438,5 +3438,27 @@
     "generate": "3 varianten",
     "generate_hint": "Maak drie verschillende stemmen van deze beschrijving om te vergelijken",
     "rendering": "Stem {{index}} van {{total}}…"
+  },
+  "soundEffects": {
+    "title": "Geluidseffecten",
+    "description": "Beschrijf elk geluid en krijg meerdere takes om uit te kiezen, gemaakt op deze computer.",
+    "install_body": "Geluidseffecten gebruiken het model AudioLDM2: een eenmalige download van {{size}} GB (licentie {{license}}, niet-commercieel gebruik). Er wordt niets gedownload tot je op Installeren klikt.",
+    "install": "Geluidseffecten installeren",
+    "installing": "Installeren…",
+    "downloading": "Model downloaden…",
+    "prompt_label": "Beschrijf het geluid (in het Engels)",
+    "prompt_placeholder": "bijv. Glass bottle shattering on a stone floor",
+    "seconds_label": "Lengte in seconden (1–{{max}})",
+    "variations_label": "Takes",
+    "generate": "Geluidseffecten maken",
+    "generating": "Bezig met maken…",
+    "results": "Takes",
+    "take": "Take {{number}}",
+    "example_rain": "Heavy rain on a tin roof",
+    "example_door": "A creaking wooden door slowly opening",
+    "example_crowd": "Crowd cheering in a stadium",
+    "example_whoosh": "Fast cinematic whoosh transition",
+    "example_footsteps": "Footsteps on gravel",
+    "example_thunder": "Distant rolling thunder"
   }
 }

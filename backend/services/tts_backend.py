@@ -4287,6 +4287,10 @@ async def resolve_generation_backend(
         MLX-Audio (Kokoro vs. CSM) is judged by what's actually loaded.
     """
     engine_id = active_backend_id()
+    from services.license_guard import check_engine
+
+    # Commercial-safe mode (opt-in): one gate for batch, dubbing, previews and voice conversion.
+    check_engine(engine_id)
     try:
         backend_cls = get_backend_class(engine_id)
     except ValueError as e:

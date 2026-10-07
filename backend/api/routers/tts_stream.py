@@ -45,6 +45,9 @@ async def _resolve_stream_backend(engine_id: str | None):
     from services import tts_backend
 
     selected_id = engine_id or tts_backend.active_backend_id()
+    from services.license_guard import check_engine
+
+    check_engine(selected_id)  # Commercial-safe mode (opt-in); the stream's error frame carries the message
     cls = tts_backend.get_backend_class(selected_id)
     if cls is tts_backend.OmniVoiceBackend:
         if engine_id:

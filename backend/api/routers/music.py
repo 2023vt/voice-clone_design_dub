@@ -48,6 +48,9 @@ async def music_generate(
     variations: int = Form(1, ge=1, le=music_gen.MAX_VARIATIONS),
     seed: int | None = Form(None),
 ):
+    from services.license_guard import check_tool
+
+    check_tool("music")  # Commercial-safe mode (opt-in): MusicGen weights are CC-BY-NC
     prompt = prompt.strip()
     if not prompt:
         raise HTTPException(status_code=400, detail="Describe the music to generate.")

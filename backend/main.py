@@ -1427,6 +1427,24 @@ async def no_audio_track_handler(request: Request, exc: NoAudioTrackError):
     )
 
 
+from services.license_guard import CommercialUseBlocked  # noqa: E402
+
+
+@app.exception_handler(CommercialUseBlocked)
+async def commercial_use_blocked_handler(request: Request, exc: CommercialUseBlocked):
+    """403 when Commercial-safe mode refuses an engine/tool whose weights are not cleared for commercial use.
+
+    One shape for every route (generate, stream, dub, music, sound effects); ``code`` lets the client show
+    its localized notice and the licence fields say why.
+    """
+    return JSONResponse(
+        status_code=403,
+        content={"detail": {"code": "commercial_use_blocked", "message": str(exc), "target": exc.target,
+                            "status": exc.info.status, "weights": exc.info.weights, "source": exc.info.source}},
+        headers=_cors_headers_for(request),
+    )
+
+
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
     """422 for a malformed request — never a 500, never an audio-sized body.

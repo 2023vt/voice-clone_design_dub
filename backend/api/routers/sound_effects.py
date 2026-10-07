@@ -38,6 +38,9 @@ async def sfx_generate(
     variations: int = Form(4, ge=1, le=sfx.MAX_VARIATIONS),
     seed: int | None = Form(None),
 ):
+    from services.license_guard import check_tool
+
+    check_tool("sfx")  # Commercial-safe mode (opt-in): AudioLDM2 weights are CC-BY-NC-SA
     prompt = prompt.strip()
     if not prompt:
         raise HTTPException(status_code=400, detail="Describe the sound to generate.")

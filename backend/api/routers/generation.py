@@ -1758,6 +1758,9 @@ async def generate_speech(
     )
 
     engine_id = engine or active_backend_id()
+    from services.license_guard import check_engine
+
+    check_engine(engine_id)  # Commercial-safe mode (opt-in): refuse non-commercial weights before any work
     from services.performance_profiles import tts_defaults
 
     sampling_defaults = tts_defaults(engine_id)

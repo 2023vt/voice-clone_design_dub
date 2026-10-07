@@ -324,9 +324,17 @@ def _known_engine_ids() -> str:
 
 def _resolve_engine(model_id: str):
     """Map an OpenAI model name to a VoiceStudio backend."""
+    from services.license_guard import CommercialUseBlocked, check_engine
     from services.tts_backend import (
-        get_backend_class, get_active_tts_backend, get_engine_instance_for,
+        active_backend_id, get_backend_class, get_active_tts_backend, get_engine_instance_for,
     )
+
+    # Commercial-safe mode (opt-in): the engine that would run is the named one, or the active one for an
+    # OpenAI model id. Refused in OpenAI's error shape so OpenAI SDK clients surface the reason.
+    try:
+        check_engine(active_backend_id() if is_openai_tts_model(model_id) else model_id)
+    except CommercialUseBlocked as exc:
+        raise OpenAIError(403, str(exc), param="model", code="commercial_use_blocked") from None
 
     # Direct engine ID match first, so a real engine id always means that
     # engine; then OpenAI model ids as pass-through to the active engine.

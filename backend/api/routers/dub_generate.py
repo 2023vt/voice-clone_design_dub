@@ -60,6 +60,9 @@ def _validate_render_languages(backend, req, seg_ids, regen_only):
 async def _resolve_dub_execution():
     """Resolve routing without loading local weights for a remote dub."""
     engine_id = active_backend_id()
+    from services.license_guard import check_engine
+
+    check_engine(engine_id)  # Commercial-safe mode (opt-in)
     decision = gpu_gateway.decide("dub_segments")
     if decision.remote:
         await gpu_gateway.preflight(engine_id, decision, operation="dub_segments")

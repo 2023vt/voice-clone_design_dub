@@ -234,7 +234,8 @@
     "droppedChunksWithText_other": "Trechos de texto sem áudio nesta gravação: {{count}} — “{{text}}”. Tente gerar novamente.",
     "droppedChunks_many": "Trechos de texto sem áudio nesta gravação: {{count}}. Tente gerar novamente.",
     "droppedChunksWithText_many": "Trechos de texto sem áudio nesta gravação: {{count}} — “{{text}}”. Tente gerar novamente.",
-    "expressionDropped": "Este motor de voz não consegue interpretar {{tags}}, então eles foram omitidos em vez de lidos em voz alta."
+    "expressionDropped": "Este motor de voz não consegue interpretar {{tags}}, então eles foram omitidos em vez de lidos em voz alta.",
+    "referenceLanguage": "Sua amostra de voz está em outro idioma, então esta gravação mantém o sotaque dela. Para um sotaque nativo, use uma amostra falada no idioma da gravação."
   },
   "permissions": {
     "title": "Permissões",

@@ -232,7 +232,8 @@
     "droppedChunksWithText_one": "Bagian teks tanpa audio dalam hasil ini: {{count}} — “{{text}}”. Coba buat ulang.",
     "droppedChunks_other": "Bagian teks tanpa audio dalam hasil ini: {{count}}. Coba buat ulang.",
     "droppedChunksWithText_other": "Bagian teks tanpa audio dalam hasil ini: {{count}} — “{{text}}”. Coba buat ulang.",
-    "expressionDropped": "Mesin suara ini tidak dapat membawakan {{tags}}, jadi tag tersebut dilewati alih-alih dibacakan."
+    "expressionDropped": "Mesin suara ini tidak dapat membawakan {{tags}}, jadi tag tersebut dilewati alih-alih dibacakan.",
+    "referenceLanguage": "Sampel suara Anda dalam bahasa lain, jadi rekaman ini membawa aksennya. Untuk aksen asli, gunakan sampel yang diucapkan dalam bahasa rekaman."
   },
   "permissions": {
     "title": "Izin",

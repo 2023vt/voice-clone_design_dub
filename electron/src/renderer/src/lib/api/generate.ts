@@ -208,6 +208,7 @@ export function parseGenerateHeaders(headers: Headers): Omit<GenerateResult, 'bl
       .split(',')
       .map((tag) => tag.trim())
       .filter(Boolean),
+    referenceScript: headers.get('X-OmniVoice-Reference-Script') || null,
   };
 }
 
@@ -394,6 +395,7 @@ export async function generateCloneStreaming(
       routing: headers.routing,
       dropped,
       expressionDropped: headers.expressionDropped,
+      referenceScript: headers.referenceScript,
     };
   } catch (error) {
     (player as ReturnType<typeof createStreamingPreview> | null)?.fail();

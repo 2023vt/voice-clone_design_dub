@@ -128,6 +128,13 @@ function announceResultNotices(result: GenerateResult): void {
       duration: DROPPED_TOAST_MS,
     });
   }
+  // The voice sample is in another language: the clone keeps its accent.
+  if (result.referenceScript) {
+    toast.warning(tr('tts.referenceLanguage'), {
+      id: 'reference-language',
+      duration: DROPPED_TOAST_MS,
+    });
+  }
   // The backend only sets the routing headers on cpu_fallback / accelerated-
   // with-caveat, so their presence is the signal.
   if (result.routing && result.routing.status !== lastRoutingStatus) {

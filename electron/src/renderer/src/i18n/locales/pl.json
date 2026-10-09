@@ -236,7 +236,8 @@
     "droppedChunksWithText_few": "Fragmenty tekstu bez dźwięku w tym nagraniu: {{count}} — „{{text}}”. Spróbuj wygenerować ponownie.",
     "droppedChunks_many": "Fragmenty tekstu bez dźwięku w tym nagraniu: {{count}}. Spróbuj wygenerować ponownie.",
     "droppedChunksWithText_many": "Fragmenty tekstu bez dźwięku w tym nagraniu: {{count}} — „{{text}}”. Spróbuj wygenerować ponownie.",
-    "expressionDropped": "Ten silnik głosu nie potrafi wykonać {{tags}}, więc pominięto je zamiast czytać na głos."
+    "expressionDropped": "Ten silnik głosu nie potrafi wykonać {{tags}}, więc pominięto je zamiast czytać na głos.",
+    "referenceLanguage": "Próbka głosu jest w innym języku, więc to nagranie zachowa jej akcent. Aby uzyskać rodzimy akcent, użyj próbki w języku nagrania."
   },
   "permissions": {
     "title": "Uprawnienia",

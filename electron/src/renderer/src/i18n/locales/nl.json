@@ -232,7 +232,8 @@
     "droppedChunksWithText_one": "Tekstdelen zonder audio in deze opname: {{count}} — ‘{{text}}’. Probeer opnieuw te genereren.",
     "droppedChunks_other": "Tekstdelen zonder audio in deze opname: {{count}}. Probeer opnieuw te genereren.",
     "droppedChunksWithText_other": "Tekstdelen zonder audio in deze opname: {{count}} — ‘{{text}}’. Probeer opnieuw te genereren.",
-    "expressionDropped": "Deze stemengine kan {{tags}} niet uitvoeren, dus ze zijn weggelaten in plaats van voorgelezen."
+    "expressionDropped": "Deze stemengine kan {{tags}} niet uitvoeren, dus ze zijn weggelaten in plaats van voorgelezen.",
+    "referenceLanguage": "Je stemvoorbeeld is in een andere taal, dus deze opname houdt dat accent. Gebruik voor een moedertaalaccent een voorbeeld in de taal van de opname."
   },
   "permissions": {
     "title": "Machtigingen",

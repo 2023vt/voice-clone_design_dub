@@ -232,7 +232,8 @@
     "droppedChunksWithText_one": "Textabschnitte ohne Audio in dieser Aufnahme: {{count}} — „{{text}}“. Versuche, erneut zu generieren.",
     "droppedChunks_other": "Textabschnitte ohne Audio in dieser Aufnahme: {{count}}. Versuche, erneut zu generieren.",
     "droppedChunksWithText_other": "Textabschnitte ohne Audio in dieser Aufnahme: {{count}} — „{{text}}“. Versuche, erneut zu generieren.",
-    "expressionDropped": "Diese Stimm-Engine kann {{tags}} nicht umsetzen, daher wurden sie weggelassen statt vorgelesen."
+    "expressionDropped": "Diese Stimm-Engine kann {{tags}} nicht umsetzen, daher wurden sie weggelassen statt vorgelesen.",
+    "referenceLanguage": "Ihre Stimmprobe ist in einer anderen Sprache, daher behält diese Aufnahme deren Akzent. Für einen muttersprachlichen Akzent verwenden Sie eine Probe in der Sprache der Aufnahme."
   },
   "permissions": {
     "title": "Berechtigungen",

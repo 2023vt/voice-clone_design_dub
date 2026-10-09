@@ -561,7 +561,8 @@
     "droppedChunks_other": "Heads up: {{count}} parts of your text produced no audio, so this take is missing them. Try re-generating.",
     "droppedChunksWithText_one": "Heads up: {{count}} part of your text produced no audio — “{{text}}”. Try re-generating.",
     "droppedChunksWithText_other": "Heads up: {{count}} parts of your text produced no audio — “{{text}}”. Try re-generating.",
-    "expressionDropped": "Left out instead of read aloud — this voice engine can’t perform: {{tags}}"
+    "expressionDropped": "Left out instead of read aloud — this voice engine can’t perform: {{tags}}",
+    "referenceLanguage": "Your voice sample is in another language, so this take keeps its accent. For a native accent, use a sample spoken in the take's language."
   },
   "player": {
     "generated_audio": "Generated audio",

@@ -289,3 +289,177 @@ def test_effect_chain_is_byte_identical_without_humanize_and_changed_with_it():
     again = _apply_effect_chain(take.clone(), SR, "raw",
                                 humanize=HumanizeSettings(), seed=5)
     assert torch.equal(human, again)
+
+
+# ── reference room: the clone's own room and breaths ────────────────────────
+
+from services.humanize import (  # noqa: E402
+    RoomProfile,
+    analyze_reference,
+    room_from_reference,
+)
+
+
+def _colored(n: int, exponent: float, seed: int) -> torch.Tensor:
+    """Unit-RMS noise with power ∝ 1/f^exponent (2 = brown, 0 = white)."""
+    g = torch.Generator().manual_seed(seed)
+    spec = torch.fft.rfft(torch.randn(n, generator=g))
+    f = torch.fft.rfftfreq(n, d=1.0 / SR).clamp(min=50.0)
+    x = torch.fft.irfft(spec * f.pow(-exponent / 2), n=n)
+    return x / x.pow(2).mean().sqrt()
+
+
+def _band(n: int, lo: float, hi: float, seed: int) -> torch.Tensor:
+    g = torch.Generator().manual_seed(seed)
+    spec = torch.fft.rfft(torch.randn(n, generator=g))
+    f = torch.fft.rfftfreq(n, d=1.0 / SR)
+    x = torch.fft.irfft(spec * ((f >= lo) & (f <= hi)), n=n)
+    env = torch.hann_window(n, periodic=False)
+    x = x * env
+    return x / x.pow(2).mean().sqrt()
+
+
+def _voice(seconds: float, f0: float = 150.0) -> torch.Tensor:
+    """A pitched, syllable-modulated harmonic complex: speech-like and voiced."""
+    t = torch.arange(int(SR * seconds)) / SR
+    x = sum(torch.sin(2 * math.pi * f0 * k * t) / k for k in range(1, 20))
+    env = 0.6 + 0.4 * torch.sin(2 * math.pi * 4 * t).abs()
+    x = x * env
+    return x / x.abs().max() * 0.5
+
+
+def _db_rms(x: torch.Tensor) -> float:
+    return _db(x.pow(2).mean().sqrt())
+
+
+def _reference(*, room_db=-55.0, room_exp=2.0, gap_extra=None, seed=3):
+    """voice · pause (with ``gap_extra`` placed to end 60 ms before the next
+    voice) · voice · pause · voice · tail, over a room at ``room_db`` RMS."""
+    parts = [_voice(1.0), _silence(0.8), _voice(1.0), _silence(0.6), _voice(1.0), _silence(0.6)]
+    clip = torch.cat(parts)
+    if room_db is not None:
+        clip = clip + _colored(clip.shape[-1], room_exp, seed) * 10 ** (room_db / 20)
+    if gap_extra is not None:
+        end = int(1.8 * SR) - SR * 60 // 1000
+        clip[end - gap_extra.shape[-1]:end] += gap_extra
+    return clip
+
+
+def _breath(seconds=0.3, rms_db=-36.0, seed=11):
+    return _band(int(SR * seconds), 500, 2500, seed) * 10 ** (rms_db / 20)
+
+
+def test_reference_room_is_measured_with_its_colour_and_distance():
+    clip = _reference()
+    room = analyze_reference(clip, SR)
+    assert room.has_room
+    speech = _db_rms(clip[: SR])  # the voice alone dominates the first second
+    assert room.noise_gap_db == pytest.approx(speech - (-55.0), abs=4.0)
+    f = torch.fft.rfftfreq(2048, d=1.0 / SR)
+    low = room.noise_psd[(f > 100) & (f < 400)].mean()
+    high = room.noise_psd[(f > 2000) & (f < 6000)].mean()
+    assert 10 * math.log10(float(low / high)) > 20.0, "a brown room keeps its low end"
+
+
+def test_the_speakers_inhale_is_picked_out_of_the_reference():
+    breath = _breath(0.3)
+    room = analyze_reference(_reference(gap_extra=breath), SR)
+    assert len(room.breaths) == 1
+    snippet, level_db = room.breaths[0]
+    assert snippet.shape[-1] / SR == pytest.approx(0.3, abs=0.07)
+    assert float(snippet.abs().max()) == pytest.approx(1.0)
+    assert -40.0 < level_db < -15.0
+
+
+@pytest.mark.parametrize("extra, why", [
+    (_band(int(SR * 0.15), 4500, 9000, 5) * 10 ** (-30 / 20), "word-initial s: energy above 3.5 kHz"),
+    (torch.sin(2 * math.pi * 120 * torch.arange(int(SR * 0.3)) / SR) * 10 ** (-33 / 20), "a hum is pitched"),
+    (_band(int(SR * 0.08), 500, 2500, 6) * 10 ** (-36 / 20), "too short for an inhale"),
+])
+def test_things_that_are_not_breaths_are_not_picked(extra, why):
+    assert analyze_reference(_reference(gap_extra=extra), SR).breaths == (), why
+
+
+def test_no_room_from_digital_silence_or_a_noisy_clip():
+    assert not analyze_reference(_reference(room_db=None), SR).has_room
+    assert not analyze_reference(_reference(room_db=-22.0), SR).has_room
+
+
+def test_humanize_copies_the_reference_room_under_the_pauses():
+    room = analyze_reference(_reference(), SR)
+    take = _take(gap_s=0.8)
+    out = humanize_audio(take, SR, HumanizeSettings(breaths=False), make_rng(4), room=room)
+    gap = out[SR + SR // 10: SR + int(0.7 * SR)]
+    speech = _db_rms(out[: SR])
+    assert _db_rms(gap) == pytest.approx(speech - room.noise_gap_db, abs=2.5)
+    f = torch.fft.rfftfreq(gap.shape[-1], d=1.0 / SR)
+    p = torch.fft.rfft(gap).abs().pow(2)
+    tilt = 10 * math.log10(float(p[(f > 100) & (f < 400)].mean() / p[(f > 2000) & (f < 6000)].mean()))
+    pink = humanize_audio(take, SR, HumanizeSettings(breaths=False), make_rng(4))
+    pg = pink[SR + SR // 10: SR + int(0.7 * SR)]
+    pp = torch.fft.rfft(pg).abs().pow(2)
+    pink_tilt = 10 * math.log10(float(pp[(f > 100) & (f < 400)].mean() / pp[(f > 2000) & (f < 6000)].mean()))
+    assert tilt > pink_tilt + 8.0, "the room follows the reference, not the pink default"
+
+
+def test_room_level_moves_with_strength():
+    room = analyze_reference(_reference(), SR)
+    take = _take(gap_s=0.8)
+    quiet = humanize_audio(take, SR, HumanizeSettings(strength=0.0, breaths=False), make_rng(4), room=room)
+    loud = humanize_audio(take, SR, HumanizeSettings(strength=1.0, breaths=False), make_rng(4), room=room)
+    sl = slice(SR + SR // 10, SR + int(0.7 * SR))
+    assert _db_rms(loud[sl]) - _db_rms(quiet[sl]) == pytest.approx(8.0, abs=1.5)
+
+
+def test_add_breaths_places_the_speakers_own_inhale():
+    snippet = _band(int(SR * 0.25), 500, 2500, 9)
+    snippet = snippet / snippet.abs().max()
+    take = _take(gap_s=0.9, tail_s=0.4)
+    for seed in range(6):
+        out, placed = add_breaths(take, SR, 0.6, make_rng(seed), samples=((snippet, -20.0),))
+        if not placed:
+            continue
+        diff = (out - take)[SR: SR + int(0.9 * SR)]
+        nz = torch.nonzero(diff).flatten()
+        got = diff[int(nz[0]): int(nz[-1]) + 1]
+        sz = torch.nonzero(snippet).flatten()  # the Hann ends are exact zeros
+        want = snippet[int(sz[0]): int(sz[-1]) + 1]
+        assert got.shape[-1] == want.shape[-1]
+        ratio = got / want
+        assert float(ratio.std()) < 1e-4, "it is the snippet, only scaled"
+        return
+    pytest.fail("no breath placed in six seeds")
+
+
+def test_room_from_reference_reads_caches_and_never_raises(tmp_path):
+    import soundfile as sf
+
+    path = tmp_path / "ref.wav"
+    sf.write(str(path), _reference(gap_extra=_breath()).numpy(), SR)
+    room = room_from_reference(str(path), SR)
+    assert isinstance(room, RoomProfile) and room.has_room and len(room.breaths) == 1
+    assert room_from_reference(str(path), SR) is room
+    assert room_from_reference(str(tmp_path / "missing.wav"), SR) is None
+    junk = tmp_path / "junk.wav"
+    junk.write_bytes(b"not audio")
+    assert room_from_reference(str(junk), SR) is None
+    assert room_from_reference(None, SR) is None
+
+
+def test_effect_chain_uses_the_reference_room(tmp_path):
+    import soundfile as sf
+
+    path = tmp_path / "ref.wav"
+    sf.write(str(path), _reference().numpy(), SR)
+    take = _take(gap_s=0.8)
+    plain = _apply_effect_chain(take.clone(), SR, "raw", humanize=HumanizeSettings(breaths=False), seed=2)
+    matched = _apply_effect_chain(take.clone(), SR, "raw", humanize=HumanizeSettings(breaths=False),
+                                  seed=2, reference=str(path))
+    sl = slice(SR + SR // 10, SR + int(0.7 * SR))
+    f = torch.fft.rfftfreq(sl.stop - sl.start, d=1.0 / SR)
+
+    def tilt(x):
+        p = torch.fft.rfft(x[sl]).abs().pow(2)
+        return 10 * math.log10(float(p[(f > 100) & (f < 400)].mean() / p[(f > 2000) & (f < 6000)].mean()))
+
+    assert tilt(matched) > tilt(plain) + 8.0

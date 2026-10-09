@@ -189,6 +189,9 @@ export interface GenerateResult {
   dropped: { count: number; text: string } | null;
   /** X-OmniVoice-Expression-Dropped: audio tags the engine could not perform. */
   expressionDropped?: string[];
+  /** X-OmniVoice-Reference-Script: the voice sample is written in a script the
+   *  take's language never uses, so the take carries the sample's accent. */
+  referenceScript?: string | null;
 }
 
 // ── Errors ────────────────────────────────────────────────────────────────

@@ -232,7 +232,8 @@
     "droppedChunksWithText_one": "Bu kayıtta sesi üretilmeyen metin bölümleri: {{count}} — “{{text}}”. Yeniden üretmeyi deneyin.",
     "droppedChunks_other": "Bu kayıtta sesi üretilmeyen metin bölümleri: {{count}}. Yeniden üretmeyi deneyin.",
     "droppedChunksWithText_other": "Bu kayıtta sesi üretilmeyen metin bölümleri: {{count}} — “{{text}}”. Yeniden üretmeyi deneyin.",
-    "expressionDropped": "Bu ses motoru {{tags}} uygulayamıyor; bu yüzden sesli okunmak yerine atlandı."
+    "expressionDropped": "Bu ses motoru {{tags}} uygulayamıyor; bu yüzden sesli okunmak yerine atlandı.",
+    "referenceLanguage": "Ses örneğiniz başka bir dilde, bu yüzden bu kayıt onun aksanını taşır. Doğal bir aksan için kaydın dilinde konuşulmuş bir örnek kullanın."
   },
   "permissions": {
     "title": "İzinler",

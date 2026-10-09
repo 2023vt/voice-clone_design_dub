@@ -477,7 +477,7 @@ def _sanitize_audio(audio_out):
 
 @_render_timed('effects')
 def _apply_effect_chain(audio_out, sample_rate, effect_preset, *, skip_mastering=False,
-                        humanize=None, seed=None):
+                        humanize=None, seed=None, reference=None):
     """Shared post-DSP for /generate: preset validation → humanize →
     mastering → effect chain → loudness normalization.
 
@@ -490,7 +490,9 @@ def _apply_effect_chain(audio_out, sample_rate, effect_preset, *, skip_mastering
     ``humanize`` (a ``services.humanize.HumanizeSettings``) adds breaths and
     room tone to the whole take before mastering, so they get the same EQ
     and compression as the voice; it is the user's explicit ask, so it runs
-    for the ``raw`` preset too. ``seed`` keeps a pinned take repeatable.
+    for the ``raw`` preset too. ``seed`` keeps a pinned take repeatable, and
+    ``reference`` (the clone reference's path) lends the take that clip's own
+    room and breaths.
     """
     from services.audio_dsp import (
         EFFECT_PRESETS, apply_mastering, normalize_audio,
@@ -513,8 +515,9 @@ def _apply_effect_chain(audio_out, sample_rate, effect_preset, *, skip_mastering
         )
 
     if humanize is not None:
-        from services.humanize import humanize_audio, make_rng
-        audio_out = humanize_audio(audio_out, sample_rate, humanize, make_rng(seed, salt=1))
+        from services.humanize import humanize_audio, make_rng, room_from_reference
+        audio_out = humanize_audio(audio_out, sample_rate, humanize, make_rng(seed, salt=1),
+                                   room=room_from_reference(reference, sample_rate))
 
     if preset == "raw":
         # Raw: skip all DSP — return raw model output
@@ -1140,7 +1143,8 @@ def _run_inference(
         # Apply DSP effect preset. The VoiceStudio model never masters its own
         # output, so mastering always runs here (unchanged behavior).
         return _apply_effect_chain(audio_out, sr, effect_preset,
-                                   humanize=humanize, seed=used_seed)
+                                   humanize=humanize, seed=used_seed,
+                                   reference=ref_audio_path)
 
     except ValueError as e:
         # Don't wrap validation errors in OOM message
@@ -1249,7 +1253,7 @@ def _run_backend_inference(
         return _apply_effect_chain(
             audio_out, sr, effect_preset,
             skip_mastering=getattr(backend, "applies_own_mastering", False),
-            humanize=humanize, seed=used_seed,
+            humanize=humanize, seed=used_seed, reference=ref_audio_path,
         )
 
     except ValueError as e:
@@ -2112,6 +2116,12 @@ async def generate_speech(
     if isinstance(language, str) and language.strip().lower() == "auto":
         language = None
 
+    # A clone copies its reference's accent: an English sample makes a Hindi
+    # take sound English. When the reference transcript's script cannot be the
+    # take's language, say so in a header (the UI turns it into a toast).
+    from services.reference_language import notice_headers as _reference_notice
+    _reference_headers = _reference_notice(ref_text, language) if ref_audio_path else {}
+
     # Engine-agnostic text normalization (junk strip, numbers→words,
     # abbreviations) — AFTER `language` is fully resolved, and BEFORE the
     # pronunciation dictionary so user dictionary entries operate on
@@ -2276,7 +2286,7 @@ async def generate_speech(
         # the finished take as a single chunk.
         _remote_headers = _apply_routing_headers(
             {"X-Seed": str(used_seed) if used_seed is not None else "",
-             "Cache-Control": "no-cache", **_expression_headers},
+             "Cache-Control": "no-cache", **_expression_headers, **_reference_headers},
             None, _decision,
         )
 
@@ -2485,7 +2495,8 @@ async def generate_speech(
                 # and tempo drift happen once, in _assemble_stream_chunks.
                 preview = _apply_effect_chain(raw, sr, effect_preset, skip_mastering=skip,
                                               humanize=_humanize,
-                                              seed=None if used_seed is None else used_seed + i)
+                                              seed=None if used_seed is None else used_seed + i,
+                                              reference=ref_audio_path)
                 # The STREAMED copy is provenance-marked by the caller (#1169
                 # mark, moved off this GPU job in #1190): the preview PCM
                 # leaves the app the moment it's yielded, before
@@ -2514,7 +2525,8 @@ async def generate_speech(
                 skip = (getattr(_backend, "applies_own_mastering", False)
                         if _backend is not None else False)
                 return _apply_effect_chain(audio_out, sr, effect_preset, skip_mastering=skip,
-                                           humanize=_humanize, seed=used_seed)
+                                           humanize=_humanize, seed=used_seed,
+                                           reference=ref_audio_path)
             except ValueError:
                 raise
             except Exception as e:
@@ -2743,6 +2755,7 @@ async def generate_speech(
             "X-Seed": str(used_seed) if used_seed is not None else "",
             "Cache-Control": "no-cache",
             **_expression_headers,
+            **_reference_headers,
         }, _routing_notice, _decision)
         return StreamingResponse(
             _stream_events(),
@@ -2857,6 +2870,7 @@ async def generate_speech(
         # channel is the carrier.
         _apply_routing_headers(_resp_headers, _routing_notice, _decision)
         _resp_headers.update(_expression_headers)
+        _resp_headers.update(_reference_headers)
         return StreamingResponse(
             _stream_wav(),
             media_type="audio/wav",

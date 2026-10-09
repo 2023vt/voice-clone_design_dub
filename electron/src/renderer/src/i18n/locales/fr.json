@@ -234,7 +234,8 @@
     "droppedChunksWithText_other": "Passages sans audio dans cette prise : {{count}} — « {{text}} ». Relancez la génération.",
     "droppedChunks_many": "Passages sans audio dans cette prise : {{count}}. Relancez la génération.",
     "droppedChunksWithText_many": "Passages sans audio dans cette prise : {{count}} — « {{text}} ». Relancez la génération.",
-    "expressionDropped": "Ce moteur vocal ne peut pas interpréter {{tags}} : ils ont été omis au lieu d’être lus à voix haute."
+    "expressionDropped": "Ce moteur vocal ne peut pas interpréter {{tags}} : ils ont été omis au lieu d’être lus à voix haute.",
+    "referenceLanguage": "Votre échantillon de voix est dans une autre langue, cette prise en garde donc l'accent. Pour un accent natif, utilisez un échantillon dans la langue de la prise."
   },
   "permissions": {
     "title": "Autorisations",

@@ -55,12 +55,19 @@ finished take without touching the model. It runs the same on every engine
 and platform, and a pinned seed renders it the same way twice:
 
 - **Room tone.** A `[pause]` and every gap between stitched chunks is exact
-  digital silence, which no microphone has ever recorded. A quiet pink-noise
-  bed (about -61 dBFS at the default strength) runs under the whole take so a
-  pause sounds like the same room as the words.
-- **Breaths.** Short, quiet inhales are placed at the end of silences of
-  350 ms or more, finishing just before the next word. Not every gap gets one,
-  and the silence after the last word never does.
+  digital silence, which no microphone has ever recorded. A quiet noise bed
+  runs under the whole take so a pause sounds like the same room as the
+  words. For a clone, the bed copies the reference clip's own room: its noise
+  spectrum, at the same distance under the voice as in the clip. Without a
+  usable reference (voice design, a clip with digital silence or no pauses,
+  or one noisier than 25 dB under its voice) the bed is pink noise at about
+  -61 dBFS.
+- **Breaths.** Inhales are placed at the end of silences of 350 ms or more,
+  finishing just before the next word. Not every gap gets one, and the
+  silence after the last word never does. For a clone they are the
+  speaker's own inhales, cut from the reference clip at their original level
+  relative to the voice; a clip without audible inhales falls back to
+  synthesized ones.
 - **Pacing.** Long text is rendered in chunks. Each chunk's own lead-in and
   tail are trimmed, the gap is sized by what ended the chunk (a comma, a full
   stop, an ellipsis, a paragraph break) with a little random jitter, and each
@@ -68,7 +75,8 @@ and platform, and a pinned seed renders it the same way twice:
   lengths are never changed.
 
 The **How much** slider (default 60 %) scales the breath level and how often
-they appear, the drift and the jitter together. The pass runs before mastering
+they appear, the drift and the jitter together, and moves a copied room
+between 5 dB quieter and 4 dB louder than the reference. The pass runs before mastering
 so the room tone and breaths get the same EQ and compression as the voice; it
 also runs with **Even out volume** off. A take with no speech in it (a failed
 render, or pause markers only) is left untouched so the problem stays visible.

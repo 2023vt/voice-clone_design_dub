@@ -234,7 +234,8 @@
     "droppedChunksWithText_other": "Fragmentos de texto sin audio en esta toma: {{count}} — «{{text}}». Intenta generar de nuevo.",
     "droppedChunks_many": "Fragmentos de texto sin audio en esta toma: {{count}}. Intenta generar de nuevo.",
     "droppedChunksWithText_many": "Fragmentos de texto sin audio en esta toma: {{count}} — «{{text}}». Intenta generar de nuevo.",
-    "expressionDropped": "Este motor de voz no puede interpretar {{tags}}, así que se omitieron en lugar de leerse en voz alta."
+    "expressionDropped": "Este motor de voz no puede interpretar {{tags}}, así que se omitieron en lugar de leerse en voz alta.",
+    "referenceLanguage": "Tu muestra de voz está en otro idioma, así que esta toma conserva su acento. Para un acento nativo, usa una muestra hablada en el idioma de la toma."
   },
   "permissions": {
     "title": "Permisos",

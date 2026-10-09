@@ -232,7 +232,8 @@
     "droppedChunksWithText_one": "此版本中未產生音訊的文字片段：{{count}} 個 —「{{text}}」。請嘗試重新產生。",
     "droppedChunks_other": "此版本中未產生音訊的文字片段：{{count}} 個。請嘗試重新產生。",
     "droppedChunksWithText_other": "此版本中未產生音訊的文字片段：{{count}} 個 —「{{text}}」。請嘗試重新產生。",
-    "expressionDropped": "此語音引擎無法表現 {{tags}}，因此已省略，而不是朗讀出來。"
+    "expressionDropped": "此語音引擎無法表現 {{tags}}，因此已省略，而不是朗讀出來。",
+    "referenceLanguage": "你的聲音樣本是另一種語言，因此這段錄音會帶有它的口音。若要道地的口音，請使用以錄音語言說話的樣本。"
   },
   "permissions": {
     "title": "權限",

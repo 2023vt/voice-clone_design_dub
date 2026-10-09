@@ -232,7 +232,8 @@
     "droppedChunksWithText_one": "이 테이크에서 오디오가 생성되지 않은 텍스트 구간: {{count}}개 — “{{text}}”. 다시 생성해 보세요.",
     "droppedChunks_other": "이 테이크에서 오디오가 생성되지 않은 텍스트 구간: {{count}}개. 다시 생성해 보세요.",
     "droppedChunksWithText_other": "이 테이크에서 오디오가 생성되지 않은 텍스트 구간: {{count}}개 — “{{text}}”. 다시 생성해 보세요.",
-    "expressionDropped": "이 음성 엔진은 {{tags}}을(를) 표현할 수 없어 소리 내어 읽는 대신 생략했습니다."
+    "expressionDropped": "이 음성 엔진은 {{tags}}을(를) 표현할 수 없어 소리 내어 읽는 대신 생략했습니다.",
+    "referenceLanguage": "음성 샘플이 다른 언어라서 이 테이크에 그 억양이 남습니다. 자연스러운 억양을 원하면 테이크와 같은 언어로 말한 샘플을 사용하세요."
   },
   "permissions": {
     "title": "권한",

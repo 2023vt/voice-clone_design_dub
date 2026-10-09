@@ -232,7 +232,8 @@
     "droppedChunksWithText_one": "Đoạn văn bản không có âm thanh trong bản thu này: {{count}} — “{{text}}”. Hãy thử tạo lại.",
     "droppedChunks_other": "Đoạn văn bản không có âm thanh trong bản thu này: {{count}}. Hãy thử tạo lại.",
     "droppedChunksWithText_other": "Đoạn văn bản không có âm thanh trong bản thu này: {{count}} — “{{text}}”. Hãy thử tạo lại.",
-    "expressionDropped": "Công cụ giọng này không thể thể hiện {{tags}}, nên chúng được bỏ qua thay vì đọc to."
+    "expressionDropped": "Công cụ giọng này không thể thể hiện {{tags}}, nên chúng được bỏ qua thay vì đọc to.",
+    "referenceLanguage": "Mẫu giọng của bạn ở ngôn ngữ khác nên bản ghi này giữ giọng điệu của nó. Để có giọng bản xứ, hãy dùng mẫu nói bằng ngôn ngữ của bản ghi."
   },
   "permissions": {
     "title": "Quyền truy cập",

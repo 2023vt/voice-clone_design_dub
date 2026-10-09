@@ -234,7 +234,8 @@
     "droppedChunksWithText_other": "Parti di testo senza audio in questa registrazione: {{count}} — «{{text}}». Prova a generare di nuovo.",
     "droppedChunks_many": "Parti di testo senza audio in questa registrazione: {{count}}. Prova a generare di nuovo.",
     "droppedChunksWithText_many": "Parti di testo senza audio in questa registrazione: {{count}} — «{{text}}». Prova a generare di nuovo.",
-    "expressionDropped": "Questo motore vocale non può interpretare {{tags}}, quindi sono stati omessi invece di essere letti ad alta voce."
+    "expressionDropped": "Questo motore vocale non può interpretare {{tags}}, quindi sono stati omessi invece di essere letti ad alta voce.",
+    "referenceLanguage": "Il tuo campione vocale è in un'altra lingua, quindi questa ripresa ne mantiene l'accento. Per un accento nativo, usa un campione nella lingua della ripresa."
   },
   "permissions": {
     "title": "Autorizzazioni",

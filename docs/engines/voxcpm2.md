@@ -67,6 +67,13 @@ now retried once with a fresh client. See
   loudness normalization applies.
 - A trailing-silence guard trims long near-silent tails from generations,
   keeping a short natural tail.
+- **Run-on guard.** VoxCPM2 decides for itself when to stop, and now and then
+  it keeps talking after the line: invented syllables after the last word.
+  On a 25-line Hindi test set this happened on 3 lines (one question came
+  back 26.7 s long). A take more than 2.3 times as long as its text takes to
+  read, and at least 2.5 s over, is rendered once more with another seed and
+  the better take is kept; a normal take is rendered once, as before. This
+  costs one extra render only for the takes that ran on.
 
 ## Known limits
 

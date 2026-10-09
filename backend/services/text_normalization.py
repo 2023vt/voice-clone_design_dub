@@ -21,8 +21,8 @@ Design rules (load-bearing):
     supports (``_NUM2WORDS_LANGS``; the request's ``language`` is a full
     display name from electron/src/shared/languages.json or an ISO-ish code — both
     resolve via :func:`_num2words_lang`), or through a hand-written native
-    verbalizer for languages num2words lacks (``_NATIVE_VERBALIZERS``, e.g.
-    Malayalam). Everything else keeps its digits.
+    verbalizer for languages num2words lacks (``_NATIVE_VERBALIZERS``:
+    Malayalam, Hindi). Everything else keeps its digits.
     Clock times / ordinals / currency are English-only (their spoken form is
     language-specific); decimals only for locales whose num2words rendering
     was vetted. CJK scripts pass through the safety filters untouched — no
@@ -81,6 +81,7 @@ ENV_VAR = "OMNIVOICE_TEXT_NORMALIZATION"
 _FULL_NAME_TO_CODE = {
     "english": "en",
     "malayalam": "ml",
+    "hindi": "hi",
     "german": "de",
     "spanish": "es",
     "french": "fr",
@@ -237,6 +238,7 @@ _RANGE_FORM = {
     "ja": "{a}から{b}",
     "zh": "{a}到{b}",
     "en": "{a} to {b}",
+    "hi": "{a} से {b}",
 }
 
 #: ASCII tilde, wave dash, fullwidth tilde — Japanese and Korean IMEs emit the
@@ -416,6 +418,18 @@ _ABBREVIATIONS: dict[str, list[tuple[str, str, Optional[str]]]] = {
         ("etc.", "et cetera", None),
         ("n°", "numéro", "digit"),
         ("N°", "Numéro", "digit"),
+    ],
+    # Hindi: the title abbreviations a Devanagari script carries, in either
+    # script. No "cap" guard — that lookahead only knows Latin capitals, and
+    # these keys are unambiguous in Hindi text anyway.
+    "hi": [
+        ("डॉ.", "डॉक्टर", None),
+        ("प्रो.", "प्रोफ़ेसर", None),
+        ("Dr.", "डॉक्टर", None),
+        ("Prof.", "प्रोफ़ेसर", None),
+        ("Mr.", "मिस्टर", None),
+        ("Mrs.", "मिसेज़", None),
+        ("Ms.", "मिस", None),
     ],
 }
 
@@ -608,12 +622,20 @@ def _numbers_to_words(text: str, lang: str) -> str:
 # ── Native verbalizers (languages num2words lacks) ──────────────────────────
 #
 # Same conservative regexes and bracket masking as the num2words path, but the
-# rendering is a hand-written module. Malayalam (ml) is the first: num2words
+# rendering is a hand-written module. Malayalam (ml) was the first: num2words
 # ships bn/kn/te but no ml, so Malayalam dubs reached the engine with raw
-# digits. Each module exposes ``cardinal(int)``, ``decimal(int, str)`` and
-# ``percent(str)``; any exception leaves that occurrence untouched.
+# digits; Hindi (hi) followed for the same reason. Each module exposes
+# ``cardinal(int)``, ``decimal(int, str)`` and ``percent(str)``, and may
+# expose ``PATTERNS`` — ``[(regex, render)]`` for forms only that language
+# has (rupees, clock times, ordinals, Indian digit grouping), run first so
+# they claim their digits before the generic passes. Every pattern's group 1
+# starts with the number so the shared leading-zero guard applies. Any
+# exception leaves that occurrence untouched.
 
-_NATIVE_VERBALIZERS = {"ml": "services.number_words_ml"}
+_NATIVE_VERBALIZERS = {
+    "ml": "services.number_words_ml",
+    "hi": "services.number_words_hi",
+}
 
 
 def _native_lang(language: Optional[str]) -> Optional[str]:
@@ -641,6 +663,8 @@ def _numbers_to_words_native(text: str, lang: str) -> str:
         except Exception:  # noqa: BLE001 — conservative: never mangle
             return m.group(0)
 
+    for pattern, render in getattr(mod, "PATTERNS", ()):
+        text = pattern.sub(lambda m, render=render: _safe(m, render), text)
     text = _PERCENT_RE.sub(lambda m: _safe(m, lambda m: mod.percent(m.group(1))), text)
     text = _DECIMAL_RE.sub(
         lambda m: _safe(m, lambda m: mod.decimal(int(m.group(1)), m.group(2))), text
@@ -673,6 +697,8 @@ def normalize_text(text: str, language: Optional[str] = None) -> str:
     else:
         native = _native_lang(language)
         if native:
+            if native in _ABBREV_COMPILED:
+                out = _outside_brackets(out, lambda t: _expand_abbreviations(t, native))
             out = _outside_brackets(out, lambda t: _numbers_to_words_native(t, native))
     return out
 

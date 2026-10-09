@@ -310,6 +310,8 @@ function useGenerateController(): UseGenerateClone {
           ),
           wavBits: settings.wavBits,
           effectPreset: settings.effectPreset,
+          humanize: settings.humanize,
+          humanizeStrength: settings.humanizeStrength,
           cfg: settings.cfg,
           speed: settings.speed,
           tShift: settings.tShift,

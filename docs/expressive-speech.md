@@ -18,6 +18,7 @@ ignores.
 | Emotion ("excited", "sad", graded intensity) | IndexTTS2's emotion controls — Audiobook tab's Production Overrides, or the `/ws/tts` API — or CosyVoice 3 instruct | Opt-in engines only |
 | The same take again | Pin the seed / lock the profile | Default engine |
 | An ElevenLabs v3 script as-is | Paste it — `[laughs]`, `[sighs]`, `[short pause]`, `[whispers]`, `[excited]` … are lowered for the active engine (see [ElevenLabs-style tags](#elevenlabs-style-tags)) | Every engine (`/generate`) |
+| Pauses that sound like a room, breaths before sentences, natural pacing | Audio quality → **Sound more human** (or `humanize=true` on `/generate`) — see [audio-quality.md](audio-quality.md) | Every engine (`/generate`) |
 
 ## Recovering an interrupted audiobook
 
@@ -77,6 +78,11 @@ Any other bracket span — native tags, `[pause …]`, `[voice:…]`, phonemes,
   clones flat, an animated one clones animated (see the tip in
   [generation-parameters.md](generation-parameters.md)). This is the most
   reliable expressive control in the app.
+- **Sound more human** — opt-in post-processing in the Audio quality popover:
+  a quiet room tone under every pause instead of digital silence, breaths
+  before sentences that follow a long enough gap, punctuation-sized jittered
+  gaps and a touch of tempo drift between chunks. `[pause]` lengths stay
+  exact. Details and levels in [audio-quality.md](audio-quality.md).
 - **Pronunciation overrides** — `[[Nuh-VAD-uh]]` inline, or the pronunciation
   dictionary. Not expression, but often what a "it says this weirdly" problem
   actually needs.

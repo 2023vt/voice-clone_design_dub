@@ -778,6 +778,10 @@ class TaskExecutor:
         effect_preset = params.get("effect_preset", "broadcast")
         max_chunk_chars = params.get("max_chunk_chars")
         crossfade_ms = params.get("crossfade_ms")
+        from services.humanize import HumanizeSettings  # noqa: PLC0415
+        humanize = HumanizeSettings.from_request(
+            params.get("humanize"), params.get("humanize_strength"),
+        )
         try:
             with tts_backend.engine_in_use(backend):
                 if isinstance(backend, tts_backend.OmniVoiceBackend):
@@ -792,6 +796,7 @@ class TaskExecutor:
                         params.get("position_temperature"),
                         params.get("class_temperature"), used_seed,
                         effect_preset, max_chunk_chars, crossfade_ms,
+                        humanize=humanize,
                     )
                 return _run_backend_inference(
                     backend, text, language, ref_audio, ref_text, instruct,
@@ -802,6 +807,7 @@ class TaskExecutor:
                     layer_penalty_factor=params.get("layer_penalty_factor"),
                     position_temperature=params.get("position_temperature"),
                     class_temperature=params.get("class_temperature"),
+                    humanize=humanize,
                 )
         except Exception as exc:
             from worker import errors as worker_errors  # noqa: PLC0415

@@ -144,6 +144,10 @@ export interface DesignRecipe {
 export interface CloneGenerateInput {
   wavBits?: 16 | 24 | 32;
   effectPreset?: 'broadcast' | 'raw';
+  /** Breaths, room tone and natural pacing on the finished take. */
+  humanize?: boolean;
+  /** 0–1; only sent while `humanize` is on. */
+  humanizeStrength?: number;
   seed?: number;
   text: string;
   /** Display-name language ("English"). "Auto" is omitted on the wire. */

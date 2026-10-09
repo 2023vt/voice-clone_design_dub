@@ -404,7 +404,7 @@ def _note_generate_progress() -> None:
         pass
 
 
-def _render_with_pauses(gen_span, segments, sample_rate):
+def _render_with_pauses(gen_span, segments, sample_rate, *, prepare=None):
     """Synthesize ``[(text, pause_ms), ...]`` spans and stitch silence between
     them (issue #276).
 
@@ -413,16 +413,24 @@ def _render_with_pauses(gen_span, segments, sample_rate):
     requested, matching the audio tensor's channel dims / dtype / device.
     Returns the concatenated waveform. Kept model-free (``gen_span`` is injected)
     so the stitching is unit-testable without loading the TTS model.
+
+    ``prepare(audio, index) -> torch.Tensor``, when given, touches up each
+    rendered span before it is stitched (Humanize trims the engine's own
+    padding and drifts the tempo); the pause lengths themselves are never
+    changed.
     """
     import torch
 
     items = []  # ('a', tensor) for audio, ('s', n_samples) for silence
-    for span_text, pause_ms in segments:
+    for index, (span_text, pause_ms) in enumerate(segments):
         if span_text and span_text.strip():
             # Spans keep the spaces around the marker; the request text is
             # stripped before synthesis and spans must be too — a trailing space
             # after a non-verbal tag can render the whole span near-silent.
-            items.append(("a", gen_span(span_text.strip())))
+            rendered = gen_span(span_text.strip())
+            if prepare is not None:
+                rendered = prepare(rendered, index)
+            items.append(("a", rendered))
             _note_generate_progress()
         if pause_ms > 0:
             n = int(round(sample_rate * pause_ms / 1000.0))
@@ -468,15 +476,21 @@ def _sanitize_audio(audio_out):
 
 
 @_render_timed('effects')
-def _apply_effect_chain(audio_out, sample_rate, effect_preset, *, skip_mastering=False):
-    """Shared post-DSP for /generate: preset validation → mastering →
-    effect chain → loudness normalization.
+def _apply_effect_chain(audio_out, sample_rate, effect_preset, *, skip_mastering=False,
+                        humanize=None, seed=None):
+    """Shared post-DSP for /generate: preset validation → humanize →
+    mastering → effect chain → loudness normalization.
 
     ``skip_mastering`` honors a backend's ``applies_own_mastering`` flag
     (issue #312): studio engines (e.g. VoxCPM2's native 48 kHz output)
     opt out of the broadcast highpass + Compressor pre-stage that's tuned
     for VoiceStudio's 24 kHz clone output. Loudness normalization still runs —
     it's a benign peak scale. Mirrors ``_run_tts`` in openai_compat.py.
+
+    ``humanize`` (a ``services.humanize.HumanizeSettings``) adds breaths and
+    room tone to the whole take before mastering, so they get the same EQ
+    and compression as the voice; it is the user's explicit ask, so it runs
+    for the ``raw`` preset too. ``seed`` keeps a pinned take repeatable.
     """
     from services.audio_dsp import (
         EFFECT_PRESETS, apply_mastering, normalize_audio,
@@ -497,6 +511,10 @@ def _apply_effect_chain(audio_out, sample_rate, effect_preset, *, skip_mastering
             f"Unknown effect preset: {preset!r}. "
             f"Valid: {list(EFFECT_PRESETS.keys())}"
         )
+
+    if humanize is not None:
+        from services.humanize import humanize_audio, make_rng
+        audio_out = humanize_audio(audio_out, sample_rate, humanize, make_rng(seed, salt=1))
 
     if preset == "raw":
         # Raw: skip all DSP — return raw model output
@@ -1025,12 +1043,30 @@ def _generate_timeout_s(
     )
 
 
+def _humanize_span_preparer(humanize, sample_rate, used_seed):
+    """The per-span hook for ``_render_with_pauses`` when Humanize is on, else None."""
+    if humanize is None:
+        return None
+    from services.humanize import make_rng, span_preparer
+    return span_preparer(sample_rate, humanize, make_rng(used_seed, salt=2))
+
+
+def _humanize_chunks(humanize, parts, texts, sample_rate, used_seed, crossfade_ms):
+    """Humanize rendered chunks ahead of the join: trimmed, faded, drifted,
+    each carrying its punctuation-sized gap, so the join is a hard concat.
+    Returns ``(parts, crossfade_ms)`` unchanged when Humanize is off."""
+    if humanize is None:
+        return parts, crossfade_ms
+    from services.humanize import make_rng, prepare_chunks
+    return prepare_chunks(parts, texts, sample_rate, humanize, make_rng(used_seed, salt=2)), 0
+
+
 def _run_inference(
     model, text, language, ref_audio_path, ref_text, instruct, duration,
     num_step, guidance_scale, speed, t_shift, denoise,
     postprocess_output, layer_penalty_factor, position_temperature,
     class_temperature, used_seed, effect_preset="broadcast",
-    max_chunk_chars=None, crossfade_ms=None, *, dropped_sink=None,
+    max_chunk_chars=None, crossfade_ms=None, *, dropped_sink=None, humanize=None,
 ):
     import torch
     try:
@@ -1069,7 +1105,9 @@ def _run_inference(
                 # Per-span duration is left to the model; an explicit overall
                 # `duration` can't be meaningfully split across spans.
                 return _gen(span_text, None)[0]
-            audio_out = _render_with_pauses(_gen_span, segments, sr)
+            audio_out = _render_with_pauses(
+                _gen_span, segments, sr, prepare=_humanize_span_preparer(humanize, sr, used_seed),
+            )
         else:
             # Wave 1.2: long text is split at sentence boundaries and the
             # per-chunk audio crossfaded — removes the length ceiling. Short
@@ -1091,6 +1129,8 @@ def _run_inference(
                         torch.manual_seed(used_seed + i)
                     parts.append(_gen(chunk_text, None)[0])
                     _note_generate_progress()
+                parts, _xfade_ms = _humanize_chunks(humanize, parts, text_chunks, sr,
+                                                    used_seed, _xfade_ms)
                 audio_out = concatenate_audio_chunks(parts, sr, _xfade_ms,
                                                      texts=text_chunks,
                                                      sink=dropped_sink)
@@ -1099,7 +1139,8 @@ def _run_inference(
 
         # Apply DSP effect preset. The VoiceStudio model never masters its own
         # output, so mastering always runs here (unchanged behavior).
-        return _apply_effect_chain(audio_out, sr, effect_preset)
+        return _apply_effect_chain(audio_out, sr, effect_preset,
+                                   humanize=humanize, seed=used_seed)
 
     except ValueError as e:
         # Don't wrap validation errors in OOM message
@@ -1114,7 +1155,7 @@ def _run_backend_inference(
     used_seed, effect_preset="broadcast",
     max_chunk_chars=None, crossfade_ms=None, *, t_shift=None,
     layer_penalty_factor=None, position_temperature=None,
-    class_temperature=None, dropped_sink=None,
+    class_temperature=None, dropped_sink=None, humanize=None,
 ):
     """Engine-aware twin of :func:`_run_inference` (issue #312).
 
@@ -1170,7 +1211,9 @@ def _run_backend_inference(
                     span_kwargs["seed"] = used_seed
                 first_span = False
                 return trace_call("synthesis", backend.generate, span_text, duration=None, **span_kwargs)
-            audio_out = _render_with_pauses(_gen_span, segments, sr)
+            audio_out = _render_with_pauses(
+                _gen_span, segments, sr, prepare=_humanize_span_preparer(humanize, sr, used_seed),
+            )
         else:
             # Wave 1.2: sentence-boundary chunking for long text (see
             # _run_inference for the rationale; behavior is identical here).
@@ -1193,6 +1236,8 @@ def _run_backend_inference(
                         chunk_text, duration=None, **chunk_kwargs
                     ))
                     _note_generate_progress()
+                parts, _xfade_ms = _humanize_chunks(humanize, parts, text_chunks, sr,
+                                                    used_seed, _xfade_ms)
                 audio_out = concatenate_audio_chunks(parts, sr, _xfade_ms,
                                                      texts=text_chunks,
                                                      sink=dropped_sink)
@@ -1204,6 +1249,7 @@ def _run_backend_inference(
         return _apply_effect_chain(
             audio_out, sr, effect_preset,
             skip_mastering=getattr(backend, "applies_own_mastering", False),
+            humanize=humanize, seed=used_seed,
         )
 
     except ValueError as e:
@@ -1729,6 +1775,12 @@ async def generate_speech(
     # OMNIVOICE_PRONUNCIATION env var can disable it for power users. Omitting it
     # with an empty dictionary is byte-identical to legacy behavior.
     pronounce: bool = Form(True),
+    # Humanize (opt-in): breaths before sentences, a low room-tone bed under
+    # the pauses, punctuation-sized jittered gaps and a little tempo drift
+    # between chunks — the tells that make a clean render sound synthetic.
+    # Pure DSP, every engine, every platform; see services/humanize.py.
+    humanize: bool = Form(False),
+    humanize_strength: float = Form(0.6, ge=0.0, le=1.0),
     # Streaming preview: when true, the response is application/x-ndjson —
     # one JSON event per line ("start" → N × "chunk" (base64 PCM16 preview of
     # each text chunk, playable the moment it arrives) → "done" with the saved
@@ -1746,6 +1798,9 @@ async def generate_speech(
     # (utils/duration.py) so the estimate and the synthesis see the same text.
     import unicodedata
     text = unicodedata.normalize("NFC", text)
+
+    from services.humanize import HumanizeSettings
+    _humanize = HumanizeSettings.from_request(humanize, humanize_strength)
 
     # ── Engine resolution (issue #312) ──────────────────────────────────────
     # The request runs on the engine selected in Settings (POST /engines/select,
@@ -2151,6 +2206,8 @@ async def generate_speech(
         "wav_bits": int(wav_bits),
         # The requesting user's provenance preference, not the GPU owner's.
         "watermark": bool(_watermark_enabled()),
+        # A worker older than Humanize ignores these and returns a plain take.
+        **(_humanize.to_params() if _humanize is not None else {}),
     }
     _remote_call = gpu_gateway.RemoteCall(
         engine=engine_id, operation=_REMOTE_OP, params=_remote_params,
@@ -2423,7 +2480,12 @@ async def generate_speech(
                     )[0]
                     sr = _model.sampling_rate if hasattr(_model, "sampling_rate") else 24000
                     skip = False
-                preview = _apply_effect_chain(raw, sr, effect_preset, skip_mastering=skip)
+                # The preview gets the whole-take Humanize pass (breaths, room
+                # tone) on the untrimmed chunk; the saved take's chunk pacing
+                # and tempo drift happen once, in _assemble_stream_chunks.
+                preview = _apply_effect_chain(raw, sr, effect_preset, skip_mastering=skip,
+                                              humanize=_humanize,
+                                              seed=None if used_seed is None else used_seed + i)
                 # The STREAMED copy is provenance-marked by the caller (#1169
                 # mark, moved off this GPU job in #1190): the preview PCM
                 # leaves the app the moment it's yielded, before
@@ -2444,12 +2506,15 @@ async def generate_speech(
             non-streaming multi-chunk loop runs, as one pool job."""
             from services.chunked_tts import concatenate_audio_chunks
             try:
-                audio_out = concatenate_audio_chunks(parts, sr, crossfade_ms,
+                parts, xfade = _humanize_chunks(_humanize, parts, _text_chunks, sr,
+                                                used_seed, crossfade_ms)
+                audio_out = concatenate_audio_chunks(parts, sr, xfade,
                                                      texts=_text_chunks,
                                                      sink=_dropped_sink)
                 skip = (getattr(_backend, "applies_own_mastering", False)
                         if _backend is not None else False)
-                return _apply_effect_chain(audio_out, sr, effect_preset, skip_mastering=skip)
+                return _apply_effect_chain(audio_out, sr, effect_preset, skip_mastering=skip,
+                                           humanize=_humanize, seed=used_seed)
             except ValueError:
                 raise
             except Exception as e:
@@ -2477,7 +2542,7 @@ async def generate_speech(
                                     layer_penalty_factor=layer_penalty_factor,
                                     position_temperature=position_temperature,
                                     class_temperature=class_temperature,
-                                    dropped_sink=_dropped_sink,
+                                    dropped_sink=_dropped_sink, humanize=_humanize,
                                 ),
                                 what="TTS generate",
                                 min_vram_gb=_engine_min_vram_gb,
@@ -2505,6 +2570,7 @@ async def generate_speech(
                                     layer_penalty_factor, position_temperature,
                                     class_temperature, used_seed, effect_preset,
                                     max_chunk_chars, crossfade_ms, dropped_sink=_dropped_sink,
+                                    humanize=_humanize,
                                 ),
                                 what="TTS generate",
                                 min_vram_gb=_engine_min_vram_gb,
@@ -2711,7 +2777,7 @@ async def generate_speech(
                     layer_penalty_factor=layer_penalty_factor,
                     position_temperature=position_temperature,
                     class_temperature=class_temperature,
-                    dropped_sink=_dropped_text,
+                    dropped_sink=_dropped_text, humanize=_humanize,
                 )
             else:
                 _local_render = functools.partial(
@@ -2721,6 +2787,7 @@ async def generate_speech(
                     postprocess_output, layer_penalty_factor, position_temperature,
                     class_temperature, used_seed, effect_preset,
                     max_chunk_chars, crossfade_ms, dropped_sink=_dropped_text,
+                    humanize=_humanize,
                 )
             audio_tensor = await _run_with_reference_lease(
                 ref_lease,

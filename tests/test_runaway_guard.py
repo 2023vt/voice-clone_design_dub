@@ -63,21 +63,33 @@ def test_a_runaway_take_is_rendered_again_and_the_retry_kept():
     assert r.attempts == [0, 1] and out.shape[-1] == int(SR * 3.6)
 
 
-def test_two_runaways_keep_the_shorter():
-    r = Renders(20.0, 12.0)
+def test_a_second_retry_rescues_a_stubborn_line():
+    # The eval's date line ran on with two seeds and came out right with the third.
+    r = Renders(13.3, 16.0, 3.4)
     out = rg.render_guarded(r, TEXT, sample_rate=SR, language="Hindi")
+    assert r.attempts == [0, 1, 2] and out.shape[-1] == int(SR * 3.4)
+
+
+def test_every_attempt_running_on_keeps_the_shortest():
+    r = Renders(20.0, 12.0, 15.0)
+    out = rg.render_guarded(r, TEXT, sample_rate=SR, language="Hindi")
+    assert len(r.attempts) == 1 + rg.MAX_RETRIES
     assert out.shape[-1] == int(SR * 12.0)
 
 
-def test_a_retry_that_lost_words_loses_to_the_complete_first_take():
-    r = Renders(20.0, 0.5)
+def test_a_retry_that_lost_words_is_never_kept():
+    r = Renders(20.0, 0.5, 0.6)
     out = rg.render_guarded(r, TEXT, sample_rate=SR, language="Hindi")
     assert out.shape[-1] == int(SR * 20.0)
+    r = Renders(20.0, 0.5, 3.5)
+    out = rg.render_guarded(r, TEXT, sample_rate=SR, language="Hindi")
+    assert out.shape[-1] == int(SR * 3.5)
 
 
 def test_retry_seed():
     assert rg.retry_seed(None) is None
     assert rg.retry_seed(7) == 7 + rg.RETRY_SEED_OFFSET
+    assert rg.retry_seed(7, 2) == 7 + 2 * rg.RETRY_SEED_OFFSET
     assert 0 <= rg.retry_seed(2**31 - 1) < 2**31
 
 

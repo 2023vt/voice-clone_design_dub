@@ -71,9 +71,11 @@ now retried once with a fresh client. See
   it keeps talking after the line: invented syllables after the last word.
   On a 25-line Hindi test set this happened on 3 lines (one question came
   back 26.7 s long). A take more than 2.3 times as long as its text takes to
-  read, and at least 2.5 s over, is rendered once more with another seed and
-  the better take is kept; a normal take is rendered once, as before. This
-  costs one extra render only for the takes that ran on.
+  read, and at least 2.5 s over, is rendered again with another seed, up to
+  twice; the first retry that is neither run-on nor too short to hold the line
+  is kept, otherwise the shortest take. On that test set one retry fixed two
+  of the three lines and a second retry the third. A normal take is rendered
+  once, as before; only the takes that ran on cost extra renders.
 
 ## Known limits
 

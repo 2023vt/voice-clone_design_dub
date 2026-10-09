@@ -1920,7 +1920,7 @@ class VoxCPM2Backend(TTSBackend):
             # The caller seeded the first attempt; a retry draws its own seed
             # so a take that ran on past its text is not repeated verbatim.
             if attempt:
-                seed = retry_seed(kw.get("seed"))
+                seed = retry_seed(kw.get("seed"), attempt)
                 torch.manual_seed(seed if seed is not None else torch.seed())
             return self._finalize(self._model.generate(**generation_kwargs(text, **kw)))
 

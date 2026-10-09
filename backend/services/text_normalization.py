@@ -626,11 +626,13 @@ def _numbers_to_words(text: str, lang: str) -> str:
 # ships bn/kn/te but no ml, so Malayalam dubs reached the engine with raw
 # digits; Hindi (hi) followed for the same reason. Each module exposes
 # ``cardinal(int)``, ``decimal(int, str)`` and ``percent(str)``, and may
-# expose ``PATTERNS`` — ``[(regex, render)]`` for forms only that language
-# has (rupees, clock times, ordinals, Indian digit grouping), run first so
-# they claim their digits before the generic passes. Every pattern's group 1
-# starts with the number so the shared leading-zero guard applies. Any
-# exception leaves that occurrence untouched.
+# expose ``PATTERNS`` — ``[(regex, render[, zero_guard])]`` for forms only
+# that language has (money, dates, phone numbers, clock times, ordinals,
+# Indian digit grouping, acronyms), run first so they claim their text before
+# the generic passes. With ``zero_guard`` on (the default) a group 1 starting
+# with a zero is a code and stays as written; forms that are routinely written
+# with a leading zero (05:30, 05/08/2026) turn it off. Any exception leaves
+# that occurrence untouched.
 
 _NATIVE_VERBALIZERS = {
     "ml": "services.number_words_ml",
@@ -654,17 +656,24 @@ def _numbers_to_words_native(text: str, lang: str) -> str:
     except Exception:  # noqa: BLE001 — never break synthesis
         return text
 
-    def _safe(m: re.Match, render: Callable[[re.Match], str]) -> str:
-        """Render one match; on any error return the original text."""
-        if _glued_to_mark(m) or _leading_zero(m.group(1).partition(".")[0]):
+    def _safe(m: re.Match, render: Callable[[re.Match], str], *, zero_guard: bool = True) -> str:
+        """Render one match; on any error return the original text.
+
+        ``zero_guard=False`` is for forms where a leading zero is ordinary
+        writing ("05:30", "05/08/2026"), not a code like "007".
+        """
+        if _glued_to_mark(m):
+            return m.group(0)
+        if zero_guard and _leading_zero((m.group(1) or "").partition(".")[0]):
             return m.group(0)
         try:
             return render(m)
         except Exception:  # noqa: BLE001 — conservative: never mangle
             return m.group(0)
 
-    for pattern, render in getattr(mod, "PATTERNS", ()):
-        text = pattern.sub(lambda m, render=render: _safe(m, render), text)
+    for pattern, render, *flags in getattr(mod, "PATTERNS", ()):
+        guard = flags[0] if flags else True
+        text = pattern.sub(lambda m, render=render, guard=guard: _safe(m, render, zero_guard=guard), text)
     text = _PERCENT_RE.sub(lambda m: _safe(m, lambda m: mod.percent(m.group(1))), text)
     text = _DECIMAL_RE.sub(
         lambda m: _safe(m, lambda m: mod.decimal(int(m.group(1)), m.group(2))), text

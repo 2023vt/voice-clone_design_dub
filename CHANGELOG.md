@@ -39,6 +39,9 @@ metadata and the backend fallback mirror it.
 
 ### Added
 
+- Voice Gallery adds Hindi Documentary and Hindi Comedy narrators with genre preview scripts, and The Wildlife Narrator (deep British nature-documentary voice) — timbres measured from the reels users want to reproduce
+- Hindi scripts read numbers the way a Hindi speaker says them: cardinals up to लाख, the spoken सौ form for 1100–1999 (उन्नीस सौ चौरासी), rupees (₹, Rs., 1,50,000), clock times (साढ़े दस, पौने ग्यारह, दस बजकर बीस मिनट), digit ordinals (5वीं), percent, decimals, Devanagari digits and डॉ./Dr. titles — see docs/hindi.md
+- Sound more human (opt-in, Audio quality popover): breaths before sentences, a quiet room tone under pauses instead of digital silence, punctuation-sized jittered gaps and a touch of tempo drift between chunks; same on every engine and platform, repeatable with a pinned seed, `humanize=true` on `/generate`
 - Commercial-safe mode (opt-in): every engine and tool reports its weights' licence, and when the mode is on, non-commercial or unreviewed weights (OmniVoice, audio.cpp, MusicGen, AudioLDM2) are refused on every generation path with a clear 403 — see docs/commercial-safe-mode.md
 - MCP agents can design a voice from a text description and reuse it by `profile_id` (`describe_voice`, `design_voice`) (#2368) — thanks @thelselutopia!
 - Dictation vocabulary hint in Settings → Dictation shortcut: names and jargon that Faster Whisper, MLX Whisper and OpenAI-compatible engines should expect (#2395) — thanks @m061i6!

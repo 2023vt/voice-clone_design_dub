@@ -16,6 +16,10 @@ metadata and the backend fallback mirror it.
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
 
+### Fixed
+
+- Subtitle imports retain cues whose hour field has more than two digits, including exported long recordings. (#2707) — thanks @rudycelekli!
+
 ## [0.5.7] — 2026-10-13
 
 **VoiceStudio now runs on PCs without a GPU and recovers instead of giving up.** Voice cloning uses the speech-to-text model you installed from Model Catalogue, GPU-less computers get the small CPU PyTorch build, and slow or busy backends are no longer reported as failed.

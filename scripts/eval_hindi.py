@@ -26,7 +26,7 @@ Run with the app's own Python runtime (it has faster-whisper and torch), with
 the backend already running::
 
     python scripts/eval_hindi.py --output eval-runs/doc-humanize \\
-        --profile-id 2767dcb0 --humanize
+        --profile-id <voice id> --humanize
 
     python scripts/eval_hindi.py --output eval-runs/design-plain \\
         --instruct "male, middle-aged, very low pitch"

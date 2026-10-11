@@ -17,7 +17,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- Keep the dubbing waveform visible while selecting and editing cues in long transcripts (#2740) — thanks @liao942287300-cyber!
+- Keep the dubbing waveform visible and cue navigation accurate in long transcripts, even after dismissing errors (#2740) — thanks @liao942287300-cyber!
 
 ## [0.5.7] — 2026-10-07
 

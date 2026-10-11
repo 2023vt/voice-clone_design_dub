@@ -233,6 +233,7 @@ try {
     return route.fulfill({ json: { job_id: 'fixture', task_id: 'prep-fixture' } });
   });
   let generation;
+  let generationFailure = null;
   await page.route('**/api/dub/generate/fixture', (route) => {
     generation = route.request().postDataJSON();
     return route.fulfill({ json: { task_id: 'generation-fixture' } });
@@ -240,7 +241,9 @@ try {
   await page.route('**/api/tasks/stream/generation-fixture', (route) =>
     route.fulfill({
       contentType: 'text/event-stream',
-      body: 'data: {"type":"progress","current":0,"total":1}\n\ndata: {"type":"done","tracks":["es"]}\n\n',
+      body: generationFailure
+        ? `data: ${JSON.stringify({ type: 'error', stage: 'generate', ...generationFailure })}\n\n`
+        : 'data: {"type":"progress","current":0,"total":1}\n\ndata: {"type":"done","tracks":["es"]}\n\n',
     }),
   );
   await page.goto(
@@ -677,6 +680,24 @@ try {
     await timeline.locator('[data-timeline-segment="long-0"]').click();
     await assertTimelineCueVisible('long-0');
   }
+  // Error notices sit above the same virtualized list without resizing the
+  // scrollport. Appearing, growing and dismissing one must keep reveals accurate.
+  const generationNotice = page.locator('[data-slot="dub-transcript-scroll"] [role="alert"]');
+  for (const hint of [
+    'Retry generation after the model is ready.',
+    'Retry generation after the model is ready. Confirm that the selected voice model is installed and its reference clip can be read. The existing transcript remains editable while the model problem is resolved. No cue edits need to be discarded, and generation can be retried when the local engine is available again.',
+  ]) {
+    generationFailure = { reason: 'The voice model could not generate this dub.', hint };
+    await page.getByRole('button', { name: 'Generate Dub', exact: true }).click();
+    await generationNotice.getByText(hint, { exact: true }).waitFor();
+    await timeline.locator('[data-timeline-segment="long-90"]').click();
+    await assertTimelineCueVisible('long-90');
+  }
+  await generationNotice.getByRole('button', { name: 'Dismiss', exact: true }).click();
+  await generationNotice.waitFor({ state: 'hidden' });
+  await timeline.locator('[data-timeline-segment="long-0"]').click();
+  await assertTimelineCueVisible('long-0');
+  generationFailure = null;
   await page.setViewportSize({ width: 1400, height: 900 });
   await page.evaluate(() => sessionStorage.setItem('voicestudio.test.reset-dub', '1'));
   await page.reload();
@@ -723,7 +744,7 @@ try {
   if (process.env.VOICESTUDIO_SCREENSHOT)
     await page.screenshot({ path: process.env.VOICESTUDIO_SCREENSHOT });
   console.log(
-    'PASS: dub upload, streamed transcription, subtitle import, translate, edit, reload recovery, generate, export readiness, long virtualized timeline visibility and URL import',
+    'PASS: dub upload, streamed transcription, subtitle import, translate, edit, reload recovery, generate, export readiness, long virtualized timeline visibility, error-notice resizing and dismissal, and URL import',
   );
 } finally {
   await browser.close();

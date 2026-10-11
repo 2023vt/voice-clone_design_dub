@@ -59,7 +59,7 @@ def _run(args):
             logger.error("Tailscale command exited with code %s", r.returncode)
             return {"ok": False, "error": "tailscale command failed"}
         return {"ok": True, "error": ""}
-    except Exception as exc:
+    except (OSError, subprocess.TimeoutExpired, UnicodeDecodeError) as exc:
         logger.error("Tailscale command failed (%s)", type(exc).__name__)
         return {"ok": False, "error": "tailscale command failed"}
 

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import logging
 
+import pytest
+
 _PRIVATE = (
     "Traceback (most recent call last):\n"
     '  File "/home/alice/private/project.py", line 7\n'
@@ -213,7 +215,7 @@ def test_tailscale_command_exception_logs_only_safe_context(monkeypatch, caplog)
     private = f"{_PRIVATE}\nTOKEN=private-value"
 
     def fail_run(*_args, **_kwargs):
-        raise RuntimeError(private)
+        raise OSError(private)
 
     monkeypatch.setattr(tailscale.subprocess, "run", fail_run)
     with caplog.at_level(logging.ERROR, logger="omnivoice.tailscale"):
@@ -221,7 +223,7 @@ def test_tailscale_command_exception_logs_only_safe_context(monkeypatch, caplog)
 
     assert result == {"ok": False, "error": "tailscale command failed"}
     synthetic_token = "hf_" + "abcdefghijklmnopqrstuvwxyz" + "1234567890"
-    assert "Tailscale command failed (RuntimeError)" in caplog.text
+    assert "Tailscale command failed (OSError)" in caplog.text
     assert synthetic_token not in caplog.text
     assert "TOKEN=private-value" not in caplog.text
     assert "/home/alice" not in caplog.text
@@ -303,3 +305,36 @@ def test_global_exception_handler_keeps_private_failure_out_of_response(
     assert "Traceback" not in serialized
     assert "/home/alice" not in serialized
     assert "hf_abcdefghijklmnopqrstuvwxyz1234567890" not in serialized
+
+
+@pytest.mark.parametrize("error_kind", ["os", "timeout", "decode"])
+def test_tailscale_expected_subprocess_failures_degrade_safely(monkeypatch, caplog, error_kind):
+    from services import tailscale
+    import subprocess
+
+    if error_kind == "os":
+        error = OSError("synthetic unavailable command")
+    elif error_kind == "timeout":
+        error = subprocess.TimeoutExpired(["tailscale", "serve"], timeout=20)
+    else:
+        error = UnicodeDecodeError("utf-8", b"\xff", 0, 1, "invalid synthetic output")
+
+    def fail(*args, **kwargs):
+        raise error
+
+    monkeypatch.setattr(tailscale.subprocess, "run", fail)
+    with caplog.at_level(logging.ERROR):
+        result = tailscale._run(["tailscale", "serve"])
+    assert result == {"ok": False, "error": "tailscale command failed"}
+    assert f"Tailscale command failed ({type(error).__name__})" in caplog.text
+
+
+def test_tailscale_unexpected_programming_error_is_not_hidden(monkeypatch):
+    from services import tailscale
+
+    def fail(*args, **kwargs):
+        raise RuntimeError("synthetic programming failure")
+
+    monkeypatch.setattr(tailscale.subprocess, "run", fail)
+    with pytest.raises(RuntimeError, match="synthetic programming failure"):
+        tailscale._run(["tailscale", "serve"])

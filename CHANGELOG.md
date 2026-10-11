@@ -18,7 +18,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- Invalid public API URLs are ignored instead of breaking the served web interface. (#2704) — thanks @rudycelekli!
+- Public API URLs are validated and international hostnames work with the served web interface. (#2704) — thanks @rudycelekli!
 
 ## [0.5.7] — 2026-10-13
 

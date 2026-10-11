@@ -17,6 +17,8 @@ import os
 import re
 from urllib.parse import unquote, urlsplit
 
+import httpx
+
 
 #: Absolute path of the web UI build to serve at "/". The packaged desktop app
 #: sets it to the build inside its own resources, so the UI a LAN device gets
@@ -111,11 +113,12 @@ def is_valid_public_api_base(value: str) -> bool:
             host = unquote(parsed.hostname or "", errors="strict")
             if re.search(r"[\x00-\x20\x7f#/:<>?@\[\\\]\^|%]", host):
                 return False
+            httpx.URL(scheme=parsed.scheme, host=host, port=parsed.port)
         return (
             bool(parsed.hostname) and parsed.username is None and parsed.password is None
             and (parsed.port is None or 0 < parsed.port <= 65535)
         )
-    except (ValueError, UnicodeError):
+    except (ValueError, UnicodeError, httpx.InvalidURL):
         return False
 
 
@@ -137,11 +140,17 @@ def inject_api_base(html_doc: str, api_base: str) -> str:
         1,
     )
     parsed = urlsplit(api_base)
-    http_origin = f"{parsed.scheme}://{parsed.netloc}"
+    # HTTPX uses IDNA2008, matching browser origins without mapping ß to ss.
+    authority = httpx.URL(
+        scheme=parsed.scheme,
+        host=unquote(parsed.hostname or "", errors="strict"),
+        port=parsed.port,
+    ).netloc.decode("ascii")
+    http_origin = f"{parsed.scheme}://{authority}"
     ws_scheme = "wss" if parsed.scheme == "https" else "ws"
     html_doc = html_doc.replace(
         "connect-src 'self'",
-        f"connect-src 'self' {http_origin} {ws_scheme}://{parsed.netloc}",
+        f"connect-src 'self' {http_origin} {ws_scheme}://{authority}",
         1,
     )
     if "<head>" in html_doc:

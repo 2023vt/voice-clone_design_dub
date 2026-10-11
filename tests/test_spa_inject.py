@@ -93,3 +93,23 @@ def test_public_api_base_rejects_browser_invalid_hosts(url):
 def test_public_api_base_preserves_browser_valid_hosts(url):
     from core.spa_inject import is_valid_public_api_base
     assert is_valid_public_api_base(url)
+
+
+@pytest.mark.parametrize(("base", "authority"), [
+    ("https://例え.テスト:3900/api", "xn--r8jz45g.xn--zckzah:3900"),
+    ("https://faß.test:3900/api", "xn--fa-hia.test:3900"),
+    ("https://%65xample.test:3900/api", "example.test:3900"),
+])
+def test_csp_api_origins_match_browser_dns_hosts(base, authority):
+    from core.spa_inject import inject_api_base, is_valid_public_api_base
+
+    assert is_valid_public_api_base(base)
+    doc = '<head><meta content="connect-src \'self\'"></head>'
+    out = inject_api_base(doc, base)
+    assert f"connect-src 'self' https://{authority} wss://{authority}" in out
+
+
+def test_idna_unrepresentable_host_is_rejected_before_injection():
+    from core.spa_inject import is_valid_public_api_base
+
+    assert not is_valid_public_api_base("https://\u200d.test/api")

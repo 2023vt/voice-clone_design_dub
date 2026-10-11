@@ -197,6 +197,30 @@ def _leftovers(text: str) -> list[str]:
     return _LEFTOVER_RE.findall(_BRACKET_RE.sub(" ", re.sub("\u27e6\\d+\u27e7", " ", text)))
 
 
+def _convert_words(llm, words, language: str, script_name: str, script: str) -> dict[str, str]:
+    """Romanized words to the target script, one model call; only clean one-word answers."""
+    unique = list(dict.fromkeys(words))
+    system = (f"Write each Romanized {language} word in the {script_name} script, the way a "
+              f"native writer spells it. One word per line, in the same order, nothing else.")
+    lines = [ln.strip() for ln in _ask(llm, system, "\n".join(unique)).splitlines() if ln.strip()]
+    if len(lines) != len(unique):
+        return {}
+    out = {}
+    for word, native in zip(unique, lines):
+        # Models sometimes answer "humne → हमने" or "humne: हमने"; keep the answer side.
+        native = re.split(r"\s*(?:→|->|=>|=|:)\s*", native)[-1]
+        native = native.strip(" .,:;-–—\"'")
+        if len(native.split()) == 1 and _letters(native) and script_share(native, script) == 1.0:
+            out[word] = native
+    return out
+
+
+def _replace_words(text: str, mapping: dict[str, str]) -> str:
+    for word, native in mapping.items():
+        text = re.sub(rf"(?<![A-Za-z]){re.escape(word)}(?![A-Za-z])", native, text)
+    return text
+
+
 def _ask(llm, system: str, user: str) -> str:
     try:
         return _clean(llm.chat(system=system, user=user))
@@ -246,13 +270,20 @@ def transliterate(text: str, language: Optional[str], *, llm=None) -> Result:
             # A model sometimes leaves a word in Roman letters ("humne 10 हज़ार
             # से…"). One more pass over its own answer converts the rest; it is
             # kept only if it passes the same checks and leaves fewer behind.
-            second = f"{lead}{_ask(llm, system, answer).strip()}{trail}"
+            left = ", ".join(sorted(set(_leftovers(answer))))
+            follow_up = f"{system}\n\nThese words are still in Roman letters; write them in the target script too: {left}."
+            second = f"{lead}{_ask(llm, follow_up, answer).strip()}{trail}"
             try:
                 _check(chunk, second, script)
             except TransliterationError:
                 second = answer
             if len(_leftovers(second)) < len(_leftovers(answer)):
                 answer = second
+        if _leftovers(answer):
+            # Still there: ask for just those words and put each one back in
+            # its place. A reply that is not one word in the target script is
+            # not used, so the worst case is the word staying in Roman.
+            answer = _replace_words(answer, _convert_words(llm, _leftovers(answer), name, script_name, script))
         pieces.append(answer)
     converted = _unmask("\n".join(pieces), spans)
     return Result(text=converted, changed=converted != text)

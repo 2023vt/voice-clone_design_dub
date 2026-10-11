@@ -157,12 +157,27 @@ def test_a_word_left_in_roman_gets_one_more_pass():
 
 
 def test_a_follow_up_pass_that_breaks_the_checks_is_ignored():
-    replies = iter(["humne दस हज़ार से शुरू किया", "हमने बहुत पहले दस हज़ार रुपये से अपना काम शुरू किया था"])
+    rephrase = "हमने बहुत पहले दस हज़ार रुपये से अपना काम शुरू किया था"
+    replies = iter(["humne दस हज़ार से शुरू किया", rephrase, "humne → हमने"])
     res = transliterate("humne das hazaar se shuru kiya", "Hindi", llm=FakeLLM(lambda user: next(replies)))
-    assert res.text == "humne दस हज़ार से शुरू किया"
+    assert res.text == "हमने दस हज़ार से शुरू किया", "the rephrase is dropped, the word fixed on its own"
 
 
 def test_capitalised_names_left_in_latin_do_not_trigger_a_second_pass():
     llm = FakeLLM(lambda user: "कल CEO ने YouTube पर बताया")
     transliterate("kal CEO ne YouTube par bataya", "Hindi", llm=llm)
     assert len(llm.calls) == 1
+
+
+def test_a_word_that_survives_both_passes_is_converted_on_its_own():
+    replies = iter(["humne दस हज़ार से शुरू किया", "humne दस हज़ार से शुरू किया", "हमने"])
+    llm = FakeLLM(lambda user: next(replies))
+    res = transliterate("humne das hazaar se shuru kiya", "Hindi", llm=llm)
+    assert res.text == "हमने दस हज़ार से शुरू किया"
+    assert llm.calls[2][1] == "humne"
+
+
+def test_a_word_reply_that_is_not_one_native_word_is_not_used():
+    replies = iter(["humne दस हज़ार से शुरू किया", "humne दस हज़ार से शुरू किया", "हम ने तो"])
+    res = transliterate("humne das hazaar se shuru kiya", "Hindi", llm=FakeLLM(lambda user: next(replies)))
+    assert res.text == "humne दस हज़ार से शुरू किया"

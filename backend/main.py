@@ -675,6 +675,13 @@ def _phase_a_build_inner() -> None:
     # from a real cu128 build in #1285.
     if hasattr(torchaudio, "set_audio_backend"):
         torchaudio.set_audio_backend("soundfile")
+    # Intel Arc on Windows: torch.xpu.mem_get_info() raises, and transformers
+    # calls it on every from_pretrained. Patch before any model can load.
+    try:
+        from core import xpu_compat
+        xpu_compat.install()
+    except Exception:  # noqa: BLE001 — never block startup on a compat shim
+        pass
     from utils import hf_progress
     # HF tqdm patch before any library import that can trigger
     # hf_hub_download (transformers, mlx_whisper, …).

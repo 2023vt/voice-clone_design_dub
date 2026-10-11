@@ -10,7 +10,7 @@ metadata and the backend fallback mirror it.
 
 **Highlights**
 
-- Dubbing can jump between flagged transcript segments before generation (#2686) — thanks @Thakay!
+- Dubbing can jump between flagged transcript segments before generation; thanks @Thakay! (#2686)
 - Add model-source notices and an optional exact-file review preview; ordinary downloads remain unchanged. (#2689)
 - Model cards show a coloured icon for each model's licence category: commercial, with conditions, personal/research only, or unknown. (#2689)
 - Models without a plainly commercial licence, including the default OmniVoice model, must have their licence accepted once before use; VoiceStudio is not the licensor and cannot grant model rights. (#2689)
@@ -18,7 +18,15 @@ metadata and the backend fallback mirror it.
 
 ### Added
 
-- Previous and Next issue controls review timing, translation and verification warnings, including offscreen transcript rows (#2686) — thanks @Thakay!
+- Previous and Next issue controls review timing, translation and verification warnings, including offscreen transcript rows; thanks @Thakay! (#2686)
+
+### Changed
+
+- Existing local projects, settings and data are unaffected; legacy worker database records are retained and ignored.
+
+### Removed
+
+- Remote compute devices, remote workers and GPU sharing moved to VoiceStudio Pro and are no longer included in the open-source app.
 
 ## [0.5.7] — 2026-10-07
 

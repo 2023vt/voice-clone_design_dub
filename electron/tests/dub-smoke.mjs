@@ -82,7 +82,9 @@ try {
   const vidstackWarnings = [];
   let mediaHeadRequests = 0;
   let releaseVideo;
-  const videoReady = new Promise((resolve) => { releaseVideo = resolve; });
+  const videoReady = new Promise((resolve) => {
+    releaseVideo = resolve;
+  });
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => {
     if (message.type() === 'warning' && message.text().includes('[vidstack]'))
@@ -119,17 +121,6 @@ try {
             supported: true,
           },
         ],
-      },
-    }),
-  );
-  await page.route('**/api/workers/target**', (route) =>
-    route.fulfill({
-      json: {
-        target: 'local',
-        op: 'dub',
-        active: { remote: false, label: 'Local device', reason: '' },
-        remote_operations: [],
-        targets: [],
       },
     }),
   );
@@ -181,7 +172,10 @@ try {
   });
   if (video) {
     await page.route('**/api/dub/thumb/fixture', (route) =>
-      route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="teal"/></svg>' }),
+      route.fulfill({
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="teal"/></svg>',
+      }),
     );
     await page.route('**/api/dub/media/fixture', async (route) => {
       await videoReady;

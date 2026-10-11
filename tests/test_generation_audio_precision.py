@@ -44,23 +44,6 @@ def test_integer_audio_scales_and_clipping_does_not_modify_input():
     assert audio.tolist() == [2.0, -2.0]
 
 
-@pytest.mark.parametrize("bits,subtype", [(16, "PCM_16"), (24, "PCM_24"), (32, "FLOAT")])
-def test_worker_transport_preserves_requested_precision(monkeypatch, bits, subtype):
-    from worker import executor
-    marked = []
-    def mark(audio, rate, params):
-        marked.append(rate)
-        return audio
-    monkeypatch.setattr(executor, '_mark', mark)
-    audio = torch.tensor([0.000001, -0.000002, 0.25, -0.5])
-    payload, meta = executor.TaskExecutor._encode(audio, {'wav_bits': bits, 'sample_rate': 48000})
-    assert marked == [48000]
-    assert meta['sample_rate'] == 48000
-    assert sf.info(io.BytesIO(payload)).subtype == subtype
-    np.testing.assert_allclose(sf.read(io.BytesIO(payload))[0], audio.numpy(),
-                               atol=0 if bits == 32 else 2 ** -(bits - 1), rtol=0)
-
-
 def test_invalid_api_precision_rejected_without_model_work():
     from fastapi import FastAPI
     from fastapi.testclient import TestClient

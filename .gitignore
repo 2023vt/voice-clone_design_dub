@@ -13,6 +13,7 @@ __pycache__/
 .ruff_cache/
 dist/
 build/
+.playwright-mcp
 
 # ─────────────────────────────────────────────────────────────────────────
 #  Node / Turborepo / Tauri

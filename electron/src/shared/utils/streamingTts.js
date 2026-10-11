@@ -37,38 +37,6 @@ export const supportsStreamingPreview = () =>
   typeof window !== 'undefined' &&
   typeof (window.AudioContext || window.webkitAudioContext) === 'function';
 
-/**
- * The resolved GPU target for synthesis, when it is a remote worker.
- *
- * `/generate?stream=true` renders in THIS process — there is no streaming
- * path to a worker — so a progressive preview would quietly run the job on
- * this machine after the user picked their 4090. That is the one thing the
- * whole picker exists to prevent, so the caller takes the classic (remote-
- * capable) path instead and says why.
- *
- * Resolved per generate rather than once at mount, deliberately: a worker can
- * go to sleep between two clicks, and this asks routing the same question the
- * generation path asks, so the two cannot disagree.
- *
- * Any failure answers "local". Remote workers are opt-in and the endpoint is
- * loopback-only; a picker that cannot be reached must never stand between a
- * user and an ordinary local render, and transport retries are off so a dead
- * backend fails here in one round trip instead of stalling the click.
- *
- * @returns {Promise<{workerId: string|null, label: string}|null>}
- */
-export async function resolveRemoteTtsTarget({ signal } = {}) {
-  try {
-    const res = await apiFetch('/workers/target?op=tts', { signal, retryTransport: false });
-    if (!res?.ok) return null;
-    const active = (await res.json())?.active;
-    if (!active?.remote) return null;
-    return { workerId: active.worker_id || null, label: active.label || '' };
-  } catch {
-    return null;
-  }
-}
-
 /** A failure AFTER the stream started — the signal to fall back to the
  *  classic whole-file /generate flow. */
 export class StreamingPreviewError extends Error {

@@ -373,29 +373,9 @@ jobs:
         env:
           HF_HUB_OFFLINE: "1"
 
-      # Artifact commits depend on native Windows rename/replace semantics;
-      # Linux emulation cannot exercise sharing rules or path parsing.
-      # test_worker_task_store and test_worker_inbound_transport joined this
-      # step after a Windows run found a real portability bug the Linux-only
-      # `test` job could not see: a staged input's artifact id was built with
-      # os.path.join, so a Windows control plane persisted and shipped
-      # `inputs\<sha>.wav` — which a Linux worker cannot resolve. These suites
-      # need no ffmpeg, so they cost seconds here.
       - name: Media-tool installation and lock recovery
         if: matrix.backend_supported
         run: uv run --no-sync pytest tests/test_media_tools.py -q --tb=short
         env:
           HF_HUB_OFFLINE: "1"
           HF_HUB_CACHE: ${{ runner.temp }}/media-tools-empty-hf-cache
-      - name: Remote-worker artifact paths (Windows)
-        if: runner.os == 'Windows' && matrix.backend_supported
-        run: >-
-          uv run --no-sync pytest
-          tests/test_worker_upload_server.py
-          tests/test_worker_server_integrity.py
-          tests/test_worker_task_store.py
-          tests/test_worker_inbound_transport.py
-          -q --tb=short
-        env:
-          HF_HUB_OFFLINE: "1"
-          HF_HUB_CACHE: ${{ runner.temp }}/worker-artifact-empty-hf-cache

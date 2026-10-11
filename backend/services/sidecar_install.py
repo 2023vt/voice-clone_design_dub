@@ -677,8 +677,7 @@ SPECS: dict[str, SidecarSpec] = {
         weights_revision="29e01c4e8d000f4bcd70751be16fa94bf3d85a18",
         weights_subdir="pretrained_models/Fun-CosyVoice3-0.5B",
         weights_config_names=("cosyvoice3.yaml",),
-        # Also a Model Catalogue download, used by the in-process engine and
-        # by remote workers that run it.
+        # Also a Model Catalogue download used by the in-process engine.
         weights_catalogue_download=True,
         weights_allow_patterns=(
             "cosyvoice3.yaml", "config.json", "configuration.json",

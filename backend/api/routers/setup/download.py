@@ -423,8 +423,7 @@ class InstallModelRequest(BaseModel):
 
 @router.get("/models/install/status")
 def model_install_status():
-    """Read local and remote jobs after navigation without starting downloads."""
-    from services import gpu_gateway  # noqa: PLC0415
+    """Read local jobs after navigation without starting downloads."""
 
     now = time.time()
     _sweep_cooldowns(now)
@@ -477,7 +476,6 @@ def model_install_status():
         and repo_id not in detailed
         and now - failed_at < _COOLDOWN_SECS
     )
-    jobs.extend(gpu_gateway.remote_download_jobs())
     return {"jobs": jobs}
 
 
@@ -581,21 +579,12 @@ async def install_model(req: InstallModelRequest):
             ),
         )
     allow_patterns = list(model_spec.get("allow_patterns") or []) or None
-    target = (req.target or "").strip()
+    target = (req.target or "local").strip() or "local"
     if target != "local":
-        from services import gpu_gateway  # noqa: PLC0415
-        from worker import routing  # noqa: PLC0415
-
-        decision = routing.decide()
-        if target and target != "local" and (
-            not decision.remote or decision.worker_id != target
-        ):
-            raise HTTPException(status_code=409, detail="The selected GPU target changed; try again.")
-        if decision.remote:
-            try:
-                return await gpu_gateway.download(req.repo_id, decision=decision)
-            except gpu_gateway.GatewayError as exc:
-                raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400,
+            detail="Remote model installation is unavailable; target must be 'local'.",
+        )
     # Cooldown guard — don't retry if the same model just failed.
     import time as _time_check
     _sweep_cooldowns(_time_check.time())  # bound the dict (MM2-06)
@@ -1046,8 +1035,6 @@ async def install_model(req: InstallModelRequest):
 
 async def cancel_install_and_wait(repo_id: str) -> None:
     """Request cancellation and retain authority until its thread exits."""
-    from worker.async_utils import drain_task  # noqa: PLC0415
-
     with _active_installs_lock:
         _cancelled.add(repo_id)
         _install_cooldowns.pop(repo_id, None)
@@ -1058,7 +1045,18 @@ async def cancel_install_and_wait(repo_id: str) -> None:
         # asyncio.to_thread cannot stop snapshot_download mid-file. Cancelling
         # its wrapper would only detach the thread, so wait until the blocking
         # call observes the flag or naturally returns.
-        await drain_task(task)
+        while not task.done():
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError:
+                continue
+            except BaseException:
+                break
+        if task.done():
+            try:
+                task.result()
+            except BaseException:
+                pass
     finally:
         with _active_installs_lock:
             current = _install_tasks_by_repo.get(repo_id)
@@ -1077,12 +1075,10 @@ async def cancel_install(req: InstallModelRequest):
     immediately restart."""
     target = (req.target or "local").strip() or "local"
     if target != "local":
-        from services import gpu_gateway  # noqa: PLC0415
-
-        try:
-            return await gpu_gateway.cancel_download(req.repo_id, target=target)
-        except gpu_gateway.GatewayError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise HTTPException(
+            status_code=400,
+            detail="Remote model installation is unavailable; target must be 'local'.",
+        )
     _cancelled.add(req.repo_id)
     _install_cooldowns.pop(req.repo_id, None)
     _install_failures.pop(req.repo_id, None)

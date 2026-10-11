@@ -3352,15 +3352,6 @@ def _checkpoint_in_local_cache(checkpoint: str) -> bool:
         return False
 
 
-def _headless_worker() -> bool:
-    """True when this process serves remote work and has no local UI."""
-    try:
-        from worker.agent import worker_mode_enabled  # noqa: PLC0415
-    except Exception:
-        return False
-    return worker_mode_enabled()
-
-
 async def preload_model():
     """Background model warm-up — call from lifespan startup.
 
@@ -3387,22 +3378,6 @@ async def preload_model():
     except Exception:  # noqa: BLE001 -- preload selection must stay best-effort
         logger.debug("effective TTS preload selection failed", exc_info=True)
 
-    # A machine lending its GPU has no local user to warm the model FOR. This
-    # preload exists to make the first /generate feel instant for the person
-    # sitting in front of the app; on a headless node there is nobody sitting
-    # there, so it is several GB of VRAM held from boot against a request that
-    # may never come — and the idle sweep cannot reclaim it, because the sweep
-    # owns the worker executor's engines and this is the default local model.
-    # Observed on hardware: a node that had run nothing still sat at 2.4 GB.
-    #
-    # A machine that is BOTH a desktop app and a worker keeps the warm-up:
-    # there is a real user there, and the whole point stands.
-    if _headless_worker():
-        logger.info(
-            "Preload skipped: this process is running as a remote worker, so the "
-            "model loads on first request and is released when it goes idle."
-        )
-        return
     # Installed but not accepted: nothing to warm. The user is asked when they
     # first generate, so a boot-time error here would only be noise.
     from services.model_acceptance import ModelLicenceNotAccepted
@@ -3742,9 +3717,9 @@ def unload_shared_model() -> bool:
     registry, and ``nvidia-smi`` does not move.
 
     Six call sites open-coded this pair and one of them had it inverted — the
-    one the engine-registry sweep reaches, which is the sweep a headless worker
-    node runs. A worker therefore sat on 3.6 GB indefinitely while reporting
-    the engine released, and every other path looked fine (#1495). One helper,
+    one the engine-registry sweep reaches. The backend therefore sat on 3.6 GB
+    indefinitely while reporting the engine released, and every other path
+    looked fine (#1495). One helper,
     so there is one ordering and nowhere left to get it wrong.
 
     Takes no lock of its own: the sync engine-registry path

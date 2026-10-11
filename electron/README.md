@@ -5,7 +5,7 @@ transcription, voice design, and workflows. Tauri is archived at v0.5.3. For
 existing installations, see [migration notes](../docs/electron-migration.md).
 
 The runtime supervisor manages the local FastAPI backend. Network integrations
-and remote workers require configuration; local generation stays on your machine.
+and remote-backend connections require configuration; local generation stays on your machine.
 
 ## Stack
 

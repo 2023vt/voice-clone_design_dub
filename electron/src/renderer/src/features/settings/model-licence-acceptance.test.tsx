@@ -83,18 +83,36 @@ describe('model licence acceptance', () => {
     expect(modelLicenceRequirements('nope')).toBeNull();
   });
 
-  const pending = (repo: string, label = repo): AcceptableModel => ({
+  const pending = (repo: string, label = repo, category?: string): AcceptableModel => ({
     repo_id: repo,
     label,
     fingerprint: `v2:${repo.length.toString(16).padStart(64, '0')}`,
     required: true,
     accepted: false,
+    category,
   });
   const boxes = () => Array.from(document.querySelectorAll('input[type="checkbox"]')) as HTMLInputElement[];
 
   it('states VoiceStudio is not the licensor and needs a ticked box per model', async () => {
-    await render(<LicenceAcceptanceFooter models={[pending('a/one', 'One'), pending('b/two', 'Two')]} onClose={() => {}} />);
+    await render(
+      <LicenceAcceptanceFooter
+        models={[pending('a/one', 'One', 'commercial'), pending('b/two', 'Two', 'noncommercial')]}
+        onClose={() => {}}
+      />,
+    );
     expect(text()).toContain(en.modelLicense.acceptNotice);
+    expect(document.querySelector('[data-licence-acceptance]')).not.toBeNull();
+    expect(document.querySelectorAll('[data-license-category]')).toHaveLength(2);
+    expect(
+      Array.from(document.querySelectorAll('[data-license-category]')).map((element) =>
+        element.getAttribute('data-license-category'),
+      ),
+    ).toEqual(['commercial', 'noncommercial']);
+    expect(
+      Array.from(document.querySelectorAll('[data-model-label]')).map((element) =>
+        element.getAttribute('data-model-label'),
+      ),
+    ).toEqual(['One', 'Two']);
     expect(boxes().map((box) => box.closest('label')?.textContent)).toEqual([
       en.modelLicense.acceptCheckbox.replace('{{model}}', 'One'),
       en.modelLicense.acceptCheckbox.replace('{{model}}', 'Two'),

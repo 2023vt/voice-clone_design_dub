@@ -12,6 +12,18 @@ export interface SidebarModelStatus {
 
 export type RuntimeHealth = 'checking' | 'unavailable' | 'loading' | 'ready';
 
+/** `/model/loaded` ids that hold a speech-recognition model: the co-loaded
+ *  pipeline, the warm dictation engine and the warm transcription engine. */
+const RESIDENT_ASR_IDS = new Set(['asr', 'capture-asr', 'transcription-asr']);
+
+/** True when a loaded-model entry is the selected ASR model held in memory. */
+export function isResidentAsrModel(
+  entry: { id: string; checkpoint?: string | null },
+  activeModel: string | null | undefined,
+) {
+  return RESIDENT_ASR_IDS.has(entry.id) && entry.checkpoint === activeModel;
+}
+
 export function sidebarToolState(state: string, online: boolean) {
   if (!online) return 'modelMaintenance.offline';
   if (state === 'engineRuntime.idle') return 'modelSettings.available';

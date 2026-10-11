@@ -148,7 +148,8 @@ This release also adds a GPU acceleration panel with honest Radeon reporting, th
 - License notice: commercial use is free under the AGPL; the paid licence is for closed-source use, with Pro plans linked (#2578)
 
 ### Fixed
-
+- Long transcriptions no longer repeat phrases from one 30 s window into the next, and finish faster with Faster Whisper and MLX Whisper (#2745)
+- Clone reference and accurate transcriptions keep the speech model loaded between requests instead of reloading it each time; it is still freed after the idle timeout (#2745)
 - On Windows, updating the app no longer stops at "EPERM: operation not permitted, rename" when antivirus briefly holds the new runtime files (#2669) — thanks @javalovelinux-cmd!
 - MCP speech tools wait through model loading and progress-extended CPU renders instead of timing out before the backend (#2609) — thanks @JopsTaku!
 - On Windows, the GPU report finds your graphics card again, and CPU-only hosts with integrated graphics are no longer told to fix an NVIDIA driver (#2620) — thanks @creatorliao!

@@ -1,7 +1,27 @@
 import { describe, expect, it } from 'vitest';
 import type { EnginesResponse } from '@/lib/api/types';
 import { engineFamilyState } from '@/hooks/use-engines';
-import { resolveRemoteRuntime, resolveRuntimeHealth, sidebarToolState } from './status-runtime';
+import {
+  isResidentAsrModel,
+  resolveRemoteRuntime,
+  resolveRuntimeHealth,
+  sidebarToolState,
+} from './status-runtime';
+
+describe('resident speech-recognition model', () => {
+  const model = 'Systran/faster-whisper-large-v3';
+
+  it('counts every warm ASR slot holding the selected model', () => {
+    for (const id of ['asr', 'capture-asr', 'transcription-asr']) {
+      expect(isResidentAsrModel({ id, checkpoint: model }, model)).toBe(true);
+    }
+  });
+
+  it('ignores other models and other slots', () => {
+    expect(isResidentAsrModel({ id: 'transcription-asr', checkpoint: 'other' }, model)).toBe(false);
+    expect(isResidentAsrModel({ id: 'tts', checkpoint: model }, model)).toBe(false);
+  });
+});
 
 describe('plain-language tool status', () => {
   it('never reports cached readiness when the backend is offline', () => {

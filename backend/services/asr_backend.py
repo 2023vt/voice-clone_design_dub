@@ -1110,6 +1110,16 @@ class WhisperXBackend(ASRBackend):
         except Exception:
             pass
 
+# Sequential Whisper decoding feeds each 30 s window the previous window's text
+# by default. On long audio one bad window then propagates: measured on a
+# 285 s clip whose truth is 540 words, faster-whisper large-v3 emitted 594
+# (repeated phrases) in 84 s; with this off it emitted 541 in 24 s. WhisperX
+# and faster-whisper's batched pipeline already default to False. Clips under
+# 30 s are a single window, so dictation is unaffected; the dictation
+# vocabulary prompt still conditions the first window.
+WHISPER_LONG_FORM_OPTIONS = {"condition_on_previous_text": False}
+
+
 # ── Faster-Whisper (cross-platform fallback) ────────────────────────────────
 
 
@@ -1147,6 +1157,11 @@ class FasterWhisperBackend(ASRBackend):
             # #692) — an OSError. Report unavailable so we fall back, not crash.
             return False, f"faster-whisper failed to load ({type(e).__name__}): {e}"
         return _ctranslate2_cudnn_ok()
+
+    def ensure_loaded(self) -> None:
+        # Load at preflight like WhisperX (#578): a CTranslate2/cuDNN failure
+        # surfaces once, and load_active_asr_backend can fall through past it.
+        self._ensure_model()
 
     def _ensure_model(self):
         if self._model is not None:
@@ -1244,6 +1259,7 @@ class FasterWhisperBackend(ASRBackend):
             audio_path,
             word_timestamps=word_timestamps,
             vad_filter=True,  # built-in Silero VAD — cleaner segment starts
+            **WHISPER_LONG_FORM_OPTIONS,
             **asr_decode_defaults(),
             **whisper_request_options(language, initial_prompt, temperature, task),
         )
@@ -1367,6 +1383,7 @@ class MLXWhisperBackend(ASRBackend):
             audio,
             path_or_hf_repo=_local_model_source(self._model_name),
             word_timestamps=word_timestamps,
+            **WHISPER_LONG_FORM_OPTIONS,
             **whisper_request_options(language, initial_prompt, temperature, task),
         )
         # Forced alignment, same as WhisperX (#1127). On Apple Silicon this
@@ -3161,6 +3178,7 @@ def _licence_accepted(repo_id: str | None) -> bool:
 
 def load_active_asr_backend(
     *, asr_pipe=None, require_installed: bool = False, defer_pytorch: bool = False,
+    warm: bool = False,
 ) -> ASRBackend:
     """:func:`get_active_asr_backend` + eager ``ensure_loaded()``, degrading
     past backends whose deep import chain is broken (#1185).
@@ -3187,6 +3205,11 @@ def load_active_asr_backend(
     Reference transcription uses ``defer_pytorch`` to leave that pipeline to
     the TTS model's installed-only fallback, without eagerly loading a second
     copy that the reference caller would immediately discard.
+
+    ``warm=True`` reuses the loaded engine from the previous warm call when the
+    engine and model are unchanged. Call it through :func:`warm_asr_backend`,
+    which also publishes and leases the result; dub and batch keep a private
+    instance because they unload it to make room for TTS.
     """
     from core.scrub import scrub_text
     tried: set[str] = set()
@@ -3197,6 +3220,8 @@ def load_active_asr_backend(
         ensure_backend_licence(backend)
         if defer_pytorch and isinstance(backend, PyTorchWhisperBackend):
             return backend
+        if warm:
+            backend = _warm_active_reuse(backend)
         bid = getattr(backend, "id", "?")
         if tried or require_installed:
             # Preflight the SPECIFIC candidate about to load — not the global
@@ -3564,6 +3589,107 @@ def release_idle_capture_backend(idle_s: float, *, now: float | None = None) -> 
         logger.warning("capture ASR unload failed", exc_info=True)
     logger.info(
         "Idle timeout reached. Unloading capture ASR (%s) to free memory.",
+        type(backend).__name__,
+    )
+    return True
+
+
+# ── Warm transcription ASR ──────────────────────────────────────────────────
+#
+# `get_active_asr_backend()` builds a fresh whisper-family instance per call,
+# so every Clone reference / accurate transcription reloaded the weights:
+# measured on a CUDA GPU with large-v3, 8.7 s of loading for 1.7 s of decoding.
+# Short, repeated requests use :func:`warm_asr_backend`, which shares one
+# loaded instance per (engine, model). It is released on the same terms as the
+# capture ASR above (the idle timeout, memory reclaim before a TTS load, and
+# the Unload control), but never while a request holds it.
+_warm_active: ASRBackend | None = None
+_warm_active_key: tuple[str, str] | None = None
+_warm_active_last_used: float = 0.0
+_warm_active_leases: int = 0
+_warm_active_lock = threading.Lock()
+# Held for a whole handout (select, load weights, publish, lease), so
+# concurrent first requests wait for one load instead of each loading a copy.
+_warm_load_lock = threading.Lock()
+
+
+def _warm_active_identity(backend: ASRBackend) -> tuple[str, str] | None:
+    """Cache key for an engine that holds its own weights, else None. The
+    PyTorch backend wraps the TTS model's pipeline and is not cached here."""
+    if not isinstance(backend, (FasterWhisperBackend, WhisperXBackend, MLXWhisperBackend)):
+        return None
+    return backend.id, str(getattr(backend, "_model_name", ""))
+
+
+def _warm_active_reuse(backend: ASRBackend) -> ASRBackend:
+    """The cached instance when it matches ``backend``'s engine and model."""
+    key = _warm_active_identity(backend)
+    with _warm_active_lock:
+        if key is not None and key == _warm_active_key and _warm_active is not None:
+            return _warm_active
+    return backend
+
+
+@contextlib.contextmanager
+def warm_asr_backend(*, require_installed: bool = False):
+    """Lease the active ASR engine, loaded once and shared across requests.
+
+    Selection, fallback, the missing-weights preflight and the weight load
+    (``ensure_loaded``) are those of :func:`load_active_asr_backend`, run under
+    the handout lock.
+    """
+    global _warm_active, _warm_active_key, _warm_active_leases
+    leased = False
+    with _warm_load_lock:
+        backend = load_active_asr_backend(require_installed=require_installed, warm=True)
+        key = _warm_active_identity(backend)
+        if key is not None:
+            with _warm_active_lock:
+                # A replaced instance is only dereferenced: a request may still
+                # hold it, and MLX keeps one model in a library-wide slot that
+                # the new instance now owns.
+                _warm_active, _warm_active_key = backend, key
+                _warm_active_leases += 1
+                leased = True
+    try:
+        yield backend
+    finally:
+        if leased:
+            _warm_active_return()
+
+
+def _warm_active_return() -> None:
+    global _warm_active_leases, _warm_active_last_used
+    with _warm_active_lock:
+        _warm_active_leases = max(0, _warm_active_leases - 1)
+        _warm_active_last_used = time.monotonic()
+
+
+def release_idle_warm_asr_backend(idle_s: float, *, now: float | None = None) -> bool:
+    """Unload the warm transcription ASR once unused for ``idle_s`` seconds.
+
+    Returns True when a model was released. Declines while a request holds a
+    lease or a handout is loading, without waiting: the idle worker runs on
+    the event loop. Never raises."""
+    global _warm_active, _warm_active_key
+    if not _warm_load_lock.acquire(blocking=False):
+        return False
+    try:
+        now = time.monotonic() if now is None else now
+        with _warm_active_lock:
+            if _warm_active is None or _warm_active_leases > 0:
+                return False
+            if now - _warm_active_last_used < idle_s:
+                return False
+            backend, _warm_active, _warm_active_key = _warm_active, None, None
+        try:
+            backend.unload()
+        except Exception:  # noqa: BLE001 — a stuck unload must not kill idle_worker
+            logger.warning("transcription ASR unload failed", exc_info=True)
+    finally:
+        _warm_load_lock.release()
+    logger.info(
+        "Idle timeout reached. Unloading transcription ASR (%s) to free memory.",
         type(backend).__name__,
     )
     return True

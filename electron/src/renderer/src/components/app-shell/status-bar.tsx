@@ -34,6 +34,7 @@ import { useDictationSelection } from '@/hooks/use-dictation-selection';
 import { cn } from '@/lib/utils';
 import { useAppActivities } from '@/lib/app-activity';
 import {
+  isResidentAsrModel,
   resolveRemoteRuntime,
   resolveRuntimeHealth,
   type SidebarModelStatus,
@@ -276,10 +277,7 @@ export function StatusBar({
         return (
           (entry.id === 'tts' && selected?.id === 'omnivoice') || entry.is_active_engine === true
         );
-      if (family === 'asr')
-        return (
-          (entry.id === 'asr' || entry.id === 'capture-asr') && entry.checkpoint === activeModel
-        );
+      if (family === 'asr') return isResidentAsrModel(entry, activeModel);
       return entry.id === family;
     });
     const remoteRuntime =

@@ -964,7 +964,7 @@ async def _transcribe_request(
         ASRModelMissingError,
         asr_model_missing_detail,
         asr_model_missing_error,
-        load_active_asr_backend,
+        warm_asr_backend,
     )
     from services.model_acceptance import ModelLicenceNotAccepted
 
@@ -1030,7 +1030,7 @@ async def _transcribe_request(
         # Word timestamps cost an alignment pass: only when they're returned.
         word_ts = want_words
 
-        # `load_active_asr_backend`, not `get_active_asr_backend`: the latter is
+        # `warm_asr_backend` (via `load_active_asr_backend`), not `get_active_asr_backend`: the latter is
         # a pure selector, so a backend whose shallow `is_available()` probe
         # passes but whose deep import chain is broken (whisperx →
         # ctranslate2 failing to dlopen on a hardened kernel) reached
@@ -1044,17 +1044,17 @@ async def _transcribe_request(
         explicit_engine = model if _is_asr_engine_id(model) else None
 
         def _run():
-            backend = load_active_asr_backend()
-            if explicit_engine and getattr(backend, "id", None) != explicit_engine:
-                raise _ModelNotActive(explicit_engine, getattr(backend, "id", "?"))
-            extra = _backend_request_kwargs(backend, options)
-            if task == "translate" and not (
-                "task" in extra and getattr(backend, "supports_translation", lambda: False)()
-            ):
-                # Includes Whisper turbo / English-only checkpoints, which
-                # would return the source language labelled as English.
-                raise _TaskUnsupported(backend.id)
-            return backend.transcribe(tmp_path, word_timestamps=word_ts, **extra)
+            with warm_asr_backend() as backend:
+                if explicit_engine and getattr(backend, "id", None) != explicit_engine:
+                    raise _ModelNotActive(explicit_engine, getattr(backend, "id", "?"))
+                extra = _backend_request_kwargs(backend, options)
+                if task == "translate" and not (
+                    "task" in extra and getattr(backend, "supports_translation", lambda: False)()
+                ):
+                    # Includes Whisper turbo / English-only checkpoints, which
+                    # would return the source language labelled as English.
+                    raise _TaskUnsupported(backend.id)
+                return backend.transcribe(tmp_path, word_timestamps=word_ts, **extra)
 
         result = await run_transcribe_guarded(_gpu_pool, _run, what="OpenAI")
 

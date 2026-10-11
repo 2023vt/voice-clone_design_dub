@@ -245,6 +245,26 @@ def list_loaded() -> dict:
         logger.warning("Loaded-model inventory unavailable for dictation")
         degraded_sources.append("dictation")
 
+    # 6b. The warm transcription ASR kept between Clone/reference/API requests.
+    try:
+        import services.asr_backend as ab
+
+        warm = getattr(ab, "_warm_active", None)
+        if warm is not None:
+            key = getattr(ab, "_warm_active_key", None)
+            models.append({
+                "id": "transcription-asr",
+                "name": f"{getattr(warm, 'display_name', type(warm).__name__)} (transcription)",
+                "checkpoint": key[1] if key else type(warm).__name__,
+                "device": _backend_device(warm),
+                "vram_mb": 0,
+                "unloadable": True,
+                "note": "released after the idle timeout",
+            })
+    except Exception:
+        logger.warning("Loaded-model inventory unavailable for transcription ASR")
+        degraded_sources.append("transcription")
+
     # 7. Offline translation can remain resident when the user opts out of the
     # default post-job release. Keep it visible and manually unloadable.
     try:
@@ -322,6 +342,16 @@ async def unload(model_id: str) -> dict:
             return {"unloaded": model_id, "success": True}
         return {"unloaded": model_id, "success": False, "reason": "in use by dictation"}
 
+    if model_id == "transcription-asr":
+        import services.asr_backend as ab
+
+        if getattr(ab, "_warm_active", None) is None:
+            return {"unloaded": model_id, "success": False, "reason": "not loaded"}
+        if ab.release_idle_warm_asr_backend(0.0):
+            mm.free_vram()
+            return {"unloaded": model_id, "success": True}
+        return {"unloaded": model_id, "success": False, "reason": "in use by a transcription"}
+
     if model_id == "translation:nllb":
         from api.routers import dub_translate as dt
 
@@ -371,7 +401,9 @@ async def unload(model_id: str) -> dict:
 async def unload_all() -> dict:
     """Release shared/alternate TTS, diarisation, sidecars, dictation and translation."""
     results = {}
-    model_ids = ["tts", "diarization", "sidecars", "capture-asr", "translation:nllb"]
+    model_ids = [
+        "tts", "diarization", "sidecars", "capture-asr", "transcription-asr", "translation:nllb",
+    ]
     try:
         model_ids.extend(
             entry["id"]

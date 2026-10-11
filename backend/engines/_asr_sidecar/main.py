@@ -161,8 +161,12 @@ def _transcribe(audio_path, word_timestamps, decode_options=None, request_option
         raise ValueError("Invalid ASR decoding options")
     extra = _request_options(request_options)
     model = _get_model()
+    # Same long-form guard as services.asr_backend.WHISPER_LONG_FORM_OPTIONS
+    # (this process cannot import it): stop one bad 30 s window from
+    # conditioning, and repeating into, every window after it.
     segments, info = model.transcribe(
-        audio_path, word_timestamps=word_timestamps, **options, **extra,
+        audio_path, word_timestamps=word_timestamps,
+        condition_on_previous_text=False, **options, **extra,
     )
     out = []
     for s in segments:

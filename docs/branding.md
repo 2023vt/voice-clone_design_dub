@@ -21,6 +21,10 @@ mark:
 Export the canonical vector to the required PNG, ICO, and ICNS sizes under
 `electron/build/icons/`, then run the Electron packaging contract.
 
+macOS artwork (`icon.icns` and `icon-macos.png`) keeps Apple's icon grid: the tile
+spans the centred 824 px of a 1024 px canvas, so it matches other apps in the Dock,
+Launchpad and Finder. `tests/test_macos_icon_grid.py` checks it.
+
 Do not redraw the waveform per screen. Use `VoiceStudioMark` in React and the
 canonical SVG elsewhere so the silhouette stays recognizable at 16–512 px.
 
@@ -62,6 +66,7 @@ Visible copy can explain those compatibility names, but must not silently rename
 them on disk or over the wire.
 
 Electron uses the shared multi-resolution ICO for Windows window/taskbar and tray
-icons, the shared PNG for Linux and macOS runtime icons, and the ICNS for the macOS
-bundle. The tray icon restores the window; closing the app retains its existing
-quit behavior. Installed executable icons are applied when building the installer.
+icons, the shared PNG for Linux runtime icons, `icon-macos.png` for the macOS Dock at
+runtime, and the ICNS for the macOS bundle. The tray icon restores the window;
+closing the app retains its existing quit behavior. Installed executable icons are
+applied when building the installer.

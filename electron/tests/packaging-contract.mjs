@@ -111,7 +111,7 @@ for (const [platform, icon] of Object.entries(platformIcons)) {
   assert.equal(config[platform].icon, icon, `${platform} uses the shared VoiceStudio icon`);
   assert(existsSync(resolve(root, icon)), `${platform} VoiceStudio icon exists`);
 }
-for (const icon of ['brand/icon.png', 'brand/icon.ico', 'brand/32x32.png']) {
+for (const icon of ['brand/icon.png', 'brand/icon-macos.png', 'brand/icon.ico', 'brand/32x32.png']) {
   const entry = config.extraResources.find((item) => item.to === icon);
   assert(entry && existsSync(resolve(root, entry.from)), `Runtime icon: ${icon}`);
 }

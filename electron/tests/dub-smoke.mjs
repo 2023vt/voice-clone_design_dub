@@ -74,6 +74,11 @@ try {
       localStorage.removeItem('voicestudio.dub.session.v1');
       sessionStorage.removeItem('voicestudio.test.reset-dub');
     }
+    const timelineDraft = sessionStorage.getItem('voicestudio.test.timeline-draft');
+    if (timelineDraft) {
+      localStorage.setItem('voicestudio.dub.session.v1', timelineDraft);
+      sessionStorage.removeItem('voicestudio.test.timeline-draft');
+    }
   });
   const video = process.env.VOICESTUDIO_TEST_VIDEO
     ? readFileSync(process.env.VOICESTUDIO_TEST_VIDEO)
@@ -82,7 +87,9 @@ try {
   const vidstackWarnings = [];
   let mediaHeadRequests = 0;
   let releaseVideo;
-  const videoReady = new Promise((resolve) => { releaseVideo = resolve; });
+  const videoReady = new Promise((resolve) => {
+    releaseVideo = resolve;
+  });
   page.on('pageerror', (error) => errors.push(error.message));
   page.on('console', (message) => {
     if (message.type() === 'warning' && message.text().includes('[vidstack]'))
@@ -181,7 +188,10 @@ try {
   });
   if (video) {
     await page.route('**/api/dub/thumb/fixture', (route) =>
-      route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="teal"/></svg>' }),
+      route.fulfill({
+        contentType: 'image/svg+xml',
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="180"><rect width="320" height="180" fill="teal"/></svg>',
+      }),
     );
     await page.route('**/api/dub/media/fixture', async (route) => {
       await videoReady;
@@ -552,6 +562,122 @@ try {
     await page.getByRole('button', { name: '320 kbps', exact: true }).getAttribute('aria-pressed'),
     'true',
   );
+  // A completed transcript longer than the virtual window must reveal cues
+  // without scrolling the timeline being operated out of the workspace.
+  await page.evaluate(() => {
+    const draft = JSON.parse(localStorage.getItem('voicestudio.dub.session.v1'));
+    draft.segments = Array.from({ length: 120 }, (_, index) => ({
+      id: `long-${index}`,
+      start: index * 3,
+      end: index * 3 + 2,
+      text: `Translated cue ${index + 1}`,
+      text_original: `Original cue ${index + 1}`,
+      speaker_id: 'SPEAKER_00',
+      translations: { es: `Translated cue ${index + 1}` },
+    }));
+    draft.duration = 360;
+    draft.phase = 'done';
+    sessionStorage.setItem('voicestudio.test.timeline-draft', JSON.stringify(draft));
+  });
+  await page.reload();
+  const assertTimelineCueVisible = async (id) => {
+    await page.waitForFunction((id) => {
+      const transcript = document.querySelector('[data-slot="dub-transcript"]');
+      const scroll = [...(transcript?.children || [])].find(
+        (element) => getComputedStyle(element).overflowY === 'auto',
+      );
+      const row = document.querySelector(`article[data-dub-row-id="${id}"]`);
+      if (!scroll || !row) return false;
+      const viewport = scroll.getBoundingClientRect();
+      const bounds = row.getBoundingClientRect();
+      return bounds.top >= viewport.top - 1 && bounds.bottom <= viewport.bottom + 1;
+    }, id);
+    const layout = await page.evaluate((id) => {
+      const transcript = document.querySelector('[data-slot="dub-transcript"]');
+      const timeline = transcript.querySelector('section[aria-label="Segment timeline"]');
+      const toolbar = transcript.querySelector('[data-slot="dub-transcript-toolbar"]');
+      const scroll = [...transcript.children].find(
+        (element) => getComputedStyle(element).overflowY === 'auto',
+      );
+      const row = transcript.querySelector(`article[data-dub-row-id="${id}"]`);
+      const bounds = transcript.getBoundingClientRect();
+      const controls = timeline.getBoundingClientRect();
+      const cue = row.getBoundingClientRect();
+      return {
+        timelineVisible: controls.top >= bounds.top - 1 && controls.bottom <= bounds.bottom + 1,
+        cueBelowTimeline: cue.top >= controls.bottom - 1,
+        toolbarClear: !toolbar || toolbar.getBoundingClientRect().bottom <= controls.top + 1,
+        cueViewportHeight: scroll.clientHeight,
+      };
+    }, id);
+    assert.equal(
+      layout.timelineVisible,
+      true,
+      `${id}: timeline must stay in the transcript viewport`,
+    );
+    assert.equal(layout.cueBelowTimeline, true, `${id}: controls must not cover the revealed cue`);
+    assert.equal(layout.toolbarClear, true, `${id}: timeline must not overlap the toolbar`);
+    assert(layout.cueViewportHeight >= 140, 'compact layouts must retain usable transcript space');
+  };
+  for (const [index, viewport] of [
+    { width: 1400, height: 900 },
+    { width: 1000, height: 600 },
+  ].entries()) {
+    await page.setViewportSize(viewport);
+    await timeline.locator('[data-timeline-segment="long-90"]').waitFor();
+    assert((await segmentRows.count()) < 120, 'long transcript must remain virtualized');
+    assert.equal(await page.locator('article[data-dub-row-id="long-90"]').count(), 0);
+    await timeline.locator('[data-timeline-segment="long-90"]').click();
+    await assertTimelineCueVisible('long-90');
+    // Use the actual focused control, not locator.press (which can auto-scroll
+    // an offscreen timeline and hide the regression).
+    await page.keyboard.press('ArrowRight');
+    await assertTimelineCueVisible('long-91');
+    assert.equal(
+      await page.evaluate(() => document.activeElement?.getAttribute('data-timeline-segment')),
+      'long-91',
+    );
+    await page.keyboard.press('Enter');
+    await page.keyboard.press('Control+ArrowRight');
+    const selectedRow = page.locator('article[data-dub-row-id="long-91"]');
+    await selectedRow.locator('[data-segment-options-trigger]').click();
+    assert.equal(
+      await selectedRow.getByRole('spinbutton', { name: 'Start', exact: true }).inputValue(),
+      (273 + (index + 1) * 0.1).toFixed(2),
+    );
+    await page.waitForFunction(
+      (expectedStart) => {
+        const draft = JSON.parse(localStorage.getItem('voicestudio.dub.session.v1'));
+        return Math.abs(draft.segments[91].start - expectedStart) < 0.0001;
+      },
+      273 + (index + 1) * 0.1,
+    );
+    const timings = await page.evaluate(() =>
+      JSON.parse(localStorage.getItem('voicestudio.dub.session.v1')).segments.map(
+        ({ start, end }) => ({ start, end }),
+      ),
+    );
+    for (const [cueIndex, timing] of timings.entries()) {
+      assert(
+        Math.abs(timing.start - (cueIndex * 3 + (cueIndex === 91 ? (index + 1) * 0.1 : 0))) <
+          0.0001,
+        `nudge must only change long-91, not long-${cueIndex}`,
+      );
+      assert.equal(timing.end, cueIndex * 3 + 2);
+    }
+    // Expanded row measurements and a resized content prefix must not corrupt
+    // subsequent virtualized reveals.
+    await timeline.locator('[data-timeline-segment="long-5"]').click();
+    await assertTimelineCueVisible('long-5');
+    await page.locator('article[data-dub-row-id="long-5"] input[type="checkbox"]').check();
+    await timeline.locator('[data-timeline-segment="long-110"]').click();
+    await assertTimelineCueVisible('long-110');
+    await timeline.locator('[data-timeline-segment="long-91"]').click();
+    await selectedRow.locator('[data-segment-options-trigger]').click();
+    await timeline.locator('[data-timeline-segment="long-0"]').click();
+    await assertTimelineCueVisible('long-0');
+  }
+  await page.setViewportSize({ width: 1400, height: 900 });
   await page.evaluate(() => sessionStorage.setItem('voicestudio.test.reset-dub', '1'));
   await page.reload();
   failTranscription = true;
@@ -597,7 +723,7 @@ try {
   if (process.env.VOICESTUDIO_SCREENSHOT)
     await page.screenshot({ path: process.env.VOICESTUDIO_SCREENSHOT });
   console.log(
-    'PASS: dub upload, streamed transcription, subtitle import, translate, edit, reload recovery, generate, export readiness and URL import',
+    'PASS: dub upload, streamed transcription, subtitle import, translate, edit, reload recovery, generate, export readiness, long virtualized timeline visibility and URL import',
   );
 } finally {
   await browser.close();

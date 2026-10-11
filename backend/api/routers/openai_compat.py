@@ -249,6 +249,19 @@ class SpeechRequest(BaseModel):
         default=True,
         description="VoiceStudio extension: prepend denoise control when supported.",
     )
+    humanize: bool = Field(
+        default=False,
+        description="VoiceStudio extension: Sound more human, as on /generate. A quiet "
+        "room tone under every pause (the voice profile's own room when it was cloned "
+        "from a recording) and the speaker's breaths before speech that follows a long "
+        "enough pause.",
+    )
+    humanize_strength: float = Field(
+        default=0.6,
+        ge=0.0,
+        le=1.0,
+        description="VoiceStudio extension: how much Sound more human does (0-1).",
+    )
     preprocess_prompt: bool = Field(
         default=True,
         description="VoiceStudio extension: trim/preprocess reference prompt when supported.",
@@ -526,12 +539,21 @@ def _typed_speech_http_error(e: Exception) -> Optional[HTTPException]:
     return None
 
 
-def _run_tts(backend, text: str, kw: dict):
-    """Run TTS inference in the GPU thread pool."""
+def _run_tts(backend, text: str, kw: dict, humanize=None):
+    """Run TTS inference in the GPU thread pool.
+
+    ``humanize`` (a ``services.humanize.HumanizeSettings``) runs the Sound
+    more human pass before mastering, exactly as /generate does, with the
+    voice profile's reference lending its room and breaths.
+    """
     from services.audio_dsp import apply_mastering, normalize_audio
     from services.watermark import mark_synthetic
     wav = backend.generate(text, **kw)
     sr = backend.sample_rate
+    if humanize is not None:
+        from services.humanize import humanize_audio, make_rng, room_from_reference
+        wav = humanize_audio(wav, sr, humanize, make_rng(kw.get("seed"), salt=1),
+                             room=room_from_reference(kw.get("ref_audio"), sr))
     # Engines that already emit mastered, studio-grade audio (e.g. VoxCPM2's
     # native 48 kHz) opt out of apply_mastering via `applies_own_mastering`.
     # That chain's highpass + Compressor is tuned for VoiceStudio's 24 kHz clone
@@ -675,6 +697,9 @@ async def create_speech(req: SpeechRequest):
     from services.text_normalization import normalize_for_tts
     text = normalize_for_tts(req.input, req.language)
 
+    from services.humanize import HumanizeSettings
+    _humanize = HumanizeSettings.from_request(req.humanize, req.humanize_strength)
+
     # VRAM eviction runs in get_model()'s warm-return path now, covering every
     # native TTS generate (this route, WS TTS, dub, batch, audiobook).
 
@@ -767,7 +792,7 @@ async def create_speech(req: SpeechRequest):
         # so long inputs failed here even after v0.3.22 shipped the scaling.
         from services.model_manager import generate_timeout_s
         wav, sr = await run_on_gpu_pool_guarded(
-            lambda: _run_tts(backend, text, kw), what="OpenAI TTS generate",
+            lambda: _run_tts(backend, text, kw, _humanize), what="OpenAI TTS generate",
             timeout=generate_timeout_s(text, engine=backend))
     except Exception as e:
         # #1172/#1173: typed failures get their real status + actionable

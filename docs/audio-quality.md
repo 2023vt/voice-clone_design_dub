@@ -81,8 +81,11 @@ so the room tone and breaths get the same EQ and compression as the voice; it
 also runs with **Even out volume** off. A take with no speech in it (a failed
 render, or pause markers only) is left untouched so the problem stays visible.
 On the API it is `humanize=true` plus `humanize_strength` (0–1) on
-`POST /generate`; `/v1/audio/speech` and `/ws/tts` do not take it yet. A remote
-GPU worker older than this release returns the take without it.
+`POST /generate`, and the same two fields in the JSON body of the
+OpenAI-compatible `POST /v1/audio/speech` (a VoiceStudio extension; a voice
+profile id in `voice` lends its reference's room and breaths). `/ws/tts` does
+not take it yet. A remote GPU worker older than this release returns the take
+without it.
 
 The final playback response uses the saved WAV itself. Streaming previews still
 use PCM16; their completed take uses the selected precision. Updated remote

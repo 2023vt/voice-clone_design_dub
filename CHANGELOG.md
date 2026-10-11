@@ -40,6 +40,7 @@ metadata and the backend fallback mirror it.
 ### Added
 
 - Voice Gallery adds Hindi Documentary and Hindi Comedy narrators with genre preview scripts, and The Wildlife Narrator (deep British nature-documentary voice) — timbres measured from the reels users want to reproduce
+- The OpenAI-compatible `/v1/audio/speech` takes `humanize` and `humanize_strength` too, so scripts and other apps get the same Sound more human pass as the app
 - Sound more human copies a clone's own room and breathing: pauses get the reference clip's noise spectrum at its distance under the voice, and inhales are the speaker's own, cut from the clip
 - A take cloned from a sample in another script than the take's language (an English sample for a Hindi take) comes back with a warning that it will carry the sample's accent
 - Hindi also reads crores (5,00,00,000), spoken fractions before units and percentages (डेढ़ घंटे, ढाई करोड़, साढ़े तीन किलोमीटर, ढाई प्रतिशत), ₹ and $ amounts with लाख/करोड़/मिलियन, DD/MM/YYYY dates, Indian mobile numbers digit by digit, 05:30-style times, and English acronyms inside Hindi (CEO ने → सीईओ ने, ISRO → इसरो)

@@ -16,6 +16,7 @@ APPLE_GRID_BODY = 824 / 1024
 
 @pytest.mark.parametrize("name", ["icon.icns", "icon-macos.png"])
 def test_macos_icon_body_follows_apple_grid(name):
+    """The visible tile spans ~824/1024 of the canvas and sits centred."""
     with Image.open(ICONS / name) as image:
         image.load()  # ICNS opens at its largest (1024 px) representation
         alpha = image.convert("RGBA").getchannel("A").point(lambda a: 255 if a > 20 else 0)

@@ -16,6 +16,26 @@ import torch
 
 logger = logging.getLogger("omnivoice.dsp")
 
+def sanitize_audio(audio_out):
+    """Replace non-finite samples (NaN / ±inf) with silence so a model glitch
+    can't produce an unreadable WAV (#629). Returns the input unchanged when it's
+    already finite or isn't a tensor. Raises if validation fails."""
+    try:
+        import torch
+        if torch.is_tensor(audio_out) and not bool(torch.isfinite(audio_out).all()):
+            logger.warning(
+                "Generated audio contained non-finite samples (NaN/inf) — "
+                "sanitizing to silence to keep the WAV decodable (#629)."
+            )
+            return torch.nan_to_num(audio_out, nan=0.0, posinf=0.0, neginf=0.0)
+    except Exception as exc:
+        logger.warning("Generated audio validation failed")
+        raise RuntimeError(
+            "Generated audio could not be validated. Retry the generation."
+        ) from exc
+    return audio_out
+
+
 # ── Effect presets ──────────────────────────────────────────────────────
 
 EFFECT_PRESETS = {

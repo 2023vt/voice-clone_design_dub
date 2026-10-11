@@ -18,7 +18,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- Leave audio containing NaN or infinity intact during silence trimming, preserving its original length and invalid samples for later generation postprocessing. (#2738) — thanks @rudycelekli!
+- Leave audio containing NaN or infinity intact during silence trimming, preserving its original length and invalid samples for later generation postprocessing, and sanitize them before DSP in the OpenAI-compatible speech route. (#2738) — thanks @rudycelekli!
 
 ## [0.5.7] — 2026-10-13
 

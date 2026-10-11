@@ -154,6 +154,7 @@ CORS_EXPOSED_HEADERS = (
     "X-OmniVoice-Dropped-Chunks",
     "X-OmniVoice-Dropped-Text",
     "X-OmniVoice-Expression-Dropped",
+    "X-OmniVoice-Reference-Script",
     "X-Clean-Filename",
 )
 

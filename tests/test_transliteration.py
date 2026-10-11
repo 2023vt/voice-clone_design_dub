@@ -181,3 +181,29 @@ def test_a_word_reply_that_is_not_one_native_word_is_not_used():
     replies = iter(["humne दस हज़ार से शुरू किया", "humne दस हज़ार से शुरू किया", "हम ने तो"])
     res = transliterate("humne das hazaar se shuru kiya", "Hindi", llm=FakeLLM(lambda user: next(replies)))
     assert res.text == "humne दस हज़ार से शुरू किया"
+
+
+@pytest.mark.parametrize("text", ["\n\nkya haal hai", "kya haal hai\n\n", "kya haal\n\n\nhai aap sab"])
+def test_blank_lines_survive_conversion(text):
+    res = transliterate(text, "Hindi", llm=FakeLLM(_devanagari_for))
+    assert res.text.count("\n") == text.count("\n")
+    assert res.text.strip("\n").startswith("क्या")
+
+
+def test_long_text_keeps_its_leading_blank_lines_across_chunks():
+    text = "\n\n" + "\n".join(["kya haal hai aap sab"] * 200)
+    res = transliterate(text, "Hindi", llm=FakeLLM(_devanagari_for))
+    assert res.text.startswith("\n\nक्या") and res.text.count("\n") == text.count("\n")
+
+
+@pytest.mark.parametrize("reply", ["Kya Haal Hai Aap", "KYA HAAL HAI AAP"])
+def test_a_capitalised_roman_reply_is_not_a_conversion(reply):
+    with pytest.raises(TransliterationError) as err:
+        transliterate("kya haal hai aap", "Hindi", llm=FakeLLM(reply))
+    assert err.value.code == "bad_output"
+
+
+def test_names_the_source_capitalised_may_stay_in_latin():
+    res = transliterate("Kya CEO ne YouTube par haal bataya", "Hindi",
+                        llm=FakeLLM("Kya CEO ने YouTube पर हाल बताया"))
+    assert res.text == "Kya CEO ने YouTube पर हाल बताया"

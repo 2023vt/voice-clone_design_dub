@@ -144,15 +144,16 @@ def _unmask(text: str, spans: list[str]) -> str:
 def _chunks(text: str) -> list[str]:
     """Whole lines, packed up to ``_CHUNK_CHARS`` (a longer line is its own chunk)."""
     out: list[str] = []
-    cur = ""
+    cur: Optional[str] = None  # None, not "": an empty line is still a line
     for line in text.split("\n"):
-        candidate = line if not cur else f"{cur}\n{line}"
-        if cur and len(candidate) > _CHUNK_CHARS:
+        if cur is None:
+            cur = line
+        elif len(cur) + 1 + len(line) > _CHUNK_CHARS:
             out.append(cur)
             cur = line
         else:
-            cur = candidate
-    out.append(cur)
+            cur = f"{cur}\n{line}"
+    out.append(cur or "")
     return out
 
 
@@ -179,10 +180,14 @@ def _check(source: str, answer: str, script: str) -> None:
     if src_letters and not (0.35 <= out_letters / src_letters <= 2.5):
         raise TransliterationError("bad_output", "the rewrite is not the same length of text")
     # Names and acronyms (CEO, YouTube) may stay in Latin letters, so they do
-    # not count against the target script.
-    unnamed = _NAME_RE.sub(" ", answer)
+    # not count against the target script, but only names the source itself
+    # capitalised: a reply that capitalises "kya haal hai" is not a name.
+    names = set(_NAME_RE.findall(source))
+    unnamed = _NAME_RE.sub(lambda m: " " if m.group(0) in names else m.group(0), answer)
     if src_letters >= 4 and len(_letters(unnamed)) >= 2 and script_share(unnamed, script) < 0.6:
         raise TransliterationError("bad_output", "the rewrite is not in the target script")
+    if src_letters >= 4 and _letters(answer) and script_share(answer, script) == 0:
+        raise TransliterationError("bad_output", "the rewrite has no letters of the target script")
 
 
 _NAME_RE = re.compile(r"(?<![A-Za-z])[A-Z][A-Za-z0-9'&.-]*")
@@ -286,4 +291,6 @@ def transliterate(text: str, language: Optional[str], *, llm=None) -> Result:
             answer = _replace_words(answer, _convert_words(llm, _leftovers(answer), name, script_name, script))
         pieces.append(answer)
     converted = _unmask("\n".join(pieces), spans)
+    if converted.count("\n") != text.count("\n"):
+        raise TransliterationError("bad_output", "the conversion changed the line breaks")
     return Result(text=converted, changed=converted != text)

@@ -66,6 +66,10 @@ async def music_generate(
         GpuJobTimeoutError, GpuPoolBusyError, run_on_gpu_pool_guarded,
     )
 
+    from services.engine_memory import evict_for_tool
+
+    # A speech engine or the other tool may still hold the GPU this model needs.
+    await evict_for_tool(music_gen.MODEL.tool_id)
     used_seed = seed if seed is not None else random.randint(0, 2**31 - 1)
     seconds = music_gen.clamp_seconds(seconds)
     start_time = time.time()

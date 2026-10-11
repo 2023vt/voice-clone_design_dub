@@ -15,6 +15,8 @@ import logging
 import threading
 from typing import Any
 
+from services.tool_models import ResidentModel
+
 logger = logging.getLogger("omnivoice.music")
 
 MUSIC_REPO = "facebook/musicgen-stereo-medium"
@@ -32,9 +34,6 @@ GUIDANCE_SCALE = 3.0
 
 _state_lock = threading.Lock()
 _install: dict[str, Any] = {"stage": "idle", "error": None}
-_model = None
-_processor = None
-_model_lock = threading.Lock()
 
 
 def model_downloaded() -> bool:
@@ -91,41 +90,39 @@ def start_install() -> dict[str, Any]:
 
 
 def _load():
-    global _model, _processor
-    with _model_lock:
-        if _model is not None:
-            return _model, _processor
-        import torch
-        from transformers import AutoProcessor, MusicgenForConditionalGeneration
+    import torch
+    from transformers import AutoProcessor, MusicgenForConditionalGeneration
 
-        from services.model_loading import exclusive_model_load
+    from services.model_loading import exclusive_model_load
 
-        cuda = torch.cuda.is_available()
-        with exclusive_model_load("Music"):
-            processor = AutoProcessor.from_pretrained(MUSIC_REPO, local_files_only=True)
-            model = MusicgenForConditionalGeneration.from_pretrained(
-                MUSIC_REPO,
-                dtype=torch.float16 if cuda else torch.float32,
-                local_files_only=True,
-            ).to("cuda" if cuda else "cpu").eval()
-        _model, _processor = model, processor
-        return model, processor
+    cuda = torch.cuda.is_available()
+    with exclusive_model_load("Music"):
+        processor = AutoProcessor.from_pretrained(MUSIC_REPO, local_files_only=True)
+        model = MusicgenForConditionalGeneration.from_pretrained(
+            MUSIC_REPO,
+            dtype=torch.float16 if cuda else torch.float32,
+            local_files_only=True,
+        ).to("cuda" if cuda else "cpu").eval()
+    return model, processor
+
+
+#: Freed by the single-engine policy when speech or the other tool needs the GPU.
+MODEL = ResidentModel("music", _load)
 
 
 def clamp_seconds(seconds: float) -> float:
     return max(MIN_SECONDS, min(MAX_SECONDS, float(seconds)))
 
 
-def sample_rate() -> int:
-    model, _ = _load()
-    return int(model.config.audio_encoder.sampling_rate)
-
-
 def generate(prompt: str, seconds: float, variations: int, seed: int) -> tuple[list, int]:
     """Render ``variations`` pieces; returns ``([C, N] float tensors, sample_rate)``."""
+    with MODEL.use() as (model, processor):
+        return _render(model, processor, prompt, seconds, variations, seed)
+
+
+def _render(model, processor, prompt, seconds, variations, seed):
     import torch
 
-    model, processor = _load()
     count = max(1, min(MAX_VARIATIONS, int(variations)))
     inputs = processor(text=[prompt] * count, padding=True, return_tensors="pt").to(model.device)
     frame_rate = int(model.config.audio_encoder.frame_rate)

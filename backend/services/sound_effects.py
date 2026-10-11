@@ -25,6 +25,7 @@ import types
 from typing import Any
 
 from core.config import DATA_DIR
+from services.tool_models import ResidentModel
 
 logger = logging.getLogger("omnivoice.sfx")
 
@@ -44,8 +45,6 @@ NEGATIVE_PROMPT = "low quality, distorted, noise, muffled"
 
 _state_lock = threading.Lock()
 _install: dict[str, Any] = {"stage": "idle", "error": None}
-_pipeline = None
-_pipeline_lock = threading.Lock()
 
 
 def _use_libs_dir() -> None:
@@ -157,26 +156,25 @@ def start_install() -> dict[str, Any]:
 
 
 def _load_pipeline():
-    global _pipeline
-    with _pipeline_lock:
-        if _pipeline is not None:
-            return _pipeline
-        _use_libs_dir()
-        import torch
-        from diffusers import AudioLDM2Pipeline
+    _use_libs_dir()
+    import torch
+    from diffusers import AudioLDM2Pipeline
 
-        from services.model_loading import exclusive_model_load
+    from services.model_loading import exclusive_model_load
 
-        cuda = torch.cuda.is_available()
-        with exclusive_model_load("Sound effects"):
-            pipe = AudioLDM2Pipeline.from_pretrained(
-                SFX_REPO,
-                torch_dtype=torch.float16 if cuda else torch.float32,
-                local_files_only=True,
-            )
-            pipe.generate_language_model = types.MethodType(_generate_language_model, pipe)
-            _pipeline = pipe.to("cuda" if cuda else "cpu")
-        return _pipeline
+    cuda = torch.cuda.is_available()
+    with exclusive_model_load("Sound effects"):
+        pipe = AudioLDM2Pipeline.from_pretrained(
+            SFX_REPO,
+            torch_dtype=torch.float16 if cuda else torch.float32,
+            local_files_only=True,
+        )
+        pipe.generate_language_model = types.MethodType(_generate_language_model, pipe)
+        return pipe.to("cuda" if cuda else "cpu")
+
+
+#: Freed by the single-engine policy when speech or the other tool needs the GPU.
+MODEL = ResidentModel("sfx", _load_pipeline)
 
 
 def _generate_language_model(self, inputs_embeds=None, max_new_tokens=8, **model_kwargs):
@@ -217,9 +215,13 @@ def clamp_seconds(seconds: float) -> float:
 def generate(prompt: str, seconds: float, variations: int, seed: int,
              steps: int = DEFAULT_STEPS) -> list:
     """Render ``variations`` clips for ``prompt``; returns ``[1, N]`` float tensors."""
+    with MODEL.use() as pipe:
+        return _render(pipe, prompt, seconds, variations, seed, steps)
+
+
+def _render(pipe, prompt, seconds, variations, seed, steps) -> list:
     import torch
 
-    pipe = _load_pipeline()
     device = pipe.device if hasattr(pipe, "device") else "cpu"
     generator = torch.Generator(device=str(device)).manual_seed(int(seed))
     out = pipe(

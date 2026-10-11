@@ -38,7 +38,8 @@ explicit temporary override.
 When several targets are selected, progress tabs above the transcript switch the
 active language in one click while preserving every target for Translate All and
 Generate. Persisted provider error pages are discarded and restored to the source
-dialogue with a retryable error state.
+dialogue with a retryable error state. Restored errors stay attached to the affected
+language, preserving its warning badge and issue-navigation stop when switching targets.
 
 The transcript toolbar counts flagged segments and offers Previous issue / Next
 issue controls. They wrap through tight-fit and overlong lines, translation errors

@@ -1,7 +1,8 @@
 import { afterEach, expect, it, vi } from 'vitest';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import en from '@/i18n/locales/en.json';
-import type { DubSegment } from './dub-session';
+import type { DubSegment, DubSession } from './dub-session';
+import { restoreDubDraft } from './dub-draft';
 import { TranscriptIssueNavigation } from './transcript-issue-navigation';
 
 vi.mock('react-i18next', () => ({
@@ -228,4 +229,50 @@ it('disables navigation during generation or recovery', () => {
   expect(next()).toBeDisabled();
   expect(previous()).toBeDisabled();
   expect(onSelect).not.toHaveBeenCalled();
+});
+it('navigates to discarded translations after restore only for affected languages', () => {
+  const defaults: DubSession = {
+    jobId: null,
+    taskId: null,
+    filename: '',
+    inputType: 'video',
+    phase: 'idle',
+    segments: [],
+    sourceLang: '',
+    tracks: [],
+    event: null,
+    error: null,
+    recovery: null,
+    target: 'French',
+    quality: 'fast',
+  };
+  const restored = restoreDubDraft(
+    JSON.stringify({
+      ...defaults,
+      segments: [
+        cue('clean'),
+        cue('rejected', {
+          text: '<html>Unavailable</html>',
+          translations: { fr: '<html>Unavailable</html>', de: 'Hallo' },
+          translate_errors: { es: 'Spanish translation failed' },
+        }),
+      ],
+    }),
+    defaults,
+  );
+  const onSelect = vi.fn();
+  const props = { segments: restored.segments, selectedId: null, disabled: false, onSelect };
+  const view = render(<TranscriptIssueNavigation {...props} language="fr" />);
+  expect(screen.getByRole('status')).toHaveTextContent('Flagged segments: 1');
+  fireEvent.click(next());
+  expect(onSelect).toHaveBeenLastCalledWith('rejected');
+
+  view.rerender(<TranscriptIssueNavigation {...props} language="de" />);
+  expect(screen.getByRole('status')).toHaveTextContent('Flagged segments: 0');
+  expect(next()).toBeDisabled();
+
+  view.rerender(<TranscriptIssueNavigation {...props} language="es" />);
+  expect(screen.getByRole('status')).toHaveTextContent('Flagged segments: 1');
+  fireEvent.click(next());
+  expect(onSelect).toHaveBeenLastCalledWith('rejected');
 });

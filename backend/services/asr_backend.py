@@ -1600,7 +1600,11 @@ class PyTorchWhisperBackend(ASRBackend):
                 return True
         except Exception:  # noqa: BLE001 — classification must not raise
             pass
-        return "out of memory" in str(exc).lower()
+        from core.failure import is_gpu_oom
+
+        # Every accelerator's device-OOM spelling, incl. Intel XPU's
+        # UR_RESULT_ERROR_OUT_OF_DEVICE_MEMORY.
+        return "out of memory" in str(exc).lower() or is_gpu_oom(exc)
 
     def _rebuild_on_cpu(self) -> None:
         """Move the existing pipeline to CPU without resolving any model files."""
@@ -1661,12 +1665,11 @@ class PyTorchWhisperBackend(ASRBackend):
                 except Exception as e:  # noqa: BLE001 — only OOM is retryable
                     if not self._is_oom(e):
                         raise
-                    try:
-                        import torch
+                    # Drop the failed batch's activations (still pinned by
+                    # this traceback) before the smaller retry.
+                    from services.model_manager import release_after_oom
 
-                        torch.cuda.empty_cache()
-                    except Exception:  # noqa: BLE001
-                        pass
+                    release_after_oom(e)
                     if i + 1 < len(ladder):
                         logger.warning(
                             "PyTorch Whisper CUDA OOM at batch_size=%d — "

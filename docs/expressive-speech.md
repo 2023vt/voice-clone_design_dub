@@ -17,8 +17,8 @@ ignores.
 | Whispering | Style → `whisper` (the voice-design/style field) | Default engine |
 | Emotion ("excited", "sad", graded intensity) | IndexTTS2's emotion controls — Audiobook tab's Production Overrides, or the `/ws/tts` API — or CosyVoice 3 instruct | Opt-in engines only |
 | The same take again | Pin the seed / lock the profile | Default engine |
-| An ElevenLabs v3 script as-is | Paste it — `[laughs]`, `[sighs]`, `[short pause]`, `[whispers]`, `[excited]` … are lowered for the active engine (see [ElevenLabs-style tags](#elevenlabs-style-tags)) | Every engine (`/generate`) |
-| Pauses that sound like a room, breaths before sentences, natural pacing | Audio quality → **Sound more human** (or `humanize=true` on `/generate`) — see [audio-quality.md](audio-quality.md) | Every engine (`/generate`) |
+| An ElevenLabs v3 script as-is | Paste it — `[laughs]`, `[sighs]`, `[short pause]`, `[whispers]`, `[excited]` … are lowered for the active engine (see [ElevenLabs-style tags](#elevenlabs-style-tags)) | Every engine (`/generate`, `/v1/audio/speech`) |
+| Pauses that sound like a room, breaths before sentences, natural pacing | Audio quality → **Sound more human** (or `humanize=true` on `/generate` and `/v1/audio/speech`) — see [audio-quality.md](audio-quality.md) | Every engine (`/generate`, `/v1/audio/speech`) |
 
 ## Recovering an interrupted audiobook
 
@@ -42,11 +42,14 @@ the pipeline goes out of its way not to break tags:
 The flip side is just as important: **unrecognized tags are not stripped.**
 An engine that doesn't know a tag receives it as literal text and will try to
 speak it. Use only the tags listed for your engine below — or the
-ElevenLabs-style cues in the next section, which `/generate` lowers for you.
+ElevenLabs-style cues in the next section, which `/generate` and
+`/v1/audio/speech` lower for you.
 
 ### ElevenLabs-style tags
 
-`/generate` rewrites a closed set of ElevenLabs v3 cues before synthesis
+`/generate` and the OpenAI-compatible `/v1/audio/speech` rewrite a closed
+set of ElevenLabs v3 cues before synthesis (`/v1/audio/speech` also turns
+`[pause Nms]` markers into stitched silence)
 (`backend/services/audio_tags.py`), so an ElevenLabs script can be pasted
 unchanged:
 

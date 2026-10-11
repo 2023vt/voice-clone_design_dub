@@ -83,10 +83,15 @@ def client(monkeypatch):
             return True, "ready"
 
         def generate(self, text, **kw):
+            SPOKEN.append(text)
             return _take()
 
+    SPOKEN.clear()
     monkeypatch.setitem(tts._REGISTRY, _Fake.id, _Fake)
     return TestClient(app, client=("127.0.0.1", 50000))
+
+
+SPOKEN: list = []
 
 
 @pytest.mark.parametrize("humanize, silent_gap", [(False, True), (True, False)])
@@ -107,3 +112,28 @@ def test_speech_route_rejects_an_out_of_range_strength(client):
         "model": "fake-speech-humanize", "input": "नमस्ते", "humanize": True, "humanize_strength": 2,
     })
     assert resp.status_code in (400, 422)
+
+
+def test_speech_route_stitches_pause_markers_into_real_silence(client):
+    """``[pause 500ms]`` is a pause, not text: each side renders on its own and
+    exactly half a second of silence joins them, as on /generate."""
+    resp = client.post("/v1/audio/speech", json={
+        "model": "fake-speech-humanize", "input": "पहली बात। [pause 500ms] दूसरी बात।",
+        "response_format": "wav", "language": "hi",
+    })
+    assert resp.status_code == 200, resp.text[:300]
+    assert SPOKEN == ["पहली बात।", "दूसरी बात।"]
+    audio, sr = sf.read(io.BytesIO(resp.content), dtype="float32")
+    one = _take().shape[-1]
+    assert audio.shape[0] == 2 * one + sr // 2
+    assert float(abs(audio[one: one + sr // 2]).max()) == 0.0
+
+
+def test_speech_route_never_reads_a_cue_aloud(client):
+    resp = client.post("/v1/audio/speech", json={
+        "model": "fake-speech-humanize", "input": "[excited] हमने कर दिखाया!",
+        "response_format": "wav", "language": "hi",
+    })
+    assert resp.status_code == 200, resp.text[:300]
+    assert SPOKEN == ["हमने कर दिखाया!"]
+    assert resp.headers.get("X-OmniVoice-Expression-Dropped") == "[excited]"

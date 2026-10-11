@@ -136,6 +136,12 @@ try:
 except ImportError:
     pass
 
+# A mirror in HF_ENDPOINT must never receive the Hugging Face token, here or in
+# engine processes that inherit this environment.
+from services.hf_auth import apply_process_token_policy as _apply_hf_token_policy  # noqa: E402
+
+_apply_hf_token_policy()
+
 # ── cuDNN 8 library preload ─────────────────────────────────────────────
 # Moved into _phase_a_build (`native_preload` step, early-bind refactor): the
 # native dlopen/LoadLibrary belongs to the deferred heavy phase, and its one
@@ -795,10 +801,17 @@ def _phase_a_finalize() -> None:
         app.mount("/demo_audio", StaticFiles(directory=_demo_dir), name="demo_audio")
 
     # SPA shell LAST so the "/" StaticFiles mount can't shadow any router.
-    from core.spa_inject import frontend_dist_dir, is_valid_public_api_base, inject_api_base
+    from core.spa_inject import (
+        dev_ui_redirect,
+        frontend_available,
+        frontend_dist_dir,
+        inject_api_base,
+        is_valid_public_api_base,
+        web_ui_missing_body,
+    )
 
     _frontend_path = frontend_dist_dir()
-    if os.path.exists(_frontend_path):
+    if frontend_available(_frontend_path):
         # Runtime API-base override (Docker / reverse-proxy): inject
         # OMNIVOICE_PUBLIC_API_BASE into index.html; unset → untouched.
 
@@ -829,9 +842,21 @@ def _phase_a_finalize() -> None:
         app.mount("/", StaticFiles(directory=_frontend_path, html=True), name="frontend")
     else:
 
+        logging.getLogger("omnivoice.api").info(
+            "No web UI build at %s; \"/\" serves an explanation to other devices.",
+            _frontend_path,
+        )
+
         @app.get("/", include_in_schema=False)
-        def _dev_fallback():
-            return RedirectResponse(url=f"http://localhost:{_ui_port()}")
+        def _no_web_ui(request: Request):
+            # Only a local browser may be sent to the local dev UI; a LAN
+            # device redirected to localhost reaches itself, not us (#2599).
+            client = request.client.host if request.client else None
+            target = dev_ui_redirect(client, request.headers.get("host", ""), _ui_port())
+            if target:
+                return RedirectResponse(url=target)
+            media_type, body = web_ui_missing_body(request.headers.get("accept", ""))
+            return Response(body, status_code=503, media_type=media_type)
 
     # An early /docs or /openapi.json hit may have cached a schema without
     # the routers — bust it so the next request rebuilds the full one.
@@ -914,6 +939,13 @@ async def _phase_b(app: FastAPI) -> None:
             logger.info("Startup: marked %d orphaned job(s) as failed.", swept)
     except Exception:
         logger.exception("Startup job-sweep failed (non-fatal).")
+    # Superseded voice takes kept for in-flight renders (#2535) past their grace.
+    try:
+        from api.routers.profiles import sweep_retired_voice_files
+
+        sweep_retired_voice_files()
+    except Exception:
+        logger.exception("Startup retired-voice sweep failed (non-fatal).")
     # #2279: note the voices root in the longform cache before anything can
     # move the data dir, so legacy-keyed chapters stay findable after a move.
     from services.longform_render import record_startup_voices_root
@@ -1335,10 +1367,10 @@ def prepare_deliberate_shutdown_during_startup(request: Request):
     a false crash sentinel behind.  Keep this one tiny control route available
     from socket bind; its authorization remains identical to the system router.
     """
-    from api.dependencies import require_admin
+    from api.dependencies import check_admin
     from core import run_sentinel
 
-    require_admin(request)
+    check_admin(request)
     return {"prepared": run_sentinel.clear_sentinel()}
 
 
@@ -1410,7 +1442,13 @@ def _safe_validation_input(value):
     return value
 
 
-from core.failure import NoAudioTrackError, no_audio_track_detail  # noqa: E402
+from core.failure import (  # noqa: E402
+    InvalidMediaFileError,
+    NoAudioTrackError,
+    invalid_media_file_detail,
+    no_audio_track_detail,
+)
+from services.model_acceptance import ModelLicenceNotAccepted  # noqa: E402
 
 
 @app.exception_handler(NoAudioTrackError)
@@ -1441,6 +1479,28 @@ async def commercial_use_blocked_handler(request: Request, exc: CommercialUseBlo
         status_code=403,
         content={"detail": {"code": "commercial_use_blocked", "message": str(exc), "target": exc.target,
                             "status": exc.info.status, "weights": exc.info.weights, "source": exc.info.source}},
+        headers=_cors_headers_for(request),
+    )
+
+
+@app.exception_handler(ModelLicenceNotAccepted)
+async def model_licence_handler(request: Request, exc: ModelLicenceNotAccepted):
+    """403 with the models whose licence still needs acceptance, so the desktop
+    client can show the acceptance dialog instead of a generic failure."""
+    return JSONResponse(
+        status_code=403,
+        content={"detail": exc.detail()},
+        headers=_cors_headers_for(request),
+    )
+
+
+@app.exception_handler(InvalidMediaFileError)
+async def invalid_media_file_handler(request: Request, exc: InvalidMediaFileError):
+    """422 for an upload that is unreadable or not media at all (a playlist or
+    manifest named like a video), on every route that checks its input."""
+    return JSONResponse(
+        status_code=422,
+        content={"detail": invalid_media_file_detail()},
         headers=_cors_headers_for(request),
     )
 
@@ -1566,6 +1626,18 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 _SHELL_PATHS = {"/", "/index.html", "/favicon.ico", "/early-error-capture.js", "/health"}
 
+
+def _is_public_path(path: str) -> bool:
+    """HTTP paths every gate leaves reachable: the SPA shell and its assets,
+    so a remote UI can load and say what is wrong, and the credential
+    exchange, which validates the presented key itself."""
+    return (
+        path in _SHELL_PATHS
+        or path.startswith("/assets/")
+        or path.startswith("/favicon")
+        or path == "/api/auth/session"
+    )
+
 # Paths that answer while deferred startup is still running. The shutdown
 # signal must exist before the ordinary system router so a bounded Windows
 # process-tree stop cannot leave a false crash sentinel.
@@ -1642,13 +1714,7 @@ class NetworkAccessMiddleware:
         client = scope["client"][0] if scope.get("client") else None
         if is_local_host(client):
             return await self.app(scope, receive, send)
-        path = scope["path"]
-        if (
-            path in _SHELL_PATHS
-            or path.startswith("/assets/")
-            or path.startswith("/favicon")
-            or path == "/api/auth/session"
-        ):
+        if _is_public_path(scope["path"]):
             return await self.app(scope, receive, send)
         supplied = (
             request.headers.get("x-omnivoice-pin")
@@ -1743,13 +1809,7 @@ class BearerKeyMiddleware:
         key = remote_api_key() or ""
         if not key:
             return await self.app(scope, receive, send)
-        path = scope.get("path", "")
-        if scope["type"] == "http" and (
-            path in _SHELL_PATHS
-            or path.startswith("/assets/")
-            or path.startswith("/favicon")
-            or path == "/api/auth/session"
-        ):
+        if scope["type"] == "http" and _is_public_path(scope.get("path", "")):
             return await self.app(scope, receive, send)
 
         from starlette.requests import HTTPConnection
@@ -1824,6 +1884,13 @@ app.add_middleware(NetworkAccessMiddleware)
 # carried its own loopback guard; remote mode is exactly the case where a
 # keyed non-loopback client must reach them.
 app.add_middleware(BearerKeyMiddleware)
+
+# Applies whatever the auth configuration: refuses state-changing requests and
+# WebSocket handshakes that another website's page sends, and requests that
+# address this backend by an unrecognized host name (DNS rebinding). Just
+# inside CORS so preflights reach CORS and refusals keep their CORS headers.
+from core.browser_guard import BrowserGuardMiddleware
+app.add_middleware(BrowserGuardMiddleware, is_public_path=_is_public_path)
 
 app.add_middleware(
     CORSMiddleware,

@@ -57,7 +57,8 @@ export const DEFAULT_CLONE_SETTINGS: CloneSettings = {
   autoPlay: false,
 };
 
-function acceptsValue(key: keyof CloneSettings, value: unknown): boolean {
+/** Whether `value` is a valid stored value for the clone setting `key`. */
+export function acceptsCloneSetting(key: keyof CloneSettings, value: unknown): boolean {
   if (key === 'wavBits') return value === 16 || value === 24 || value === 32;
   if (key === 'effectPreset') return value === 'broadcast' || value === 'raw';
   if (key === 'humanizeStrength') return typeof value === 'number' && value >= 0 && value <= 1;
@@ -86,7 +87,7 @@ export function parsePersistedCloneSettings(raw: string | null | undefined): Clo
   const record = parsed as Record<string, unknown>;
   const accepted: Partial<CloneSettings> = {};
   for (const key of Object.keys(DEFAULT_CLONE_SETTINGS) as Array<keyof CloneSettings>) {
-    if (key in record && acceptsValue(key, record[key])) {
+    if (key in record && acceptsCloneSetting(key, record[key])) {
       Object.assign(accepted, { [key]: record[key] });
     }
   }

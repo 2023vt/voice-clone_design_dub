@@ -16,7 +16,7 @@ import os
 import platform as _platform
 import sys
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 
 from api.schemas import SetupStatusResponse, PreflightResponse
 from core.device_caps import KERNEL_RISK_MARKER, is_windows_on_arm
@@ -24,6 +24,7 @@ from core.device_caps import KERNEL_RISK_MARKER, is_windows_on_arm
 # module in the setup import graph) so the wizard gate, the /models header, and
 # the per-install disk guard can't drift apart.
 from .models import REQUIRED_MODELS, hf_cache_dir, is_cached, MIN_FREE_GB, disk_free_bytes
+from core.browser_guard import reject_cross_site_get
 
 logger = logging.getLogger("omnivoice.setup.wizard")
 router = APIRouter()
@@ -385,7 +386,7 @@ def _ram_gb() -> float:
         return 0.0
 
 
-@router.get("/setup/preflight", response_model=PreflightResponse)
+@router.get("/setup/preflight", response_model=PreflightResponse, dependencies=[Depends(reject_cross_site_get)])
 def preflight():
     """One-shot system health check for the wizard."""
     checks: list[dict] = []
@@ -544,7 +545,9 @@ def preflight():
         gpu_status, gpu_fix = "pass", None
         gpu_detail = f"{gpu['device_name']} (driver {gpu['driver']}) — CUDA ready"
     elif gpu["vendor"] == "nvidia" and not gpu["available"]:
-        gpu_status = "fail"
+        # Acceleration is optional: CPU wheels or an unusable driver must not
+        # block CPU-capable engines. Active-engine compatibility is checked below.
+        gpu_status = "warn"
         gpu_detail = (
             f"{gpu['device_name']} found but CUDA not usable "
             f"(driver {gpu['driver']}). " + " ".join(gpu["notes"])
@@ -552,7 +555,8 @@ def preflight():
         gpu_fix = (
             f"Update NVIDIA drivers to ≥ R{'.'.join(map(str, _min_nvidia_driver()))} "
             "(https://www.nvidia.com/Download/index.aspx). Or run CPU-only "
-            "by continuing past this step — dubbing will be ~10× slower."
+            "by continuing past this step. CPU inference is slower; GPU-only "
+            "engines remain unavailable."
         )
     elif gpu["vendor"] == "amd":
         gpu_status = "warn"
@@ -687,6 +691,11 @@ async def setup_warmup():
             from services.model_manager import get_model
             await get_model()
         except Exception as e:
+            from core.failure import licence_required_detail
+
+            if licence_required_detail(e) is not None:
+                logger.info("setup/warmup skipped: the model licence is not accepted yet.")
+                return
             logger.warning("setup/warmup: model load failed: %s", e)
 
     loop.create_task(_do_warmup())

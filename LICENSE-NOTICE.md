@@ -55,8 +55,37 @@ weights as CC-BY-NC. Its `audio_tokenizer/LICENSE` contains separate Boson
 Higgs Audio 2 and Meta Llama community terms. A commercial license for
 VoiceStudio-owned code does not replace any of those terms.
 
+The maintained About panel displays selected model credits and required literal
+Higgs Audio and Llama attribution text. See [model credit sources](docs/model-credits.md)
+for evidence and remaining gaps. These visible credits do not establish complete
+notice compliance or permission for a particular use.
+
+The [model licence records](backend/config/model_licenses.json) distinguish
+inspected non-commercial terms from unreviewed upstream metadata. A false
+commercial-use flag includes unresolved review; it is not a claim that every
+listed model forbids commercial use. No commercial clearance is asserted by
+the initial inventory.
+
+The Model Manager's versioned notices distinguish commercial model use,
+commercial output use, redistribution and voice/recording consent. An unknown
+assessment is not permission and is not a finding that all uses are prohibited.
+Evidence for one revision or conversion does not automatically cover another.
+
+The optional [reviewed-file workflow](docs/licensing/model-review-workflow.md)
+records a local acknowledgement of the displayed notice and exact evidence.
+It does not accept agreements with a provider, grant provider access, grant
+commercial rights, verify voice consent or add a waiver. It does not alter
+rights granted by the application's AGPL licence. Existing engine settings and
+ordinary download/first-use paths remain separate and unchanged; no production
+model currently has the complete evidence needed for this reviewed workflow.
+
 Third-party dependencies retain their own licenses. See `bun.lock`, `uv.lock`,
 and `native/desktop-bridge/Cargo.lock` for the resolved set.
+
+The locked PyAV 15.1.0 wheels bundle FFmpeg and x264/x265 libraries. PyAV's source
+licence alone does not describe those binaries' terms. The
+[wheel audit](docs/licensing/pyav-15.1.0-audit.md) records their hashes, build flags,
+upstream licence-label patch, and unresolved redistribution requirements.
 
 ### Reference
 
@@ -68,3 +97,4 @@ reproduced verbatim in [`LICENSE`](LICENSE). The authoritative copy lives at
 > AGPL-3.0 text and nothing else, so GitHub's license detection (and the
 > corporate license scanners that gate adoption) can identify it as
 > `AGPL-3.0-only` rather than falling back to "Other" / `NOASSERTION`.
+

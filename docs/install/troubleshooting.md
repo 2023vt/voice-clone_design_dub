@@ -535,7 +535,8 @@ URLs, which is wrong when the UI is reached from a different LAN host.
 **Fix:** the frontend derives its API/media base from the page's own origin.
 When running behind a reverse proxy where the UI and API are on different
 origins, set the runtime override `OMNIVOICE_PUBLIC_API_BASE` (works on the
-prebuilt image via `docker run -e`) — see
+prebuilt image via `docker run -e`) and list the UI's origin in
+`OMNIVOICE_ALLOWED_ORIGINS` — see
 [docker.md#lan-access](docker.md#lan-access).
 
 ## 9. Apple Silicon `mlx-whisper` unavailable on Intel mac
@@ -654,7 +655,12 @@ redirect, so the generic mirror trick doesn't help here.
      rest of the (small) dependencies still come from PyPI/your mirror.
 
 If you don't have an NVIDIA GPU, you don't need the CUDA build at all — a CPU /
-Apple-Silicon install skips this index entirely.
+Apple-Silicon install skips this index entirely. Electron source and packaged
+setup select CPU wheels when no NVIDIA driver is detected. Set
+`OMNIVOICE_TORCH_VARIANT=cpu` before `bun run setup:api` or the packaged install
+action to choose them explicitly; see [CPU setup](../../electron/README.md#running-without-a-gpu).
+An unusable NVIDIA driver is a setup warning for CPU-capable engines;
+GPU-only engines still require supported hardware.
 
 **Linked issue:** [#569](https://github.com/debpalash/VoiceStudio/issues/569)
 
@@ -799,6 +805,12 @@ and `OMNIVOICE_GENERATE_TIMEOUT_S` (generation) — both in seconds, default 300
 — and `OMNIVOICE_TRANSCRIBE_CHUNK_TIMEOUT_S` (per-chunk dub transcription,
 default 120). **Raise** them for very long single files/generations, **lower**
 them to fail faster on a small machine.
+
+Saving a cloned voice without a transcript transcribes the reference with an
+installed speech-to-text model for at most 60 seconds
+(`OMNIVOICE_PROFILE_TRANSCRIBE_TIMEOUT_S`). After that the voice is saved
+without a transcript, and the first generation with it reuses the finished
+transcription. Installed models load from disk, so saving works offline.
 
 CPU-only hosts use a bounded 600-second generation floor because correct CPU
 synthesis can take longer than the accelerated five-minute budget. Override it
@@ -1316,11 +1328,15 @@ the message:
   ran out of time is treated as inconclusive instead of sending an intact
   runtime back to the setup screen. The first start after an install is the
   slowest because antivirus scans every new file; later starts are much faster.
-- **`The Python environment in <folder> is missing or incomplete`** (running from
-  a source checkout) — run `bun run setup:api` in the repository. If the folder
-  is inside OneDrive, Dropbox, iCloud Drive or Google Drive, move the checkout to
-  a plain local folder first: online-only placeholders and file locking break
-  the Python environment.
+- **`The Python environment in <folder> is missing`** or **`… is incomplete:
+  <reason>`** (running from a source checkout) — run `bun run setup:api` in the
+  repository and let it finish. *Missing* means no `.venv` exists yet.
+  *Incomplete* quotes the import that failed, e.g. `ModuleNotFoundError: No
+  module named 'sentencepiece'` (setup did not finish: rerun it) or `ImportError:
+  DLL load failed` (Windows: rerun setup, which installs the Visual C++
+  runtime). If the folder is inside OneDrive, Dropbox, iCloud Drive or Google
+  Drive, move the checkout to a plain local folder first: online-only
+  placeholders and file locking break the Python environment.
 
 A native crash (`3221225477`, `-1073741819`) right after pressing Generate
 shortly after launch was caused by the startup preload and the first generation
@@ -1328,7 +1344,10 @@ loading the TTS model at the same time. Cold loads are now serialized across bot
 paths; if a load ever wedges past its deadline, retries fail immediately with a
 "restart the backend" message instead of queueing behind it. If a native crash
 persists, attach the full faulthandler dump (the `Windows fatal exception` block
-including every `Thread` section) from Settings → Logs → Backend.
+including every `Thread` section) from Settings → Logs → Backend. Bug reports
+already carry a condensed copy: the crash message names the faulting frame, and
+the report keeps the faulting thread's VoiceStudio frames (which model or job
+was loading) plus the frame each other thread was running.
 
 ### ASR initialization errors
 
@@ -1343,3 +1362,13 @@ is affected; it does not diagnose or repair the original environment.
 ## Concurrent migration backups
 
 Concurrent pre-migration database snapshots reserve distinct backup counters before copying. Reservation files are not recovery backups. A reservation left by an interrupted writer is skipped by subsequent snapshots rather than reused.
+
+## "This model can't be used until you accept its licence"
+
+VoiceStudio does not own or license the models it runs. Models whose licence is
+not plainly commercial (non-commercial, conditional or unidentified terms, such
+as the default OmniVoice model) are blocked until you accept their licence once.
+Accept it in the dialog that appears, or in **Model Manager → the model's
+Licence icon**. Nothing is re-downloaded. Headless and API users can accept with
+`POST /models/licenses/accept`; see
+[Licence acceptance before use](../licensing/model-review-workflow.md#licence-acceptance-before-use).

@@ -65,6 +65,7 @@ export default {
   // the installer): the shell bootstraps a uv venv on first run.
   extraResources: [
     { from: 'build/icons/icon.png', to: 'brand/icon.png' },
+    { from: 'build/icons/icon-macos.png', to: 'brand/icon-macos.png' },
     { from: 'build/icons/icon.ico', to: 'brand/icon.ico' },
     { from: 'build/icons/32x32.png', to: 'brand/32x32.png' },
     {

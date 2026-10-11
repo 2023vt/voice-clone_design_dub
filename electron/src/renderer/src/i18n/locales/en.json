@@ -1095,6 +1095,11 @@
     "upgrading_preview": "Upgrading {{count}} preview-quality segment(s) to full quality…"
   },
   "dubWorkspace": {
+    "transcriptIssues": "Transcript issues",
+    "issueCount": "Flagged segments: {{total}}",
+    "issuePosition": "Issue {{current}} of {{total}}",
+    "previousIssue": "Previous issue",
+    "nextIssue": "Next issue",
     "title": "Dubbing",
     "start": "Start",
     "end": "End",

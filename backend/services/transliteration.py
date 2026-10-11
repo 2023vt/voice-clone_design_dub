@@ -60,8 +60,11 @@ You convert {language} written in Roman (Latin) letters into {language} written 
 in the {script} script, the way a native writer would type it.
 
 Rules:
-- Transliterate every Romanized {language} word into {script}. Casual spellings \
-("nahi", "nhi", "nahin") are the same word: write its standard spelling.
+- Change the script, never the words. Every Roman word becomes the same word \
+in {script}, in the same place: never a synonym, never a rephrasing, never a \
+fixed-up sentence. For Hindi, "kya haal hai" is "क्या हाल है" (not "कैसा हाल है").
+- Casual spellings ("nahi", "nhi", "nahin") are the same word: write its \
+standard spelling.
 - English words used inside the {language} text (meeting, phone, plan) are \
 written in {script} as {language} speakers write them. Brand and product names \
 may stay in Latin letters.
@@ -160,14 +163,48 @@ def _clean(answer: str) -> str:
     return s
 
 
+def _words(text: str) -> int:
+    return len([w for w in _BRACKET_RE.sub(" ", text).split() if any(c.isalnum() for c in w)])
+
+
 def _check(source: str, answer: str, script: str) -> None:
     if answer.count("\n") != source.count("\n"):
         raise TransliterationError("bad_output", "the model changed the line breaks")
+    # A transliteration keeps one word per word. A rewrite that grew or shrank
+    # by more than a few words translated, summarised or rephrased instead.
+    src_words, out_words = _words(source), _words(answer)
+    if abs(out_words - src_words) > max(2, src_words // 5):
+        raise TransliterationError("bad_output", "the rewrite changed the words, not just the script")
     src_letters, out_letters = len(_letters(source)), len(_letters(answer))
     if src_letters and not (0.35 <= out_letters / src_letters <= 2.5):
         raise TransliterationError("bad_output", "the rewrite is not the same length of text")
-    if src_letters >= 4 and script_share(answer, script) < 0.6:
+    # Names and acronyms (CEO, YouTube) may stay in Latin letters, so they do
+    # not count against the target script.
+    unnamed = _NAME_RE.sub(" ", answer)
+    if src_letters >= 4 and len(_letters(unnamed)) >= 2 and script_share(unnamed, script) < 0.6:
         raise TransliterationError("bad_output", "the rewrite is not in the target script")
+
+
+_NAME_RE = re.compile(r"(?<![A-Za-z])[A-Z][A-Za-z0-9'&.-]*")
+
+
+#: A lowercase Roman word: romanized text the model left unconverted. Acronyms
+#: (CEO) and brand names (YouTube, iPhone) start with a capital and may stay.
+_LEFTOVER_RE = re.compile(r"(?<![A-Za-z])[a-z][a-z']+(?![A-Za-z])")
+
+
+def _leftovers(text: str) -> list[str]:
+    return _LEFTOVER_RE.findall(_BRACKET_RE.sub(" ", re.sub("\u27e6\\d+\u27e7", " ", text)))
+
+
+def _ask(llm, system: str, user: str) -> str:
+    try:
+        return _clean(llm.chat(system=system, user=user))
+    except TransliterationError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — provider errors surface as one code
+        logger.warning("transliteration LLM call failed: %s", exc)
+        raise TransliterationError("llm_failed", "the LLM call failed") from exc
 
 
 def transliterate(text: str, language: Optional[str], *, llm=None) -> Result:
@@ -201,17 +238,21 @@ def transliterate(text: str, language: Optional[str], *, llm=None) -> Result:
         if not chunk.strip() or not needs_conversion(chunk, language):
             pieces.append(chunk)
             continue
-        try:
-            answer = _clean(llm.chat(system=system, user=chunk))
-        except TransliterationError:
-            raise
-        except Exception as exc:  # noqa: BLE001 — provider errors surface as one code
-            logger.warning("transliteration LLM call failed: %s", exc)
-            raise TransliterationError("llm_failed", "the LLM call failed") from exc
         lead = chunk[: len(chunk) - len(chunk.lstrip())]
         trail = chunk[len(chunk.rstrip()):]
-        answer = f"{lead}{answer.strip()}{trail}"
+        answer = f"{lead}{_ask(llm, system, chunk).strip()}{trail}"
         _check(chunk, answer, script)
+        if _leftovers(answer):
+            # A model sometimes leaves a word in Roman letters ("humne 10 हज़ार
+            # से…"). One more pass over its own answer converts the rest; it is
+            # kept only if it passes the same checks and leaves fewer behind.
+            second = f"{lead}{_ask(llm, system, answer).strip()}{trail}"
+            try:
+                _check(chunk, second, script)
+            except TransliterationError:
+                second = answer
+            if len(_leftovers(second)) < len(_leftovers(answer)):
+                answer = second
         pieces.append(answer)
     converted = _unmask("\n".join(pieces), spans)
     return Result(text=converted, changed=converted != text)

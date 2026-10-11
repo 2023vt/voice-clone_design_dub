@@ -64,6 +64,7 @@ def test_text_already_in_script_does_not_call_the_model():
     ("क्या हाल है ⟦0⟧ ⟦0⟧ आप", "duplicated the placeholder"),
     ("क्या हाल है ⟦0⟧\nआप", "added a line break"),
     ("क्या ⟦0⟧ " + "हाल " * 40, "far longer than the source"),
+    ("आप सभी लोग कैसे हैं, क्या सब ठीक चल रहा है ⟦0⟧ आप", "rephrased, not transliterated"),
 ])
 def test_bad_rewrites_are_refused(reply, why):
     with pytest.raises(TransliterationError) as err:
@@ -145,3 +146,23 @@ def test_route_maps_errors_to_statuses(client, monkeypatch, code, status):
     resp = client.post("/tools/transliterate", json={"text": "kya haal hai", "language": "Hindi"})
     assert resp.status_code == status
     assert resp.json()["detail"]["code"] == code
+
+
+def test_a_word_left_in_roman_gets_one_more_pass():
+    replies = iter(["humne दस हज़ार से शुरू किया", "हमने दस हज़ार से शुरू किया"])
+    llm = FakeLLM(lambda user: next(replies))
+    res = transliterate("humne das hazaar se shuru kiya", "Hindi", llm=llm)
+    assert res.text == "हमने दस हज़ार से शुरू किया"
+    assert len(llm.calls) == 2 and llm.calls[1][1] == "humne दस हज़ार से शुरू किया"
+
+
+def test_a_follow_up_pass_that_breaks_the_checks_is_ignored():
+    replies = iter(["humne दस हज़ार से शुरू किया", "हमने बहुत पहले दस हज़ार रुपये से अपना काम शुरू किया था"])
+    res = transliterate("humne das hazaar se shuru kiya", "Hindi", llm=FakeLLM(lambda user: next(replies)))
+    assert res.text == "humne दस हज़ार से शुरू किया"
+
+
+def test_capitalised_names_left_in_latin_do_not_trigger_a_second_pass():
+    llm = FakeLLM(lambda user: "कल CEO ने YouTube पर बताया")
+    transliterate("kal CEO ne YouTube par bataya", "Hindi", llm=llm)
+    assert len(llm.calls) == 1

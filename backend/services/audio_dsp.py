@@ -12,11 +12,13 @@ All effects use Spotify's `pedalboard` library. When pedalboard isn't
 installed, every function degrades gracefully (returns audio unmodified).
 """
 import logging
+from typing import Any
+
 import torch
 
 logger = logging.getLogger("omnivoice.dsp")
 
-def sanitize_audio(audio_out):
+def sanitize_audio(audio_out: Any) -> Any:
     """Replace non-finite samples (NaN / ±inf) with silence so a model glitch
     can't produce an unreadable WAV (#629). Returns the input unchanged when it's
     already finite or isn't a tensor. Raises if validation fails."""
@@ -321,4 +323,3 @@ def apply_effects_chain(audio_tensor, sample_rate: int, chain: list[dict]) -> to
     except Exception as e:
         logger.warning("Effects chain failed: %s — returning unmodified audio", e)
         return audio_tensor
-

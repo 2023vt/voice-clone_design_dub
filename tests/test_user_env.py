@@ -203,7 +203,9 @@ def test_private_settings_do_not_follow_a_replaced_temporary_path(tmp_path, monk
     exposed.write_text("unchanged\n")
     real_mkstemp = active_user_env.tempfile.mkstemp
     real_close = active_user_env.os.close
-    temporary = {}
+    real_fdopen = active_user_env.os.fdopen
+    temporary = {"substitutions": 0, "descriptor_adopted": False}
+    reserved = tmp_path / "reserved-inode"
 
     def remember_temporary(*args, **kwargs):
         fd, name = real_mkstemp(*args, **kwargs)
@@ -216,14 +218,47 @@ def test_private_settings_do_not_follow_a_replaced_temporary_path(tmp_path, monk
             os.unlink(temporary["name"])
             try:
                 os.symlink(exposed, temporary["name"])
+                temporary["substitutions"] += 1
             except OSError:
                 pytest.skip("symlink creation unavailable")
 
+    def fdopen_with_path_substitution(fd, mode="r", **kwargs):
+        assert fd == temporary["fd"]
+        handle = real_fdopen(fd, mode, **kwargs)
+        assert os.fstat(handle.fileno()).st_ino == os.stat(temporary["name"]).st_ino
+        temporary["descriptor_adopted"] = True
+
+        class WriterWithSubstitutedPath:
+            def __enter__(self):
+                # Exercise the write boundary on the fixed implementation too.
+                # Restore the name before promotion: this regression concerns
+                # writes through the owned inode, not promotion-path tampering.
+                os.replace(temporary["name"], reserved)
+                try:
+                    os.symlink(exposed, temporary["name"])
+                except OSError:
+                    os.replace(reserved, temporary["name"])
+                    handle.close()
+                    pytest.skip("symlink creation unavailable")
+                temporary["substitutions"] += 1
+                return handle
+
+            def __exit__(self, *args):
+                handle.close()
+                os.unlink(temporary["name"])
+                os.replace(reserved, temporary["name"])
+
+        return WriterWithSubstitutedPath()
+
     monkeypatch.setattr(active_user_env.tempfile, "mkstemp", remember_temporary)
     monkeypatch.setattr(active_user_env.os, "close", replace_after_descriptor_release)
+    monkeypatch.setattr(active_user_env.os, "fdopen", fdopen_with_path_substitution)
 
     active_user_env.set_user_env("KEY", "fresh", path=str(saved))
 
+    assert temporary["substitutions"] == 1
     assert exposed.read_text() == "unchanged\n"
+    assert temporary["descriptor_adopted"]
+    assert not reserved.exists()
     assert saved.read_text() == "PRIVATE=owned-test-value\nKEY=fresh\n"
     assert not saved.is_symlink()

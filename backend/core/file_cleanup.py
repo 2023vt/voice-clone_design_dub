@@ -1,7 +1,8 @@
 """Reliable file deletion for user-visible destructive operations."""
 from __future__ import annotations
-
 import os
+
+from omnivoice.utils.fsops import safe_remove
 
 
 class FileCleanupError(OSError):
@@ -15,10 +16,8 @@ def unlink_if_present(path: str | os.PathLike[str]) -> bool:
     the caller so it cannot discard the only record from which cleanup can be
     retried.
     """
-    try:
-        os.unlink(path)
-    except FileNotFoundError:
-        return False
-    except OSError as exc:
-        raise FileCleanupError("file cleanup failed") from exc
+    if not safe_remove(path):
+        # Check if it actually exists; if safe_remove returns False and file is there, it's a lock.
+        if os.path.exists(path):
+            raise FileCleanupError(f"Failed to remove locked file: {path}")
     return True

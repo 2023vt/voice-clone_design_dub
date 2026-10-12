@@ -30,6 +30,7 @@ const routes = [
   '/settings/network',
   '/settings/sharing',
   '/settings/credentials',
+  '/settings/workers',
   '/settings/permissions',
   '/settings/privacy',
   '/settings/storage',

@@ -1,4 +1,3 @@
-import { formatTimestamp } from '../utils/timeFormat';
 import React, {
   useCallback,
   useEffect,
@@ -31,7 +30,11 @@ const DRAG_DEADZONE_PX = 3;
 // is genuinely large; this also keeps short multi-speaker clips complete.
 const VIRTUALIZE_THRESHOLD = 200;
 
-const fmt = (t) => formatTimestamp(t, { decimals: 2 });
+const fmt = (t) => {
+  const m = Math.floor(t / 60);
+  const s = (t % 60).toFixed(2);
+  return `${m}:${s.padStart(5, '0')}`;
+};
 
 /**
  * SegmentTrack — custom DOM segment editor lane for the dub timeline (#280).

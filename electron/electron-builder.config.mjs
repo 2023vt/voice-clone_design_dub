@@ -8,31 +8,25 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { packageNativeHelper } from './native-helper-build.mjs';
-import { APP_ID, PRODUCT_NAME } from '../config/app-config.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const { version } = JSON.parse(readFileSync(resolve(here, '../package.json'), 'utf-8'));
-const artifactPrefix = `${PRODUCT_NAME.replace(/[^A-Za-z0-9]+/g, '-')}-Electron`;
-// Stable is the only Electron update feed: there is no `preview` release to
-// point at. Packaging rehearsals from main are stamped stable too; they are
-// review artifacts and are never published.
 const updateChannel =
   process.env.VOICESTUDIO_UPDATE_CHANNEL || `electron-stable-${process.platform}-${process.arch}`;
-if (!/^electron-stable-(?:win32|darwin|linux)-(?:x64|arm64)$/.test(updateChannel)) {
-  throw new Error(`Unsupported Electron update channel: ${updateChannel}`);
-}
-const updateUrl = 'https://github.com/debpalash/VoiceStudio/releases/latest/download';
+const updateUrl = updateChannel.startsWith('electron-preview-')
+  ? 'https://github.com/debpalash/VoiceStudio/releases/download/preview'
+  : 'https://github.com/debpalash/VoiceStudio/releases/latest/download';
 
 const defaultRustTarget =
-  {
-    'win32-x64': 'x86_64-pc-windows-msvc',
-    // Windows on ARM: native Electron shell + helper; the Python runtime is the
-    // emulated x64 build (see docs/install/windows.md).
-    'win32-arm64': 'aarch64-pc-windows-msvc',
-    'darwin-arm64': 'aarch64-apple-darwin',
-    'darwin-x64': 'x86_64-apple-darwin',
-    'linux-x64': 'x86_64-unknown-linux-gnu',
-  }[`${process.platform}-${process.arch}`] ?? null;
+  process.platform === 'win32' && process.arch === 'x64'
+    ? 'x86_64-pc-windows-msvc'
+    : process.platform === 'darwin' && process.arch === 'arm64'
+      ? 'aarch64-apple-darwin'
+      : process.platform === 'darwin' && process.arch === 'x64'
+        ? 'x86_64-apple-darwin'
+        : process.platform === 'linux' && process.arch === 'x64'
+          ? 'x86_64-unknown-linux-gnu'
+          : null;
 const rustTarget = process.env.VOICESTUDIO_RUST_TARGET || defaultRustTarget;
 const uvExtension = rustTarget?.includes('windows') ? '.exe' : '';
 const uvSource = process.env.VOICESTUDIO_BUNDLED_UV
@@ -54,11 +48,11 @@ const notarizeMac = Boolean(
 
 /** @type {import('electron-builder').Configuration} */
 export default {
-  appId: APP_ID,
-  productName: PRODUCT_NAME,
-  extraMetadata: { version, productName: PRODUCT_NAME, desktopName: PRODUCT_NAME },
+  appId: 'com.voicestudio.desktop',
+  productName: 'VoiceStudio',
+  extraMetadata: { version },
   directories: { output: 'release', buildResources: 'build' },
-  artifactName: `${artifactPrefix}-\${version}-\${os}-\${arch}.\${ext}`,
+  artifactName: 'VoiceStudio-Electron-${version}-${os}-${arch}.${ext}',
   // The default FUSE2 runtime cannot start on distros without libfuse.so.2.
   // v26's pinned static runtime keeps AppImage mounting independent of FUSE2.
   toolsets: { appimage: '1.0.3' },
@@ -92,20 +86,13 @@ export default {
     { from: '../uv.lock', to: 'uv.lock' },
     { from: '../README.md', to: 'README.md' },
     { from: '../LICENSE', to: 'LICENSE' },
-    { from: '../LICENSE-NOTICE.md', to: 'LICENSE-NOTICE.md' },
-    { from: '../config/app.json', to: 'config/app.json' },
-    { from: 'T3CODE-LICENSE.txt', to: 'electron/T3CODE-LICENSE.txt' },
     ...bundledUvResources,
   ],
   asar: true,
   afterPack: packageNativeHelper,
   win: {
     icon: 'build/icons/icon.ico',
-    // The CLI matrix selects one architecture per runner and updater feed
-    // (--x64 / --arm64); an unflagged local build uses the host's. Never pin
-    // `arch` here: electron-builder unions it with the CLI flag, so
-    // `--win --arm64` would also build x64 (tests/packaging-contract.mjs).
-    target: ['nsis'],
+    target: [{ target: 'nsis', arch: ['x64'] }],
   },
   nsis: {
     oneClick: false,
@@ -121,9 +108,10 @@ export default {
     hardenedRuntime: notarizeMac,
     notarize: notarizeMac,
     extendInfo: {
-      NSMicrophoneUsageDescription: readFileSync(resolve(here, 'build/Info.plist'), 'utf8')
-        .match(/<key>NSMicrophoneUsageDescription<\/key>\s*<string>([^<]+)<\/string>/)[1]
-        .replaceAll('__APP_PRODUCT_NAME__', PRODUCT_NAME),
+      NSMicrophoneUsageDescription: readFileSync(
+        resolve(here, 'build/Info.plist'),
+        'utf8',
+      ).match(/<key>NSMicrophoneUsageDescription<\/key>\s*<string>([^<]+)<\/string>/)[1],
     },
     // The CLI matrix selects one architecture per runner and updater feed.
     target: ['dmg', 'zip'],
@@ -131,7 +119,7 @@ export default {
   },
   linux: {
     // Linux targets rewrite ${arch} to x86_64/amd64; feeds use Node's x64.
-    artifactName: `${artifactPrefix}-\${version}-linux-x64.\${ext}`,
+    artifactName: 'VoiceStudio-Electron-${version}-linux-x64.${ext}',
     icon: 'build/icons/icon.png',
     syncDesktopName: true,
     target: ['AppImage', 'deb'],

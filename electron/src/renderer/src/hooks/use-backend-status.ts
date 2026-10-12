@@ -1,8 +1,5 @@
 import { useSyncExternalStore } from 'react';
 import { onlineManager } from '@tanstack/react-query';
-import { isBackendReachable } from '@shared/utils/backendStage';
-import { noteBackendStage } from '@/lib/status-polling';
-import { DEFAULT_BACKEND_PORT } from '@shared/app-config';
 
 // Derived from the global `Window.voicestudio` declaration (src/preload/index.d.ts,
 // included by tsconfig.web.json) rather than imported by path: with
@@ -12,17 +9,11 @@ export type VoiceStudioBridge = Window['voicestudio'];
 export type BackendStatus = Awaited<ReturnType<VoiceStudioBridge['backend']['getStatus']>>;
 export type BackendStage = BackendStatus['stage'];
 
-// The `ready`/`unresponsive` policy lives in shared/utils/backendStage so the
-// main process, the shared client and the renderer cannot drift apart on what
-// a stage means for an in-flight request. Re-exported here because nearly every
-// readiness consumer already reads this module.
-export { isBackendReachable, isBackendBusy } from '@shared/utils/backendStage';
-
 /** Used when the bridge is absent (vitest, a plain browser tab): behave as if the backend is up. */
 export const FALLBACK_BACKEND_STATUS: BackendStatus = {
   stage: 'ready',
   baseUrl: '',
-  port: DEFAULT_BACKEND_PORT,
+  port: 3900,
   managed: false,
   remote: false,
   elapsedMs: 0,
@@ -50,8 +41,7 @@ let bridgeUnsubscribe: (() => void) | null = null;
 function publish(status: BackendStatus): void {
   revision++;
   current = status;
-  noteBackendStage(status.stage);
-  if (nativeBackend) onlineManager.setOnline(isBackendReachable(status.stage));
+  if (nativeBackend) onlineManager.setOnline(status.stage === 'ready');
   for (const listener of listeners) listener();
 }
 

@@ -38,7 +38,6 @@ import tempfile
 import time
 
 from fastapi import APIRouter, File, Form, HTTPException, UploadFile
-from core.path_security import upload_suffix
 
 router = APIRouter()
 logger = logging.getLogger("omnivoice.convert")
@@ -204,7 +203,7 @@ async def convert_speech(
     # ffprobe) needs a file path; the bounded streaming copy rejects oversized
     # network-share requests without materializing them in process memory or
     # starting heavyweight model work.
-    ext = upload_suffix(audio.filename, ".wav") or ".wav"
+    ext = os.path.splitext(audio.filename or "audio.wav")[1] or ".wav"
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
     source_lease = None
     try:

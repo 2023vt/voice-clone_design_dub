@@ -1,5 +1,4 @@
 import { registerSiteBrowser } from './site-browser';
-import { portableFilename } from './portable-filename';
 import { saveFiltersFor } from './save-filters';
 import { resolveBackendDownloadUrl } from './backend-download';
 import {
@@ -8,8 +7,7 @@ import {
   authorizeModelsDirectory,
 } from './media-authorization';
 import { isTrustedRenderer } from './trusted-renderer';
-import { replaceFile } from './replace-file';
-import { encodeDownloadFailure, MAX_FAILURE_BODY_CHARS } from '../shared/download-failure';
+import { writeFile } from 'node:fs/promises';
 import { homedir, tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
@@ -152,7 +150,7 @@ function assertSaveAudioRequest(value: unknown): SaveAudioRequest {
   }
   return {
     url: assertString(req.url, 'audio url'),
-    suggestedName: portableFilename(assertString(req.suggestedName, 'file name')),
+    suggestedName: assertString(req.suggestedName, 'file name'),
     method: req.method,
   };
 }
@@ -163,7 +161,7 @@ function assertSaveDataRequest(value: unknown): SaveDataRequest {
   if (!(req.data instanceof Uint8Array)) throw new Error('Invalid file data');
   return {
     data: req.data,
-    suggestedName: portableFilename(assertString(req.suggestedName, 'file name')),
+    suggestedName: assertString(req.suggestedName, 'file name'),
   };
 }
 
@@ -310,18 +308,6 @@ async function uninstallRoots(supervisor: BackendSupervisor): Promise<UninstallR
     userEnvironment: join(homedir(), '.config', 'omnivoice'),
     models: roots.models,
   };
-}
-
-/** The failed response's status and body, encoded so the renderer can show
- *  the backend's own `detail` instead of a bare status code (#2616). */
-async function downloadFailureMessage(res: Response): Promise<string> {
-  let body = '';
-  try {
-    body = (await res.text()).slice(0, MAX_FAILURE_BODY_CHARS);
-  } catch {
-    // Unreadable body: the status alone still goes through.
-  }
-  return encodeDownloadFailure({ status: res.status, statusText: res.statusText, body });
 }
 
 export function registerIpc(
@@ -595,8 +581,8 @@ export function registerIpc(
       headers: supervisor.requestHeaders(),
       bypassCustomProtocolHandlers: true,
     });
-    if (!res.ok) throw new Error(await downloadFailureMessage(res));
-    await replaceFile(picked.filePath, Buffer.from(await res.arrayBuffer()));
+    if (!res.ok) throw new Error(`Could not download the audio (HTTP ${res.status})`);
+    await writeFile(picked.filePath, Buffer.from(await res.arrayBuffer()));
     return { canceled: false, path: picked.filePath };
   });
 
@@ -609,7 +595,7 @@ export function registerIpc(
       filters: saveFiltersFor(req.suggestedName),
     });
     if (picked.canceled || !picked.filePath) return { canceled: true };
-    await replaceFile(picked.filePath, req.data);
+    await writeFile(picked.filePath, req.data);
     return { canceled: false, path: picked.filePath };
   });
 
@@ -652,7 +638,8 @@ export function registerIpc(
 
 /** Push `window:maximized` to the window renderer after maximize state changes. */
 export function wireWindowMaximizeEvents(win: BrowserWindow): void {
-  const send = (maximized: boolean) => sendToLiveWindow(win, CHANNELS.windowMaximized, maximized);
+  const send = (maximized: boolean) =>
+    sendToLiveWindow(win, CHANNELS.windowMaximized, maximized);
   win.on('maximize', () => send(true));
   win.on('unmaximize', () => send(false));
 }

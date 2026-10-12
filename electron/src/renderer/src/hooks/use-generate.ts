@@ -19,13 +19,7 @@ import { throttle } from '@tanstack/react-pacer';
 import { toast } from 'sonner';
 import { ApiError, apiJson, describeError, isAbortError } from '@/lib/api/client';
 import { generateClone, sanitizeInstruct } from '@/lib/api/generate';
-import type {
-  DesignRecipe,
-  EnginesResponse,
-  GenerateResult,
-  InstructVocabulary,
-  Profile,
-} from '@/lib/api/types';
+import type { DesignRecipe, EnginesResponse, GenerateResult, InstructVocabulary } from '@/lib/api/types';
 import { effectiveSamplingSteps } from '@/lib/audio/quality';
 import { cachedTtsLanguagesSupported } from '@/lib/language-options';
 import { tr } from '@/lib/i18n-text';
@@ -37,10 +31,11 @@ import { beginAppActivity } from '@/lib/app-activity';
 import { useTtsReadiness } from './use-tts-readiness';
 import { useEngines } from './use-engines';
 import { recordActionBreadcrumb } from '@/lib/report-breadcrumb';
-import { announceDroppedSpeech } from '@/lib/dropped-speech';
 
 const TIMER_TICK_MS = 100;
 const PROGRESS_THROTTLE_MS = 100;
+const DROPPED_TOAST_MS = 8000;
+const DROPPED_TEXT_PREVIEW_CHARS = 120;
 const MODEL_NOT_DOWNLOADED = 'model_not_downloaded';
 
 // One synthesis at a time across every mounted hook instance: the backend
@@ -54,30 +49,11 @@ let lastRoutingStatus: string | null = null;
 export interface DesignGenerateInput {
   text: string;
   instruct: string;
-  /** Omitted to use the linked profile's own (possibly unset) seed. */
-  seed?: number;
+  seed: number;
   language?: string;
   profileId?: string | null;
   /** Stored with the take so reopening it rebuilds the same draft (#2389). */
   recipe?: DesignRecipe;
-}
-
-/**
- * `design`: the engine can't design and there is no saved sample to clone.
- * `cloning`: a saved sample would be re-rendered, but the engine ignores
- * reference audio, so it would speak with a preset voice instead.
- */
-type DesignBlocker = 'engine' | 'loading' | 'design' | 'cloning' | null;
-
-/**
- * True when re-rendering this linked design profile clones its saved sample
- * (the locked take, else the rendered sample), so the engine designs nothing.
- * Mirrors /generate's profile conditioning for an undiverged design request.
- */
-export function clonesSavedSample(profile: Profile | null | undefined): boolean {
-  return Boolean(
-    profile && ((profile.is_locked && profile.locked_audio_path) || profile.ref_audio_path),
-  );
 }
 
 export interface UseGenerateClone {
@@ -96,13 +72,7 @@ export interface UseGenerateClone {
   clearError(): void;
   canGenerate: boolean;
   canGenerateDesign: boolean;
-  /** `design`: the active engine needs a reference clip, so it can't design. */
-  designBlocker: DesignBlocker;
-  /**
-   * The blocker for re-rendering `profile`: cloning its saved sample isn't
-   * design, but it does need an engine that reads reference audio.
-   */
-  designBlockerFor(profile: Profile | null | undefined): DesignBlocker;
+  designBlocker: 'engine' | 'loading' | null;
   cloneBlocker: CloneBlocker;
   /** How the active engine reads `instruct`: OmniVoice tags or as written (#2389). */
   instructVocabulary: InstructVocabulary;
@@ -133,7 +103,18 @@ function announceInstructWarnings(free: string): string {
 }
 
 function announceResultNotices(result: GenerateResult): void {
-  announceDroppedSpeech(result.dropped);
+  // Some of the text rendered to no audio: the take is clean but short, and
+  // nothing else would ever tell the user — so quote what was lost.
+  if (result.dropped) {
+    const preview = result.dropped.text.trim().slice(0, DROPPED_TEXT_PREVIEW_CHARS);
+    const count = result.dropped.count;
+    toast.warning(
+      preview
+        ? tr('tts.droppedChunksWithText', { count, text: preview })
+        : tr('tts.droppedChunks', { count }),
+      { duration: DROPPED_TOAST_MS },
+    );
+  }
   // The backend only sets the routing headers on cpu_fallback / accelerated-
   // with-caveat, so their presence is the signal.
   if (result.routing && result.routing.status !== lastRoutingStatus) {
@@ -150,24 +131,10 @@ function announceResultNotices(result: GenerateResult): void {
 function useGenerateController(): UseGenerateClone {
   const queryClient = useQueryClient();
   const inputBlocker = useCloneInputsReadiness();
-  const ttsBlocker = useTtsReadiness();
+  const designBlocker = useTtsReadiness();
   const cloneEngineBlocker = useTtsReadiness('clone');
   const blocker = cloneEngineBlocker ?? inputBlocker;
-  const activeTts = useEngines().activeTts;
-  const instructVocabulary = activeTts?.instruct_vocabulary ?? 'tags';
-  // An engine that declares it can't design would only fail inside the
-  // engine (and /generate refuses it); say so before anything starts.
-  const designBlocker: DesignBlocker =
-    activeTts?.supports_voice_design === false ? 'design' : ttsBlocker;
-  const cannotClone = activeTts?.supports_cloning === false;
-  const designBlockerFor = useCallback(
-    (profile: Profile | null | undefined): DesignBlocker => {
-      if (!clonesSavedSample(profile)) return designBlocker;
-      // /generate refuses a saved sample on an engine that ignores it.
-      return ttsBlocker ?? (cannotClone ? 'cloning' : null);
-    },
-    [cannotClone, designBlocker, ttsBlocker],
-  );
+  const instructVocabulary = useEngines().activeTts?.instruct_vocabulary ?? 'tags';
   const [error, setError] = useState<string | null>(null);
   const [isGenerating, setIsGenerating] = useState(false);
   const [elapsedSeconds, setElapsedSeconds] = useState(0);
@@ -271,13 +238,7 @@ function useGenerateController(): UseGenerateClone {
       }
       if (
         design
-          ? designBlockerFor(
-              design.profileId
-                ? queryClient
-                    .getQueryData<Profile[]>(queryKeys.profiles)
-                    ?.find((profile) => profile.id === design.profileId)
-                : null,
-            ) || !design.text.trim()
+          ? designBlocker || !design.text.trim()
           : blocker ||
             !settings.text.trim() ||
             (!settings.selectedProfileId && !reference.file?.size)
@@ -389,7 +350,7 @@ function useGenerateController(): UseGenerateClone {
           .catch(() => {});
       }
     },
-    [queryClient, onProgress, blocker, designBlockerFor, instructVocabulary],
+    [queryClient, onProgress, blocker, designBlocker, instructVocabulary],
   );
 
   const cancel = useCallback(() => {
@@ -415,7 +376,6 @@ function useGenerateController(): UseGenerateClone {
     canGenerate: blocker === null && !isGenerating,
     canGenerateDesign: designBlocker === null && !isGenerating,
     designBlocker,
-    designBlockerFor,
     cloneBlocker: blocker,
     instructVocabulary,
   };

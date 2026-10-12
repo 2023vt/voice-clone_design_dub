@@ -7,8 +7,6 @@ from __future__ import annotations
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from core.app_config import DEFAULT_BACKEND_PORT, DEFAULT_WEB_PORT
-
 
 # ── System ────────────────────────────────────────────────────────────────
 
@@ -79,9 +77,9 @@ class SystemInfoResponse(BaseModel):
     share_port: int | None = None
     lan_addresses: list[str] = []
     pin_required: bool = False
-    backend_port: int = DEFAULT_BACKEND_PORT
-    share_port_base: int = DEFAULT_WEB_PORT
-    ui_port: int | None = DEFAULT_WEB_PORT
+    backend_port: int = 3900
+    share_port_base: int = 3901
+    ui_port: int = 3901
 
 
 class ModelStatusResponse(BaseModel):

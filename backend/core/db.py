@@ -210,7 +210,13 @@ _BASE_SCHEMA = """
     );
     CREATE INDEX IF NOT EXISTS idx_call_sessions_created ON call_sessions(created_at);
 
-    -- Legacy tables kept for existing installs; the feature moved to VoiceStudio Pro.
+    -- Remote GPU workers (docs/remote-workers.md). Opt-in: an install with no
+    -- remote workers never writes a row here and behaves exactly as before.
+    --
+    -- `public_key` is the worker's identity — a server-assigned id is a name,
+    -- not proof, so every reconnect is verified against this key. Revocation
+    -- is a persisted fact (not in-memory state) precisely so a restart of the
+    -- control plane cannot silently readmit a worker the user removed.
     CREATE TABLE IF NOT EXISTS remote_workers (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL DEFAULT '',
@@ -224,6 +230,8 @@ _BASE_SCHEMA = """
         host_json TEXT NOT NULL DEFAULT '{}',
         capabilities_json TEXT NOT NULL DEFAULT '[]',
         max_concurrent_tasks INTEGER NOT NULL DEFAULT 1,
+        -- Bumped on every successful (re)connect. Messages stamped with an
+        -- older epoch are from a session we have already replaced.
         session_epoch INTEGER NOT NULL DEFAULT 0,
         consent_granted_at REAL,
         created_at REAL NOT NULL,
@@ -231,6 +239,8 @@ _BASE_SCHEMA = """
     );
     CREATE UNIQUE INDEX IF NOT EXISTS idx_remote_workers_key ON remote_workers(key_id);
 
+    -- Single-use join tokens. Only the hash is stored: the plaintext exists
+    -- once, in the dialog that shows it.
     CREATE TABLE IF NOT EXISTS remote_worker_enrollments (
         token_id TEXT PRIMARY KEY,
         secret_hash TEXT NOT NULL,
@@ -243,8 +253,15 @@ _BASE_SCHEMA = """
         used_by_worker TEXT
     );
 
+    -- Tasks dispatched to remote workers. Unlike the local `jobs` table (whose
+    -- startup sweep marks anything in-flight as failed), these must SURVIVE a
+    -- control-plane restart: the desktop app quits while a remote GPU keeps
+    -- rendering, and the worker is the source of truth for what is still
+    -- running. Reconciliation on reconnect rebuilds live state from here.
     CREATE TABLE IF NOT EXISTS remote_tasks (
         id TEXT PRIMARY KEY,
+        -- Client-supplied; deduplicates client retries before the worker
+        -- protocol is involved at all.
         idempotency_key TEXT,
         operation TEXT NOT NULL,
         engine TEXT NOT NULL DEFAULT '',
@@ -255,6 +272,10 @@ _BASE_SCHEMA = """
         max_attempts INTEGER NOT NULL DEFAULT 3,
         excluded_json TEXT NOT NULL DEFAULT '[]',
         error_json TEXT,
+        -- Written BEFORE RESULT_ACK is sent. If the server dies between
+        -- receiving a result and acknowledging it, the worker redelivers and
+        -- this row is what makes the second delivery a no-op instead of a
+        -- silently lost multi-minute render.
         result_ref TEXT,
         result_json TEXT,
         project_id TEXT,

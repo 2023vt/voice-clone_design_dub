@@ -25,7 +25,7 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-function renderSettings(overrides: { tailscale?: object; uiPort?: number | null } = {}) {
+function renderSettings(overrides: { tailscale?: object } = {}) {
   let state: {
     enabled: boolean;
     share_port: number | null;
@@ -35,11 +35,7 @@ function renderSettings(overrides: { tailscale?: object; uiPort?: number | null 
   mock.api.mockImplementation((path: string, init?: RequestInit) => {
     if (path === '/system/network/state') return Promise.resolve(state);
     if (path === '/system/info') {
-      return Promise.resolve({
-        backend_port: 3900,
-        ui_port: overrides.uiPort === undefined ? 3902 : overrides.uiPort,
-        share_port_base: 3901,
-      });
+      return Promise.resolve({ backend_port: 3900, ui_port: 3902, share_port_base: 3901 });
     }
     if (path === '/system/tailscale/status') {
       return Promise.resolve(overrides.tailscale ?? { installed: false, running: false });
@@ -113,15 +109,4 @@ it('saves the share port and exposes explicit Tailscale controls', async () => {
   expect(await screen.findByText('https://studio.tailnet.ts.net')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'sharing.tailscale_open' }));
   expect(mock.openExternal).toHaveBeenCalledWith('https://studio.tailnet.ts.net');
-});
-
-it('shows the dev UI port and hides it for the packaged app', async () => {
-  renderSettings();
-  expect(await screen.findByText('3902')).toBeInTheDocument();
-  expect(screen.getByText('sharing.ui_port')).toBeInTheDocument();
-  cleanup();
-
-  renderSettings({ uiPort: null });
-  expect(await screen.findByText('sharing.backend_port')).toBeInTheDocument();
-  expect(screen.queryByText('sharing.ui_port')).not.toBeInTheDocument();
 });

@@ -1,7 +1,6 @@
 import { useEffect } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useBackendStatus } from './use-backend-status';
-import { isBackendReachable } from '@shared/utils/backendStage';
 import { apiJson } from '@/lib/api/client';
 export const dictationPreferencesKey = ['dictation-shortcut-prefs'];
 export const nativeShortcutKey = ['native-shortcut'];
@@ -28,7 +27,7 @@ export function useNativeShortcut(enabled = true) {
 export function NativeDictationSync() {
   const api = window.voicestudio?.capture;
   const backend = useBackendStatus();
-  const prefs = useDictationPreferences(!!api && isBackendReachable(backend.stage));
+  const prefs = useDictationPreferences(!!api && backend.stage === 'ready');
   const client = useQueryClient();
   useEffect(() => {
     if (!api || !prefs.data) return;

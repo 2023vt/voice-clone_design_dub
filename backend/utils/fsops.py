@@ -1,51 +1,76 @@
-"""Cross-device-safe filesystem primitives.
-
-``os.replace`` is atomic only within one filesystem; across devices it raises
-``OSError(EXDEV)`` (surfacing to Windows users as ``[Errno 18]`` / ``[Errno 22]``
-in past issue reports — the D:-drive/relocated-models class, #763/#479). Every
-current call site derives its temp file from the destination directory, which
-keeps same-device semantics — but nothing *enforced* that, and the next writer
-that stages in ``%TEMP%`` and renames into a user-relocated data/models dir on
-another drive reintroduces the whole class. This helper is the enforcement
-point: replace when possible, degrade to copy+fsync+replace when the OS says
-the two paths live on different devices.
-"""
-from __future__ import annotations
-
-import errno
 import os
+import time
+import errno
+import logging
+import asyncio
 import shutil
 
+logger = logging.getLogger("omnivoice.utils")
 
 def safe_replace(src: str, dst: str) -> None:
-    """``os.replace`` with a cross-device fallback.
-
-    Same-device: identical to ``os.replace`` (atomic). Cross-device (EXDEV):
-    copy to a temp sibling of ``dst`` (same device as the destination), fsync,
-    then atomically replace — and remove ``src``. Not atomic *end-to-end*
-    across devices (impossible), but the destination itself still only ever
-    transitions atomically from old content to complete new content.
-    """
+    """os.replace with a cross-device fallback."""
     try:
         os.replace(src, dst)
         return
-    except OSError as e:
-        if e.errno != errno.EXDEV:
+    except OSError as exc:
+        if exc.errno != errno.EXDEV:
             raise
+
+    # Cross-device fallback: copy to temp file on destination device, then rename
     tmp = f"{dst}.xdev-tmp-{os.getpid()}"
     try:
-        shutil.copyfile(src, tmp)
-        with open(tmp, "rb+") as f:
-            f.flush()
-            os.fsync(f.fileno())
+        shutil.copy2(src, tmp)
         os.replace(tmp, dst)
     finally:
         try:
             if os.path.exists(tmp):
                 os.remove(tmp)
         except OSError:
-            pass  # best-effort temp cleanup; the replace above already landed or raised
+            pass
+
     try:
         os.remove(src)
     except OSError:
-        pass  # src may be gone already (another EXDEV fallback won the race)
+        pass
+
+def safe_remove(path: str | os.PathLike[str]) -> bool:
+    """Delete a file with exponential backoff to handle transient Windows locks (OneDrive)."""
+    retries = 5
+    backoff = 0.1
+    for i in range(retries):
+        try:
+            os.remove(path)
+            return True
+        except FileNotFoundError:
+            return True
+        except OSError as exc:
+            if exc.errno in (errno.EACCES, errno.EPERM) and i < retries - 1:
+                time.sleep(backoff)
+                backoff *= 2
+                continue
+            # Redact absolute path for privacy
+            filename = os.path.basename(path) if isinstance(path, (str, os.PathLike)) else "unknown"
+            logger.warning("Permanent lock or permission error removing %s: %s", filename, exc)
+            return False
+    return False
+
+async def safe_remove_async(path: str | os.PathLike[str]) -> bool:
+    """Async version of safe_remove to avoid blocking the event loop."""
+    retries = 5
+    backoff = 0.1
+    for i in range(retries):
+        try:
+            # os.remove is blocking; run in thread
+            await asyncio.to_thread(os.remove, path)
+            return True
+        except FileNotFoundError:
+            return True
+        except OSError as exc:
+            if exc.errno in (errno.EACCES, errno.EPERM) and i < retries - 1:
+                await asyncio.sleep(backoff)
+                backoff *= 2
+                continue
+            filename = os.path.basename(path) if isinstance(path, (str, os.PathLike)) else "unknown"
+            logger.warning("Permanent lock or permission error removing %s: %s", filename, exc)
+            return False
+    return False

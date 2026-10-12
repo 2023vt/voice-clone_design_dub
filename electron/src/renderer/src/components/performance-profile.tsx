@@ -16,7 +16,6 @@ import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { apiJson, describeError } from '@/lib/api/client';
 import { useBackendStatus } from '@/hooks/use-backend-status';
-import { isBackendReachable } from '@shared/utils/backendStage';
 import { useDictationSelection } from '@/hooks/use-dictation-selection';
 import { engineFamilyState, useEngines } from '@/hooks/use-engines';
 import { Button, buttonVariants } from '@/components/ui/button';
@@ -49,7 +48,7 @@ export function PerformanceProfile({
   const dictation = useDictationSelection();
   const batch = useQuery({
     queryKey: ['batch-jobs', 'active'],
-    enabled: isBackendReachable(backend.stage),
+    enabled: backend.stage === 'ready',
     queryFn: ({ signal }) => apiJson<unknown[]>('/batch/jobs?status=active&limit=100', { signal }),
     staleTime: 1_000,
     refetchInterval: (query) => (query.state.data?.length ? 1_000 : 15_000),
@@ -61,7 +60,7 @@ export function PerformanceProfile({
   const tierRefs = useRef<(HTMLButtonElement | null)[]>([]);
   const busy =
     profile.isSaving ||
-    !isBackendReachable(backend.stage) ||
+    backend.stage !== 'ready' ||
     batch.isPending ||
     batch.isError ||
     Boolean(batch.data?.length) ||

@@ -168,7 +168,7 @@ def test_stringified_plain_pool_shutdown_still_not_matched():
 def _stub_load(monkeypatch, error):
     """Wire _load_model_sync's collaborators so `_load()` raises `error`
     without importing torch or touching the network."""
-    fake_torch = types.SimpleNamespace(float16="f16", float32="f32")
+    fake_torch = types.SimpleNamespace(float16="f16")
 
     class _FakeOV:
         @staticmethod
@@ -278,6 +278,7 @@ def test_preload_interrupted_by_shutdown_logs_info_only(monkeypatch, caplog):
 
     monkeypatch.setattr(mm, "model", None)
     monkeypatch.setattr(mm, "_model_lock", asyncio.Lock())
+    monkeypatch.setattr(mm, "_headless_worker", lambda: False)
     monkeypatch.setattr(mm, "_checkpoint_in_local_cache", lambda c: True)
     monkeypatch.setattr(mm, "_load_model_with_timeout", _boom)
     with caplog.at_level(logging.INFO, logger="omnivoice.model"):
@@ -330,6 +331,7 @@ def test_lifespan_shutdown_mid_load_is_clean_and_clears_sentinel(
         # module-level `mm` alias, which a sibling suite's sys.modules purge can
         # leave stale (see _reimported_backend_modules).
         live_mm = sys.modules["services.model_manager"]
+        monkeypatch.setattr(live_mm, "_headless_worker", lambda: False)
 
         monkeypatch.setattr(run_sentinel, "SENTINEL_PATH", str(tmp_path / "run_sentinel.json"))
         monkeypatch.setattr(run_sentinel, "CRASH_RECORD_PATH", str(tmp_path / "last_run_crash.json"))

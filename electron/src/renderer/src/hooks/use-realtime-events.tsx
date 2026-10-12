@@ -4,7 +4,6 @@ import { queryKeys } from '@/lib/query';
 import { useQueryClient, type QueryKey } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { useBackendStatus } from './use-backend-status';
-import { isBackendReachable } from '@shared/utils/backendStage';
 
 const EVENT_QUERY_KEYS: Readonly<Record<string, readonly QueryKey[]>> = {
   projects: [['projects']],
@@ -36,15 +35,9 @@ async function devBackendReady(signal: AbortSignal, remote: boolean): Promise<bo
 export function RealtimeEventSync() {
   const backend = useBackendStatus();
   const client = useQueryClient();
-  // Keyed on reachability, not the stage label, for the same reason as
-  // CaptureWidget: a `unresponsive` -> `ready` flip is the backend simply
-  // finishing its job, not a reason to drop a healthy socket. Depending on
-  // `backend.stage` tore the connection down and reconnected on every such
-  // flip, which is the reconnect storm this guard exists to avoid (#2430).
-  const backendReachable = isBackendReachable(backend.stage);
 
   useEffect(() => {
-    if (!backendReachable) return;
+    if (backend.stage !== 'ready') return;
     let active = true;
     let socket: WebSocket | null = null;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -114,7 +107,7 @@ export function RealtimeEventSync() {
         socket.close();
       }
     };
-  }, [backend.baseUrl, backend.remote, backendReachable, client]);
+  }, [backend.baseUrl, backend.remote, backend.stage, client]);
 
   return null;
 }

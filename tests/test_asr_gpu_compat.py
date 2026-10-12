@@ -84,8 +84,6 @@ def test_nemo_parakeet_has_no_cuda_gate(monkeypatch):
 
 def test_indextts2_overrides_cpu_only_default():
     from engines.indextts import IndexTTS2Backend
-    # ROCm is claimable since the one-click installer gives the sidecar venv
-    # a ROCm torch on ROCm hosts (#2371); see sidecar_install.uses_rocm_index.
-    assert IndexTTS2Backend.gpu_compat == ("cuda", "rocm", "cpu")
+    assert IndexTTS2Backend.gpu_compat == ("cuda", "cpu")
     # must NOT be the inherited TTSBackend default
     assert IndexTTS2Backend.gpu_compat != ("cpu",)

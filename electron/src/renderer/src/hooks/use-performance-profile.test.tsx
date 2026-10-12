@@ -13,7 +13,6 @@ it('changes the global preset without replacing Dubbing production overrides', a
   const state = {
     targets: { tts: { steps: 32, postprocess: true } },
     selections: { tts: { engine: 'omnivoice' } },
-    tts_tiered_engines: ['omnivoice', 'omnivoice-subprocess'],
   };
   mocks.api.mockResolvedValue(state);
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -45,7 +44,6 @@ it('keeps an applied backend preset successful when the clone draft chunk cannot
   mocks.api.mockResolvedValue({
     targets: { tts: { steps: 8, postprocess: false } },
     selections: { tts: { engine: 'omnivoice' } },
-    tts_tiered_engines: ['omnivoice', 'omnivoice-subprocess'],
   });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   const { result, unmount } = renderHook(() => usePerformanceProfile(), {
@@ -69,7 +67,6 @@ it('finishes saving before dependent catalogue refreshes complete', async () => 
   mocks.api.mockResolvedValue({
     targets: { tts: { steps: 16, postprocess: true } },
     selections: { tts: { engine: 'omnivoice' } },
-    tts_tiered_engines: ['omnivoice', 'omnivoice-subprocess'],
   });
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   vi.spyOn(client, 'invalidateQueries').mockImplementation(() => new Promise(() => {}));
@@ -87,34 +84,6 @@ it('finishes saving before dependent catalogue refreshes complete', async () => 
     await vi.waitFor(() => expect(saved).toBe(true));
   });
 
-  unmount();
-  client.clear();
-});
-
-it('mirrors the preset into the clone draft only for backend-listed tiered engines', async () => {
-  const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-  const { result, unmount } = renderHook(() => usePerformanceProfile(), {
-    wrapper: ({ children }) => (
-      <QueryClientProvider client={client}>{children}</QueryClientProvider>
-    ),
-  });
-  const tiered = ['omnivoice', 'omnivoice-subprocess'];
-  for (const [engine, mirrored] of [
-    ['omnivoice-subprocess', true],
-    ['kittentts', false],
-  ] as const) {
-    mocks.clone.mockClear();
-    mocks.api.mockResolvedValue({
-      targets: { tts: { steps: 8, postprocess: false } },
-      selections: { tts: { engine } },
-      tts_tiered_engines: tiered,
-    });
-    await act(async () => {
-      await result.current.setTier({ tier: 'fast', family: null });
-    });
-    if (mirrored) expect(mocks.clone).toHaveBeenCalledWith({ steps: 8, postprocess: false });
-    else expect(mocks.clone).not.toHaveBeenCalled();
-  }
   unmount();
   client.clear();
 });

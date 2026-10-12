@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiJson } from '@/lib/api/client';
 import { useBackendStatus } from './use-backend-status';
-import { isBackendReachable } from '@shared/utils/backendStage';
 
 export interface DeviceUsage {
   cpu: number;
@@ -21,7 +20,7 @@ export interface DeviceUsage {
 /** Share one local telemetry query; poll only while a usage panel is open. */
 export function useDeviceUsage(open: boolean) {
   const backend = useBackendStatus();
-  const enabled = open && isBackendReachable(backend.stage);
+  const enabled = open && backend.stage === 'ready';
   return useQuery({
     queryKey: ['sysinfo'],
     enabled,

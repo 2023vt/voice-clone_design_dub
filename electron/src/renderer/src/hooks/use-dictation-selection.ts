@@ -1,7 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { apiJson } from '@/lib/api/client';
 import { useBackendStatus } from './use-backend-status';
-import { isBackendReachable } from '@shared/utils/backendStage';
 
 export interface DictationSelectionModel {
   id: string;
@@ -13,7 +12,7 @@ export function useDictationSelection() {
   const status = useBackendStatus();
   return useQuery({
     queryKey: ['sidebar-dictation'],
-    enabled: isBackendReachable(status.stage),
+    enabled: status.stage === 'ready',
     staleTime: 30_000,
     queryFn: async () => {
       const [prefs, catalogue] = await Promise.all([

@@ -12,7 +12,6 @@ import {
 } from '@shared/utils/captureProtocol';
 import type { TranscriptEntry } from '@shared/utils/transcriptionsStore';
 import { apiJson } from '@/lib/api/client';
-import { announceModelLicenceRequired } from '@/features/settings/model-license-contract';
 import { backendWebSocketUrl } from '@/lib/api/websocket';
 import { beginAppActivity } from '@/lib/app-activity';
 import { getAecEnabled } from '@/lib/store/dictation-settings';
@@ -113,9 +112,6 @@ export class LiveDictation {
       this.stream = stream;
       issue = 'connection';
       const url = new URL(await backendWebSocketUrl('/ws/transcribe'));
-      // A cancelled or superseded start must not open a socket: it would
-      // replace the current session's socket and steal its EOF.
-      if (!current()) return;
       url.searchParams.set('model', prefs.model_id);
       url.searchParams.set('pcm', '1');
       url.searchParams.set('sr', '16000');
@@ -229,7 +225,6 @@ export class LiveDictation {
       });
       return;
     }
-    if (message.type === 'error') announceModelLicenceRequired(message);
     if (message.type === 'error' || (message.model_silent && !message.text?.trim())) {
       this.fail('transcription');
       return;

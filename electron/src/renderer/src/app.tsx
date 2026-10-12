@@ -17,10 +17,8 @@ import { stepAppearanceScale } from '@/hooks/use-appearance';
 import { recordRouteBreadcrumb } from '@/lib/report-breadcrumb';
 import { ModelInstallSync } from '@/hooks/use-model-install-sync';
 import { RealtimeEventSync } from '@/hooks/use-realtime-events';
-import { GenerateBudgetSync } from '@/hooks/use-generate-budget-sync';
 import { runRendererTask } from '@/lib/global-error-recovery';
 import { WebAuthGate } from '@/components/web-auth-gate';
-import { ModelLicenceGate } from '@/features/settings/model-licence-acceptance';
 
 const notifiedUpdates = new Set<string>();
 
@@ -118,7 +116,6 @@ export function App() {
           <NativeDictationSync />
           <ModelInstallSync />
           <RealtimeEventSync />
-          <GenerateBudgetSync />
           <UpdateNotifier />
           <AnalyticsRuntime />
           <AnalyticsConsentBanner />
@@ -126,7 +123,6 @@ export function App() {
             <FirstSoundHandoff />
             <TooltipProvider>
               <RouterProvider router={router} />
-              <ModelLicenceGate />
               <Toaster richColors position="bottom-right" />
             </TooltipProvider>
           </GenerationProvider>

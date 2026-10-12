@@ -4,14 +4,11 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'vite';
 import { rewriteDevApiProxyPath } from './src/shared/web-api-routing.ts';
-import { DEFAULT_BACKEND_PORT, DEFAULT_WEB_PORT, PRODUCT_NAME } from '../config/app-config.mjs';
 
 const root = resolve(import.meta.dirname, 'src/renderer');
 const webDist = resolve(import.meta.dirname, '../frontend/dist');
-const version = JSON.parse(
-  readFileSync(resolve(import.meta.dirname, '../package.json'), 'utf8'),
-).version;
-const backendPort = process.env.OMNIVOICE_PORT || String(DEFAULT_BACKEND_PORT);
+const version = JSON.parse(readFileSync(resolve(import.meta.dirname, '../package.json'), 'utf8')).version;
+const backendPort = process.env.OMNIVOICE_PORT || '3900';
 
 export default defineConfig({
   root,
@@ -19,12 +16,6 @@ export default defineConfig({
   plugins: [
     react(),
     tailwindcss(),
-    {
-      name: 'app-identity',
-      transformIndexHtml(html) {
-        return html.replaceAll('__APP_PRODUCT_NAME__', PRODUCT_NAME);
-      },
-    },
     {
       name: 'renderer-boot-script',
       generateBundle() {
@@ -51,10 +42,7 @@ export default defineConfig({
   optimizeDeps: { exclude: ['@scalar/api-reference-react'] },
   server: {
     host: 'localhost',
-    // Same name the backend reads for its CORS/CSRF allow-list (core/csrf.py);
-    // VOICESTUDIO_UI_PORT remains an accepted alias.
-    port:
-      Number(process.env.OMNIVOICE_UI_PORT || process.env.VOICESTUDIO_UI_PORT) || DEFAULT_WEB_PORT,
+    port: Number(process.env.VOICESTUDIO_UI_PORT) || 3901,
     strictPort: true,
     proxy: {
       '/api/ws': {

@@ -133,6 +133,7 @@ def test_failed_write_keeps_existing_saved_settings(tmp_path, monkeypatch):
     original = "KEEP=original\nKEY=old\n"
     path.write_text(original)
     real_open = builtins.open
+    real_fdopen = user_env.os.fdopen
 
     class FailingWriter:
         def __init__(self, handle):
@@ -153,7 +154,12 @@ def test_failed_write_keeps_existing_saved_settings(tmp_path, monkeypatch):
         handle = real_open(name, mode, **kwargs)
         return FailingWriter(handle) if mode == "w" else handle
 
+    def fdopen_with_failed_writes(fd, mode="r", **kwargs):
+        handle = real_fdopen(fd, mode, **kwargs)
+        return FailingWriter(handle) if mode == "w" else handle
+
     monkeypatch.setattr(user_env, "open", open_with_failed_writes, raising=False)
+    monkeypatch.setattr(user_env.os, "fdopen", fdopen_with_failed_writes)
     with pytest.raises(OSError, match="simulated disk full"):
         user_env.set_user_env("KEY", "fresh", path=str(path))
     assert path.read_text() == original
@@ -186,3 +192,38 @@ def test_atomic_write_preserves_existing_symlink_destination(tmp_path):
     user_env.set_user_env("KEY", "fresh", path=str(path))
     assert path.is_symlink()
     assert target.read_text() == "KEY=fresh\n"
+
+
+def test_private_settings_do_not_follow_a_replaced_temporary_path(tmp_path, monkeypatch):
+    from core import user_env as active_user_env
+
+    saved = tmp_path / "env"
+    saved.write_text("PRIVATE=owned-test-value\n")
+    exposed = tmp_path / "unrelated-file"
+    exposed.write_text("unchanged\n")
+    real_mkstemp = active_user_env.tempfile.mkstemp
+    real_close = active_user_env.os.close
+    temporary = {}
+
+    def remember_temporary(*args, **kwargs):
+        fd, name = real_mkstemp(*args, **kwargs)
+        temporary.update(fd=fd, name=name)
+        return fd, name
+
+    def replace_after_descriptor_release(fd):
+        real_close(fd)
+        if fd == temporary.get("fd"):
+            os.unlink(temporary["name"])
+            try:
+                os.symlink(exposed, temporary["name"])
+            except OSError:
+                pytest.skip("symlink creation unavailable")
+
+    monkeypatch.setattr(active_user_env.tempfile, "mkstemp", remember_temporary)
+    monkeypatch.setattr(active_user_env.os, "close", replace_after_descriptor_release)
+
+    active_user_env.set_user_env("KEY", "fresh", path=str(saved))
+
+    assert exposed.read_text() == "unchanged\n"
+    assert saved.read_text() == "PRIVATE=owned-test-value\nKEY=fresh\n"
+    assert not saved.is_symlink()

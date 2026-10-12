@@ -38,14 +38,6 @@ def _read_lines(path: str) -> list[str]:
     # keys (e.g. a persisted HF_TOKEN) when it rewrites the file.
 
 
-def _opener_0600(path: str, flags: int) -> int:
-    # Create the file with 0600 from the start (no world-readable window before
-    # a follow-up chmod) — it can hold secrets like HF_TOKEN. The mode is
-    # masked by umask but only ever *more* restrictive; non-POSIX platforms
-    # ignore the mode bits.
-    return os.open(path, flags, 0o600)
-
-
 def _write_lines(path: str, lines: list[str]) -> None:
     path = os.path.realpath(path)
     parent = os.path.dirname(path)
@@ -55,9 +47,8 @@ def _write_lines(path: str, lines: list[str]) -> None:
     if body and not body.endswith("\n"):
         body += "\n"
     fd, temporary = tempfile.mkstemp(prefix=".omnivoice-env-", dir=parent or ".")
-    os.close(fd)
     try:
-        with open(temporary, "w", encoding="utf-8", opener=_opener_0600) as f:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(body)
         os.replace(temporary, path)
     finally:
@@ -68,7 +59,7 @@ def _write_lines(path: str, lines: list[str]) -> None:
             # must not mask the original write or replacement exception.
             pass
     try:
-        os.chmod(path, 0o600)  # tighten an existing file that predates the opener
+        os.chmod(path, 0o600)  # best-effort private permissions on the replacement
     except OSError:
         pass  # best-effort; some filesystems/Windows don't support chmod
 

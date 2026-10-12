@@ -18,7 +18,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- Failed saved-environment writes preserve existing settings and keys instead of leaving a truncated file. (#2712) — thanks @rudycelekli!
+- Failed saved-environment writes preserve existing settings and keys, and temporary writes retain their private file descriptor. (#2712) — thanks @rudycelekli!
 
 ## [0.5.7] — 2026-10-13
 

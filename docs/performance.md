@@ -423,11 +423,9 @@ The recorder is in-memory, bounded, and behaves the same on every supported OS.
 Timings cover the full HTTP response, including streamed work and GPU-pool jobs.
 They are inclusive wall-clock durations: overlapping/nested stages must not be
 added together. Model loading, queueing, network waits and other uninstrumented
-work remain in the total. Remote workers' internal synthesis is not measured by
-the requesting backend. `complete` means the HTTP stream completed; a stream can
+work remain in the total. `complete` means the HTTP stream completed; a stream can
 still contain a handled generation error, so check stage failures and the error
-log too. Disconnects preserve partial timings; abandoned worker completions
-cannot rewrite a finished trace. A backend crash loses unfinished in-memory
+log too. Disconnects preserve partial timings. A backend crash loses unfinished in-memory
 traces, so attach the crash log as well.
 
 `tests/test_render_trace.py` protects 100- and 400-chunk Studio/long-form renders

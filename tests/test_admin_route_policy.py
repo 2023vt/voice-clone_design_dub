@@ -92,7 +92,6 @@ def _mutating_route_functions(
         "settings.py",
         "system.py",
         "telephony_twilio.py",
-        "workers.py",
     ],
 )
 def test_privileged_router_uses_method_aware_admin_guard(filename):

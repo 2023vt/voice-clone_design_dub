@@ -3,13 +3,19 @@ import { resolve } from 'node:path';
 import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
+import {
+  DEFAULT_BACKEND_PORT,
+  DEFAULT_ELECTRON_DEV_PORT,
+  DEFAULT_ELECTRON_PROXY_PORT,
+  PRODUCT_NAME,
+} from '../config/app-config.mjs';
 
 // The app version is single-sourced from the root package.json (CLAUDE.md,
 // Versioning). Nothing in electron/ mirrors it: the renderer reads it through
 // __APP_VERSION__ and the installer through electron-builder.config.mjs.
-const frontendPkg = JSON.parse(
-  readFileSync(resolve(__dirname, '../package.json'), 'utf-8'),
-) as { version: string };
+const frontendPkg = JSON.parse(readFileSync(resolve(__dirname, '../package.json'), 'utf-8')) as {
+  version: string;
+};
 
 const define = {
   __APP_VERSION__: JSON.stringify(frontendPkg.version),
@@ -30,7 +36,8 @@ const define = {
 // OMNIVOICE_UI_PORT is canonical (the backend reads it for its origin
 // allow-list); VOICESTUDIO_UI_PORT is the accepted legacy alias.
 const rendererPort =
-  Number(process.env.OMNIVOICE_UI_PORT || process.env.VOICESTUDIO_UI_PORT) || 3902;
+  Number(process.env.OMNIVOICE_UI_PORT || process.env.VOICESTUDIO_UI_PORT) ||
+  DEFAULT_ELECTRON_DEV_PORT;
 
 export default defineConfig({
   main: {
@@ -58,6 +65,12 @@ export default defineConfig({
     plugins: [
       react(),
       tailwindcss(),
+      {
+        name: 'app-identity',
+        transformIndexHtml(html) {
+          return html.replaceAll('__APP_PRODUCT_NAME__', PRODUCT_NAME);
+        },
+      },
       {
         name: 'renderer-boot-script',
         configureServer(server) {
@@ -100,7 +113,7 @@ export default defineConfig({
       // Dev counterpart of main's app:// proxy (CONTRACT.md, same-origin API rule).
       proxy: {
         '/api/ws': {
-          target: 'http://127.0.0.1:' + (process.env.OMNIVOICE_PORT || 3900),
+          target: 'http://127.0.0.1:' + (process.env.OMNIVOICE_PORT || DEFAULT_BACKEND_PORT),
           changeOrigin: true,
           rewrite: (p) => p.replace(/^\/api/, ''),
           ws: true,
@@ -116,7 +129,9 @@ export default defineConfig({
           },
         },
         '/api': {
-          target: 'http://127.0.0.1:' + (process.env.VOICESTUDIO_ELECTRON_PROXY_PORT || 3903),
+          target:
+            'http://127.0.0.1:' +
+            (process.env.VOICESTUDIO_ELECTRON_PROXY_PORT || DEFAULT_ELECTRON_PROXY_PORT),
           changeOrigin: true,
           rewrite: (p) => p.replace(/^\/api/, ''),
           configure(proxy) {

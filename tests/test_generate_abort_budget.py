@@ -29,7 +29,7 @@ def _source_default(path: Path, env: str) -> float:
 
 def test_client_budget_mirrors_backend_defaults(monkeypatch):
     from services import model_manager
-    from worker import deadlines
+    from core import generate_budget
     import mcp_server
 
     monkeypatch.delenv("OMNIVOICE_MODEL_LOAD_TIMEOUT", raising=False)
@@ -43,8 +43,8 @@ def test_client_budget_mirrors_backend_defaults(monkeypatch):
     assert mcp_server._GENERATE_PROGRESS_BUDGETS == model_manager.PROGRESS_EXTENSION_BUDGETS
     assert mcp_server._GENERATE_SIDECAR_FLOOR_S == client["executionBase"]
     assert mcp_server._GENERATE_SIDECAR_GRACE_S == client["sidecarGrace"]
-    assert client["freeChars"] == deadlines._FREE_CHARS
-    assert client["charsPerSecond"] == deadlines._CHARS_PER_SECOND
+    assert client["freeChars"] == generate_budget.FREE_CHARS
+    assert client["charsPerSecond"] == generate_budget.CHARS_PER_SECOND
     from core import generate_budget as gb
 
     assert client["cpuSecondsPerChar"] == gb.CPU_SECONDS_PER_CHAR

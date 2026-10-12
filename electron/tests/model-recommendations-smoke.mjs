@@ -25,12 +25,11 @@ try {
     await route.fulfill({ json: { status: 'started' } });
   });
   await page.route('**/api/models', (route) =>
-    route.fulfill({ json: { target: 'gpu2', models: [], disk_free_gb: 2.5 } }),
+    route.fulfill({ json: { models: [], disk_free_gb: 2.5 } }),
   );
   await page.route('**/api/setup/recommendations', (route) =>
     route.fulfill({
       json: {
-        target: 'gpu2',
         device: { label: device },
         models: [
           {
@@ -83,7 +82,7 @@ try {
     })
     .click();
   await page.waitForFunction(() => document.body.textContent?.includes('VoiceStudio TTS'));
-  assert.deepEqual(requested, [{ repo_id: 'k2-fsa/OmniVoice', target: 'gpu2' }]);
+  assert.deepEqual(requested, [{ repo_id: 'k2-fsa/OmniVoice' }]);
   assert.deepEqual(errors, []);
   console.log('PASS: device recommendations, low-disk warning, and scoped install action');
 } finally {

@@ -69,13 +69,6 @@ def test_from_request_clamps_strength(raw, expected):
     assert HumanizeSettings.from_request(True, raw).strength == pytest.approx(expected)
 
 
-def test_to_params_round_trips_through_a_worker():
-    settings = HumanizeSettings.from_request(True, 0.25)
-    params = settings.to_params()
-    assert params == {"humanize": True, "humanize_strength": 0.25}
-    assert HumanizeSettings.from_request(params["humanize"], params["humanize_strength"]) == settings
-
-
 def test_room_tone_level_tracks_strength():
     assert HumanizeSettings(strength=0.0).room_tone_db == pytest.approx(-66.0)
     assert HumanizeSettings(strength=1.0).room_tone_db == pytest.approx(-58.0)

@@ -37,7 +37,6 @@ const blockerKeys: Record<string, string> = {
   evidence_revision_mismatch: 'modelLicense.blockerMismatch',
   upstream_access_unverified: 'modelLicense.blockerAccess',
   variant_provenance_unverified: 'modelLicense.blockerVariant',
-  remote_review_unsupported: 'modelLicense.blockerRemote',
 };
 
 export function ModelLicense({
@@ -45,13 +44,11 @@ export function ModelLicense({
   label,
   info,
   acceptance,
-  target,
 }: {
   repoId: string;
   label: string;
   info?: ModelLicenseInfo;
   acceptance?: ModelLicenceAcceptance;
-  target: string;
 }) {
   const { t } = useTranslation();
   const acknowledgementId = useId();
@@ -65,7 +62,7 @@ export function ModelLicense({
   const [acknowledged, setAcknowledged] = useState(false);
   const [failed, setFailed] = useState(false);
   const [completed, setCompleted] = useState(false);
-  const ready = canAcknowledgeModelPlan(plan, repoId, target, info?.registry_digest);
+  const ready = canAcknowledgeModelPlan(plan, repoId, info?.registry_digest);
 
   // A refreshed registry/selection invalidates the preview and acknowledgement.
   // Closing during preparation also makes its eventual response unusable.
@@ -82,7 +79,7 @@ export function ModelLicense({
       generation.current += 1;
       request.current?.abort();
     };
-  }, [repoId, target, info?.registry_digest]);
+  }, [repoId, info?.registry_digest]);
 
   const close = () => {
     if (busyRef.current === 'commit') return;
@@ -110,7 +107,7 @@ export function ModelLicense({
       const result = await apiJson<ModelReviewPlan>('/models/install/prepare', {
         method: 'POST',
         signal: request.current.signal,
-        body: JSON.stringify({ repo_id: repoId, target }),
+        body: JSON.stringify({ repo_id: repoId }),
       });
       if (generation.current === current) setPlan(result);
     } catch {
@@ -137,7 +134,6 @@ export function ModelLicense({
           plan_digest: plan.plan_digest,
           acknowledged_document_ids: plan.documents.map((document) => document.id),
           acknowledged: true,
-          target,
         }),
       });
       if (result.status !== 'verified') throw new Error('Unexpected reviewed-cache result');
@@ -181,7 +177,7 @@ export function ModelLicense({
       <p className="max-w-prose">{t('modelLicense.preview')}</p>
       <p className="max-w-prose text-muted-foreground">{t('modelLicense.disclaimer')}</p>
       <p className="break-all text-xs text-muted-foreground">
-        {repoId} · {t('common.backend')}: {target}
+        {repoId} · {t('common.backend')}: local
       </p>
       {blockers.length > 0 && (
         <div className="rounded-lg border border-warning/30 bg-warning/5 p-3">
@@ -207,7 +203,9 @@ export function ModelLicense({
               <p>
                 {component.credit} · {component.license}
               </p>
-              <p className="break-all font-mono text-xs">{component.revision || t('common.unknown')}</p>
+              <p className="break-all font-mono text-xs">
+                {component.revision || t('common.unknown')}
+              </p>
               <ul className="space-y-1 text-xs">
                 {component.artifacts.map((artifact) => (
                   <li key={artifact.path} className="break-all">
@@ -276,7 +274,7 @@ export function ModelLicense({
           <Button
             variant="outline"
             className="h-auto min-h-8"
-            disabled={Boolean(busy) || target !== 'local' || !currentInfo}
+            disabled={Boolean(busy) || !currentInfo}
             onClick={() => void prepare()}
           >
             <span className="whitespace-normal">{t('modelLicense.prepare')}</span>
@@ -316,11 +314,7 @@ export function ModelLicense({
             <DialogDescription className="break-all">{repoId}</DialogDescription>
           </DialogHeader>
           <div className="min-h-0 flex-1 overflow-y-auto p-4">
-            <ModelLicenceView
-              details={details.data}
-              infoFallback={info}
-              extra={verifiedInstall}
-            />
+            <ModelLicenceView details={details.data} infoFallback={info} extra={verifiedInstall} />
             {details.isError && (
               <p role="alert" className="mt-3 text-sm text-destructive">
                 {t('modelLicense.detailsFailed')}
@@ -328,9 +322,7 @@ export function ModelLicense({
             )}
           </div>
           <LicenceAcceptanceFooter
-            models={
-              currentAcceptance ? [toAcceptable(label, currentAcceptance)] : []
-            }
+            models={currentAcceptance ? [toAcceptable(label, currentAcceptance)] : []}
             onClose={close}
             closeDisabled={busy === 'commit'}
           />

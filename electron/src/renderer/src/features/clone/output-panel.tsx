@@ -21,7 +21,7 @@ export function OutputPanel() {
   return (
     <section
       aria-label={t('clone.output_title')}
-      className="w-full border-t border-border/60 bg-muted/15 px-6 py-3"
+      className="w-full shrink-0 border-t border-border/60 bg-muted/15 px-6 py-3"
     >
       <div className="flex flex-col gap-2">
         <div className="flex items-center justify-between gap-3">

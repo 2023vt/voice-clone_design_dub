@@ -17,18 +17,30 @@ metadata and the backend fallback mirror it.
 
 ### Added
 
-- Voice Gallery adds Hindi Documentary and Hindi Comedy narrators with genre preview scripts, and The Wildlife Narrator (deep British nature-documentary voice) — timbres measured from the reels users want to reproduce
-- The OpenAI-compatible `/v1/audio/speech` takes `humanize` and `humanize_strength` too, so scripts and other apps get the same Sound more human pass as the app
-- `/v1/audio/speech` turns `[pause 500ms]` markers into real silence and lowers ElevenLabs-style cues like `[laughs]` for the engine instead of passing them to it as text, as `/generate` does
-- Sound more human copies a clone's own room and breathing: pauses get the reference clip's noise spectrum at its distance under the voice, and inhales are the speaker's own, cut from the clip
-- A take cloned from a sample in another script than the take's language (an English sample for a Hindi take) comes back with a warning that it will carry the sample's accent
-- Hindi also reads crores (5,00,00,000), spoken fractions before units and percentages (डेढ़ घंटे, ढाई करोड़, साढ़े तीन किलोमीटर, ढाई प्रतिशत), ₹ and $ amounts with लाख/करोड़/मिलियन, DD/MM/YYYY dates, Indian mobile numbers digit by digit, 05:30-style times, and English acronyms inside Hindi (CEO ने → सीईओ ने, ISRO → इसरो)
-- VoxCPM2 takes that keep talking past their line (invented syllables after the last word) are rendered again with another seed, up to twice; normal takes are unchanged
-- Convert to native script: the Script box rewrites Roman Hindi (kya haal hai) and other romanized text in the language's own script with your LLM, keeping tags and line breaks, with Undo
-- `scripts/eval_hindi.py` scores Hindi takes from a running backend: per-category character error rate from a local Whisper transcript, digital-silence and pause-floor checks, WAVs kept for listening
-- Hindi scripts read numbers the way a Hindi speaker says them: cardinals up to लाख, the spoken सौ form for 1100–1999 (उन्नीस सौ चौरासी), rupees (₹, Rs., 1,50,000), clock times (साढ़े दस, पौने ग्यारह, दस बजकर बीस मिनट), digit ordinals (5वीं), percent, decimals, Devanagari digits and डॉ./Dr. titles — see docs/hindi.md
-- Sound more human (opt-in, Audio quality popover): breaths before sentences, a quiet room tone under pauses instead of digital silence, punctuation-sized jittered gaps and a touch of tempo drift between chunks; same on every engine and platform, repeatable with a pinned seed, `humanize=true` on `/generate`
-- Commercial-safe mode (opt-in): every engine and tool reports its weights' licence, and when the mode is on, non-commercial or unreviewed weights (OmniVoice, audio.cpp, MusicGen, AudioLDM2) are refused on every generation path with a clear 403 — see docs/commercial-safe-mode.md
+- Voice Gallery adds Hindi Documentary and Hindi Comedy narrators with genre preview scripts, and The Wildlife Narrator (deep British nature-documentary voice) — timbres measured from the reels users want to reproduce (#2743)
+- The OpenAI-compatible `/v1/audio/speech` takes `humanize` and `humanize_strength` too, so scripts and other apps get the same Sound more human pass as the app (#2743)
+- `/v1/audio/speech` turns `[pause 500ms]` markers into real silence and lowers ElevenLabs-style cues like `[laughs]` for the engine instead of passing them to it as text, as `/generate` does (#2743)
+- Sound more human copies a clone's own room and breathing: pauses get the reference clip's noise spectrum at its distance under the voice, and inhales are the speaker's own, cut from the clip (#2743)
+- A take cloned from a sample in another script than the take's language (an English sample for a Hindi take) comes back with a warning that it will carry the sample's accent (#2743)
+- Hindi also reads crores (5,00,00,000), spoken fractions before units and percentages (डेढ़ घंटे, ढाई करोड़, साढ़े तीन किलोमीटर, ढाई प्रतिशत), ₹ and $ amounts with लाख/करोड़/मिलियन, DD/MM/YYYY dates, Indian mobile numbers digit by digit, 05:30-style times, and English acronyms inside Hindi (CEO ने → सीईओ ने, ISRO → इसरो) (#2743)
+- VoxCPM2 takes that keep talking past their line (invented syllables after the last word) are rendered again with another seed, up to twice; normal takes are unchanged (#2743)
+- Convert to native script: the Script box rewrites Roman Hindi (kya haal hai) and other romanized text in the language's own script with your LLM, keeping tags and line breaks, with Undo (#2743)
+- `scripts/eval_hindi.py` scores Hindi takes from a running backend: per-category character error rate from a local Whisper transcript, digital-silence and pause-floor checks, WAVs kept for listening (#2743)
+- Hindi scripts read numbers the way a Hindi speaker says them: cardinals up to लाख, the spoken सौ form for 1100–1999 (उन्नीस सौ चौरासी), rupees (₹, Rs., 1,50,000), clock times (साढ़े दस, पौने ग्यारह, दस बजकर बीस मिनट), digit ordinals (5वीं), percent, decimals, Devanagari digits and डॉ./Dr. titles — see docs/hindi.md (#2743)
+- Sound more human (opt-in, Audio quality popover): breaths before sentences, a quiet room tone under pauses instead of digital silence, punctuation-sized jittered gaps and a touch of tempo drift between chunks; same on every engine and platform, repeatable with a pinned seed, `humanize=true` on `/generate` (#2743)
+- Commercial-safe mode (opt-in): every engine and tool reports its weights' licence, and when the mode is on, non-commercial or unreviewed weights (OmniVoice, audio.cpp, MusicGen, AudioLDM2) are refused on every generation path with a clear 403 — see docs/commercial-safe-mode.md (#2743)
+
+### Changed
+
+- App identity and backend, browser and Electron development ports now come from one validated configuration file. (#2759)
+- Keep synthesis controls anchored at the bottom when the latest take appears. (#2759)
+- Using a Gallery design voice opens its workspace immediately and defers model loading until audio is requested. (#2759)
+- Existing local projects, settings and data are unaffected; legacy worker database records are retained and ignored.
+
+### Removed
+
+- Remove licence activation from the open-source Pro page. (#2762)
+- Remote compute devices, remote workers and GPU sharing moved to VoiceStudio Pro and are no longer included in the open-source app.
 
 ## [0.5.7] — 2026-10-07
 

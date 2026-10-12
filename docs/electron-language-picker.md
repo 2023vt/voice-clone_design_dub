@@ -42,9 +42,8 @@ Qwen3-TTS covers 10 languages and OuteTTS 1.0 covers 23. The same list drives th
 picker and the synthesis guard. Kokoro reads its tables from the installed package
 (including `dict(...)` declarations) without importing MLX or loading weights, and
 falls back to its declared set if those tables cannot be read. Only a custom
-MLX-Audio repo is explicitly unknown, which is not a claim of universal support. Worker language
-metadata is not yet advertised by the runtime API, so local lists never restrict a
-remote worker. Loading and failed discovery have separate labels. No models are
+MLX-Audio repo is explicitly unknown, which is not a claim of universal support.
+Loading and failed discovery have separate labels. No models are
 downloaded or switched by selecting a language. Auto retains each engine's existing
 automatic/default behavior; it does not add support for another language.
 

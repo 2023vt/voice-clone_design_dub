@@ -117,7 +117,9 @@ def test_docker_install_and_runtime_use_the_guarded_python():
     install = text[install_start:install_end]
     assert '--python "$(command -v python3)"' in install
     assert "--system" not in install
-    assert 'ENTRYPOINT ["python3", "-m", "uvicorn"' in text
+    assert "EXPOSE 3900" in text
+    assert 'CMD ["python3", "backend/docker_entrypoint.py", "--health-check"]' in text
+    assert 'ENTRYPOINT ["python3", "backend/docker_entrypoint.py"]' in text
 
 
 def test_docker_docs_do_not_assume_the_run_name_for_compose():

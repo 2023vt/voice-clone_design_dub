@@ -111,10 +111,6 @@ class HumanizeSettings:
     def room_tone_db(self) -> float:
         return -66.0 + 8.0 * self.strength
 
-    def to_params(self) -> dict:
-        """The two request fields, for forwarding to a remote worker."""
-        return {"humanize": True, "humanize_strength": self.strength}
-
 
 def make_rng(seed: Optional[int], salt: int = 0) -> torch.Generator:
     """A CPU generator derived from the take's seed. Two call sites that must

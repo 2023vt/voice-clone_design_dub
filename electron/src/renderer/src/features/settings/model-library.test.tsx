@@ -83,7 +83,7 @@ it('prioritizes required and curated models across families, with optional downl
   expect(mock.api).toHaveBeenCalledWith(
     '/models/install',
     expect.objectContaining({
-      body: JSON.stringify({ repo_id: 'required', target: 'local' }),
+      body: JSON.stringify({ repo_id: 'required' }),
     }),
   );
   await waitFor(() =>
@@ -301,7 +301,7 @@ it('confirms reinstall, removes the old copy, then starts a fresh install', asyn
       '/models/install',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ repo_id: 'owner/model', target: 'local' }),
+        body: JSON.stringify({ repo_id: 'owner/model' }),
       }),
     ),
   );
@@ -533,69 +533,6 @@ it('shows device recommendations and live aggregate download telemetry', async (
   expect(screen.getByText('~2m')).toBeInTheDocument();
 });
 
-it('shows progress for the selected remote target instead of a same-repo local job', async () => {
-  mock.api.mockImplementation((path: string) => {
-    if (path === '/models') {
-      return Promise.resolve({
-        target: 'gpu2',
-        models: [
-          {
-            repo_id: 'owner/shared',
-            label: 'Remote model',
-            role: 'TTS',
-            size_gb: 1,
-            installed: false,
-            supported: true,
-          },
-        ],
-      });
-    }
-    if (path === '/models/install/status') {
-      return Promise.resolve({
-        jobs: [
-          {
-            repo_id: 'owner/shared',
-            target: 'local',
-            state: 'downloading',
-            bytes_done: 90 * 1024 ** 2,
-            total_bytes: 100 * 1024 ** 2,
-          },
-          {
-            repo_id: 'owner/shared',
-            target: 'gpu2',
-            state: 'downloading',
-            bytes_done: 25 * 1024 ** 2,
-            total_bytes: 100 * 1024 ** 2,
-          },
-        ],
-      });
-    }
-    if (path === '/model/loaded') return Promise.resolve({ models: [], count: 0 });
-    return Promise.resolve({});
-  });
-
-  render(
-    <QueryClientProvider client={new QueryClient()}>
-      <ModelLibrary family="tts" />
-    </QueryClientProvider>,
-  );
-
-  await screen.findByText('Remote model');
-  expect(screen.getByRole('progressbar')).toHaveAttribute('aria-valuenow', '25');
-  expect(screen.getByText('25.0 MB / 100.0 MB')).toBeInTheDocument();
-
-  fireEvent.click(screen.getByRole('button', { name: 'common.cancel' }));
-  await waitFor(() =>
-    expect(mock.api).toHaveBeenCalledWith(
-      '/models/install/cancel',
-      expect.objectContaining({
-        method: 'POST',
-        body: JSON.stringify({ repo_id: 'owner/shared', target: 'gpu2' }),
-      }),
-    ),
-  );
-});
-
 it('shows the device bundle, warns before exceeding disk space, and starts selected installs', async () => {
   mock.api.mockImplementation((path: string) => {
     if (path === '/models') {
@@ -646,7 +583,7 @@ it('shows the device bundle, warns before exceeding disk space, and starts selec
       '/models/install',
       expect.objectContaining({
         method: 'POST',
-        body: JSON.stringify({ repo_id: 'owner/required', target: 'local' }),
+        body: JSON.stringify({ repo_id: 'owner/required' }),
       }),
     ),
   );

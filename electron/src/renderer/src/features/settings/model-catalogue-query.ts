@@ -30,7 +30,6 @@ export interface CatalogueModel {
 }
 
 export interface ModelCatalogueResponse {
-  target?: string;
   models: CatalogueModel[];
   total_installed_bytes?: number;
   disk_free_gb?: number;
@@ -45,7 +44,5 @@ export function useModelCatalogue() {
     queryFn: () => apiJson<ModelCatalogueResponse>('/models'),
     staleTime: 30_000,
     enabled: isBackendReachable(status.stage),
-    refetchInterval: (query) =>
-      query.state.data?.target && query.state.data.target !== 'local' ? 5_000 : false,
   });
 }

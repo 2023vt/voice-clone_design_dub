@@ -23,12 +23,18 @@ router = APIRouter()
 
 @router.get("/music/status")
 def music_status():
-    return music_gen.status()
+    from services.license_guard import tool_blocked
+
+    return {**music_gen.status(), "commercial_blocked": tool_blocked("music")}
 
 
 @router.post("/music/install")
 def music_install():
-    return music_gen.start_install()
+    from services.license_guard import check_tool
+
+    check_tool("music")  # Commercial-safe mode: no multi-GB download of weights it would refuse
+    music_gen.start_install()
+    return music_status()
 
 
 async def _mark_channels(piece, sample_rate):

@@ -14,7 +14,9 @@ Every generation path checks the weights' licence before any work starts:
 - `POST /generate`, the live stream (`/ws/tts`), dubbing, batch, previews and voice conversion
 - `POST /v1/audio/speech` (OpenAI-compatible; refusals use OpenAI's error shape with
   `code: "commercial_use_blocked"`)
-- Tools → Music (`/music/generate`) and Sound effects (`/sfx/generate`)
+- Tools → Music (`/music/generate`) and Sound effects (`/sfx/generate`), and their one-time model
+  downloads (`/music/install`, `/sfx/install`): `/music/status` and `/sfx/status` report
+  `commercial_blocked: true` and the app explains why instead of offering the download
 
 Allowed: engines whose weights are `commercial` (e.g. Apache-2.0: VoxCPM2, CosyVoice 3, KittenTTS, MOSS-TTS-Nano)
 or `conditional` (commercial use allowed under the licence's conditions — IndexTTS-2, Supertonic 3, PocketTTS;
@@ -23,7 +25,7 @@ AudioLDM2) and `unknown` (GPT-SoVITS, MLX-Audio and sherpa-onnx, whose licence d
 plus any engine not reviewed yet — fail-safe).
 
 The 403 body: `{"detail": {"code": "commercial_use_blocked", "message", "target", "status", "weights",
-"source"}}`.
+"source"}}`. A `/ws/tts` error frame carries the same fields next to `type: "error"` and `detail`.
 
 ## Turning it on
 

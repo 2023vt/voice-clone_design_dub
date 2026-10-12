@@ -3,19 +3,22 @@ import { useTranslation } from 'react-i18next';
 import { AudioPreviewButton } from '@/components/audio-preview-button';
 import { Button } from '@/components/ui/button';
 import { useDesignVariations } from '@/lib/store/design-variations';
+import type { DesignVariation } from '@/lib/store/design-variations';
 import { cn } from '@/lib/utils';
 
 interface DesignVariationsProps {
   /** The seed the draft currently holds; its card shows as chosen. */
   seed: number;
+  /** designVariationKey of the current description; candidates from another one are hidden. */
+  recipeKey: string;
   disabled?: boolean;
-  onChoose(seed: number): void;
+  onChoose(variation: DesignVariation): void;
 }
 
 /** Candidate voices from one description: listen, compare, keep one. */
-export function DesignVariations({ seed, disabled, onChoose }: DesignVariationsProps) {
+export function DesignVariations({ seed, recipeKey, disabled, onChoose }: DesignVariationsProps) {
   const { t } = useTranslation();
-  const variations = useDesignVariations();
+  const variations = useDesignVariations(recipeKey);
   if (variations.length === 0) return null;
   return (
     <section
@@ -57,7 +60,7 @@ export function DesignVariations({ seed, disabled, onChoose }: DesignVariationsP
                 variant={chosen ? 'secondary' : 'outline'}
                 aria-pressed={chosen}
                 disabled={disabled}
-                onClick={() => onChoose(variation.seed)}
+                onClick={() => onChoose(variation)}
               >
                 {chosen && <CheckIcon />}
                 {chosen ? t('designVariations.chosen') : t('designVariations.choose')}

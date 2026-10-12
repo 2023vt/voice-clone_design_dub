@@ -3401,6 +3401,10 @@
     "example_piano": "Calm solo piano melody, gentle and emotional",
     "example_acoustic": "Warm acoustic guitar folk tune, relaxed and sunny"
   },
+  "audioGenerator": {
+    "commercial_blocked": "Le mode d'usage commercial sûr est activé et la licence de ce modèle ({{license}}) n'autorise pas l'usage commercial : cet outil est donc désactivé.",
+    "status_failed": "Impossible de vérifier l'état de cet outil. Vérifiez que le moteur de VoiceStudio est lancé, puis réessayez."
+  },
   "modelLicense": {
     "title": "Conditions du modèle",
     "commercial": "Usage commercial du modèle",

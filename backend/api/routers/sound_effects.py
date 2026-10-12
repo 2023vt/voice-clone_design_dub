@@ -23,12 +23,18 @@ router = APIRouter()
 
 @router.get("/sfx/status")
 def sfx_status():
-    return sfx.status()
+    from services.license_guard import tool_blocked
+
+    return {**sfx.status(), "commercial_blocked": tool_blocked("sfx")}
 
 
 @router.post("/sfx/install")
 def sfx_install():
-    return sfx.start_install()
+    from services.license_guard import check_tool
+
+    check_tool("sfx")  # Commercial-safe mode: no multi-GB download of weights it would refuse
+    sfx.start_install()
+    return sfx_status()
 
 
 @router.post("/sfx/generate")

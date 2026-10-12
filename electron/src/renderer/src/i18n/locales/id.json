@@ -3399,6 +3399,10 @@
     "example_piano": "Calm solo piano melody, gentle and emotional",
     "example_acoustic": "Warm acoustic guitar folk tune, relaxed and sunny"
   },
+  "audioGenerator": {
+    "commercial_blocked": "Mode aman komersial aktif, dan lisensi model ini ({{license}}) tidak mengizinkan penggunaan komersial, jadi alat ini dimatikan.",
+    "status_failed": "Status alat ini tidak dapat diperiksa. Pastikan mesin VoiceStudio sedang berjalan, lalu coba lagi."
+  },
   "modelLicense": {
     "title": "Ketentuan model",
     "commercial": "Penggunaan model secara komersial",

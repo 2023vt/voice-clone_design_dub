@@ -123,7 +123,8 @@ def _blocked(target: str, info: LicenseInfo, what: str) -> CommercialUseBlocked:
     return CommercialUseBlocked(
         f"Commercial-safe mode is on: {what} '{target}' uses {info.weights} weights "
         f"({info.status.replace('_', '-')}). Pick a commercial-safe engine "
-        f"({', '.join(commercial_engines())}) or turn the mode off in Settings.",
+        f"({', '.join(commercial_engines())}) or turn the mode off (POST /engines/commercial-only, "
+        f"or unset {ENV_VAR}).",
         target=target, info=info)
 
 
@@ -141,6 +142,16 @@ def check_tool(tool: str) -> None:
     info = TOOL_LICENSES.get(tool, _UNREVIEWED)
     if info.status not in ALLOWED_WHEN_COMMERCIAL:
         raise _blocked(tool, info, "tool")
+
+
+def tool_blocked(tool: str) -> bool:
+    """True when Commercial-safe mode would refuse ``tool``: its status says so,
+    so the app offers no download for a model it could not use."""
+    try:
+        check_tool(tool)
+    except CommercialUseBlocked:
+        return True
+    return False
 
 
 def payload() -> dict:

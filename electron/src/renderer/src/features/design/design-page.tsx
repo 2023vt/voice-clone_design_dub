@@ -54,6 +54,8 @@ import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { useGenerateClone } from '@/hooks/use-generate';
 import { OutputPanel } from '@/features/clone/output-panel';
+import { designVariationKey } from '@/lib/store/design-variations';
+import { setLatestOutput } from '@/lib/store/output';
 import { QualityControls } from '@/features/clone/quality-controls';
 import { VoiceControls } from '@/features/clone/action-bar';
 import { EngineLanguagePicker } from '@/features/clone/engine-language-picker';
@@ -171,18 +173,18 @@ export function DesignPage() {
   const generationLabel = generation.variation
     ? t('designVariations.rendering', generation.variation)
     : generation.isGenerating
-    ? t(
-        generation.stage === 'loading'
-          ? generation.modelStage
-            ? `synthesisState.${generation.modelStage}`
-            : 'synthesisState.loading'
-          : generation.stage === 'receiving'
-            ? 'synthesisState.receiving'
-            : generation.stage === 'preparing'
-              ? 'synthesisState.preparing'
-              : 'clone.generating_status',
-      )
-    : t('clone.synthesize');
+      ? t(
+          generation.stage === 'loading'
+            ? generation.modelStage
+              ? `synthesisState.${generation.modelStage}`
+              : 'synthesisState.loading'
+            : generation.stage === 'receiving'
+              ? 'synthesisState.receiving'
+              : generation.stage === 'preparing'
+                ? 'synthesisState.preparing'
+                : 'clone.generating_status',
+        )
+      : t('clone.synthesize');
   const generationProgress =
     generation.stage === 'loading' ? generation.modelProgress : generation.progress;
   const identityRecipe =
@@ -536,10 +538,16 @@ export function DesignPage() {
             <div className="mb-3">
               <DesignVariations
                 seed={draft.seed}
+                recipeKey={designVariationKey(
+                  designInstruct(draft, generation.instructVocabulary),
+                  designRecipe(draft),
+                )}
                 disabled={generation.isGenerating}
-                onChoose={(seed) =>
-                  setDraft((current) => ({ ...current, seed, profileId: null }))
-                }
+                onChoose={(variation) => {
+                  // The output shows the last candidate rendered; show the one chosen.
+                  setLatestOutput(variation.result, variation.text);
+                  setDraft((current) => ({ ...current, seed: variation.seed, profileId: null }));
+                }}
               />
             </div>
             {designBlocker === 'engine' && !generation.isGenerating && (

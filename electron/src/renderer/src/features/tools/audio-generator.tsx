@@ -1,13 +1,14 @@
-import { useRef, useState } from 'react';
+import { useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
-import { DownloadIcon, LoaderCircleIcon, SparklesIcon } from 'lucide-react';
+import { DownloadIcon, LoaderCircleIcon, RotateCwIcon, SparklesIcon } from 'lucide-react';
 import { AudioPreviewButton } from '@/components/audio-preview-button';
 import { PipelineFailure } from '@/components/pipeline-failure';
 import { SaveAudioButton } from '@/components/save-audio-button';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { apiJson, audioUrl, describeError } from '@/lib/api/client';
+import { generatorRun, patchGeneratorRun, useGeneratorRun } from '@/lib/store/audio-generator';
 
 interface GeneratorStatus {
   ready: boolean;
@@ -16,12 +17,8 @@ interface GeneratorStatus {
   license: string;
   download_bytes: number;
   max_seconds: number;
-}
-
-interface GeneratedTake {
-  id: string;
-  audio_url: string;
-  duration_s: number | null;
+  /** Commercial-safe mode refuses this model, so it is not offered for download. */
+  commercial_blocked?: boolean;
 }
 
 /** A local text → audio model behind `<api>/status|install|generate`. */
@@ -82,20 +79,16 @@ function AudioGenerator({ kind }: { kind: GeneratorKind }) {
     queryFn: () => apiJson<GeneratorStatus>(kind.api + '/status'),
     refetchInterval: (query) => (installing(query.state.data?.stage) ? 2000 : false),
   });
-  const [prompt, setPrompt] = useState('');
+  const { prompt, busy, error, takes } = useGeneratorRun(kind.api);
+  const setPrompt = (value: string) => patchGeneratorRun(kind.api, { prompt: value });
+  const setError = (value: string | null) => patchGeneratorRun(kind.api, { error: value });
   const [seconds, setSeconds] = useState(kind.defaultSeconds);
   const [variations, setVariations] = useState(kind.defaultVariations);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [takes, setTakes] = useState<{ prompt: string; items: GeneratedTake[] } | null>(null);
-  const request = useRef<AbortController | null>(null);
   const data = status.data;
   const maxSeconds = data?.max_seconds ?? 20;
   const duration = Number(seconds);
-  const valid =
-    Boolean(prompt.trim()) && duration >= kind.minSeconds && duration <= maxSeconds;
-  const text = (key: string, options?: Record<string, unknown>) =>
-    t(`${kind.ns}.${key}`, options);
+  const valid = Boolean(prompt.trim()) && duration >= kind.minSeconds && duration <= maxSeconds;
+  const text = (key: string, options?: Record<string, unknown>) => t(`${kind.ns}.${key}`, options);
 
   const install = async () => {
     setError(null);
@@ -109,27 +102,25 @@ function AudioGenerator({ kind }: { kind: GeneratorKind }) {
     }
   };
 
+  // The run is kept in a store, not in this component: switching tools
+  // mid-render unmounts the page, and the takes must still be here on return.
   const generate = async () => {
-    if (request.current || !valid) return;
-    const controller = new AbortController();
-    request.current = controller;
-    setBusy(true);
-    setError(null);
+    if (generatorRun(kind.api).busy || !valid) return;
+    patchGeneratorRun(kind.api, { busy: true, error: null });
     try {
       const body = new FormData();
       body.set('prompt', prompt.trim());
       body.set('seconds', String(duration));
       body.set('variations', String(variations));
-      const result = await apiJson<{ prompt: string; takes: GeneratedTake[] }>(
-        kind.api + '/generate',
-        { method: 'POST', body, signal: controller.signal },
-      );
-      setTakes({ prompt: result.prompt, items: result.takes });
+      const result = await apiJson<{
+        prompt: string;
+        takes: NonNullable<typeof takes>['items'];
+      }>(kind.api + '/generate', { method: 'POST', body });
+      patchGeneratorRun(kind.api, { takes: { prompt: result.prompt, items: result.takes } });
     } catch (failure) {
-      if (!controller.signal.aborted) setError(describeError(failure));
+      patchGeneratorRun(kind.api, { error: describeError(failure) });
     } finally {
-      request.current = null;
-      setBusy(false);
+      patchGeneratorRun(kind.api, { busy: false });
     }
   };
 
@@ -144,7 +135,21 @@ function AudioGenerator({ kind }: { kind: GeneratorKind }) {
         <p role="status" className="text-sm text-muted-foreground">
           {t('common.loading')}
         </p>
-      ) : !data?.ready ? (
+      ) : status.isError || !data ? (
+        <PipelineFailure
+          fallback={t('audioGenerator.status_failed')}
+          action={
+            <Button size="sm" variant="outline" onClick={() => void status.refetch()}>
+              <RotateCwIcon />
+              {t('common.retry')}
+            </Button>
+          }
+        />
+      ) : data.commercial_blocked ? (
+        <p role="status" className="rounded-xl border border-border/60 bg-muted/20 p-4 text-sm">
+          {t('audioGenerator.commercial_blocked', { license: data.license })}
+        </p>
+      ) : !data.ready ? (
         <section className="space-y-3 rounded-xl border border-border/60 bg-muted/20 p-4">
           <p className="text-sm">
             {text('install_body', {
@@ -263,7 +268,10 @@ function AudioGenerator({ kind }: { kind: GeneratorKind }) {
                       {take.duration_s == null ? takes.prompt : `${take.duration_s.toFixed(1)}s`}
                     </p>
                   </div>
-                  <SaveAudioButton url={audioUrl(file)} suggestedName={`${kind.fileStem}-${file}`} />
+                  <SaveAudioButton
+                    url={audioUrl(file)}
+                    suggestedName={`${kind.fileStem}-${file}`}
+                  />
                 </li>
               );
             })}

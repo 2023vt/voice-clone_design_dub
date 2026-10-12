@@ -135,3 +135,25 @@ def test_websocket_stream_refusal_carries_the_code(guard):
         frame = ws.receive_json()
     assert frame["type"] == "error" and frame["code"] == "commercial_use_blocked"
     assert frame["target"] == "omnivoice" and frame["status"] == "non_commercial"
+
+
+def test_tool_installs_are_refused_and_status_says_so(guard, monkeypatch):
+    """No multi-GB download of weights Commercial-safe mode would refuse to run."""
+    music = importlib.import_module("api.routers.music")
+    sfx = importlib.import_module("api.routers.sound_effects")
+    started = []
+    monkeypatch.setattr(music.music_gen, "start_install", lambda: started.append("music"))
+    monkeypatch.setattr(sfx.sfx, "start_install", lambda: started.append("sfx"))
+    monkeypatch.setattr(music.music_gen, "model_downloaded", lambda: False)
+    monkeypatch.setattr(sfx.sfx, "model_downloaded", lambda: False)
+    assert music.music_status()["commercial_blocked"] is False
+    assert sfx.sfx_status()["commercial_blocked"] is False
+
+    guard.set_commercial_only(True)
+    assert music.music_status()["commercial_blocked"] is True
+    assert sfx.sfx_status()["commercial_blocked"] is True
+    with pytest.raises(guard.CommercialUseBlocked):
+        music.music_install()
+    with pytest.raises(guard.CommercialUseBlocked):
+        sfx.sfx_install()
+    assert started == []

@@ -11,25 +11,53 @@ export interface DesignVariation {
   src: string;
   objectUrl: string | null;
   durationSeconds: number | null;
+  /** The take itself, so choosing this candidate can show it as the output. */
+  result: GenerateResult;
+  text: string;
 }
 
-export const designVariationsStore = new Store<DesignVariation[]>([]);
-
-export function useDesignVariations(): DesignVariation[] {
-  return useStore(designVariationsStore);
+interface DesignVariationsState {
+  /** The description the candidates were rendered from (see designVariationKey). */
+  key: string;
+  items: DesignVariation[];
 }
 
-export function clearDesignVariations(): void {
-  for (const variation of designVariationsStore.state) revokeObjectUrl(variation.objectUrl);
-  designVariationsStore.setState(() => []);
+export const designVariationsStore = new Store<DesignVariationsState>({ key: '', items: [] });
+
+/** What makes the voice: a seed only reproduces a candidate with the same
+ *  instruct and recipe, so candidates belong to this key. */
+export function designVariationKey(instruct: string, recipe: unknown): string {
+  return JSON.stringify([instruct, recipe ?? null]);
 }
 
-export function addDesignVariation(result: GenerateResult, seed: number): void {
+/** The candidates for ``key``; none when the description has changed since. */
+export function useDesignVariations(key: string): DesignVariation[] {
+  return useStore(designVariationsStore, (state) => (state.key === key ? state.items : NONE));
+}
+
+const NONE: DesignVariation[] = [];
+
+export function clearDesignVariations(key = ''): void {
+  for (const variation of designVariationsStore.state.items) revokeObjectUrl(variation.objectUrl);
+  designVariationsStore.setState(() => ({ key, items: [] }));
+}
+
+export function addDesignVariation(result: GenerateResult, seed: number, text: string): void {
   const objectUrl = createObjectUrl(result.blob);
   const src = result.audioPath ? audioUrl(result.audioPath) : objectUrl;
   if (!src) return;
-  designVariationsStore.setState((current) => [
+  designVariationsStore.setState((current) => ({
     ...current,
-    { seed: result.seed ?? seed, src, objectUrl, durationSeconds: result.durationSeconds },
-  ]);
+    items: [
+      ...current.items,
+      {
+        seed: result.seed ?? seed,
+        src,
+        objectUrl,
+        durationSeconds: result.durationSeconds,
+        result,
+        text,
+      },
+    ],
+  }));
 }

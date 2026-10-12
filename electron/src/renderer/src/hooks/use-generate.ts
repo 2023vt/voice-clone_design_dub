@@ -37,7 +37,11 @@ import { beginAppActivity } from '@/lib/app-activity';
 import { useTtsReadiness } from './use-tts-readiness';
 import { useEngines } from './use-engines';
 import { recordActionBreadcrumb } from '@/lib/report-breadcrumb';
-import { addDesignVariation, clearDesignVariations } from '@/lib/store/design-variations';
+import {
+  addDesignVariation,
+  clearDesignVariations,
+  designVariationKey,
+} from '@/lib/store/design-variations';
 import { pickDesignSeed } from '@shared/utils/seed';
 import { announceDroppedSpeech } from '@/lib/dropped-speech';
 
@@ -373,7 +377,7 @@ function useGenerateController(): UseGenerateClone {
         };
         const variations = design?.variations ?? 0;
         if (variations > 0) {
-          clearDesignVariations();
+          clearDesignVariations(designVariationKey(design?.instruct ?? '', design?.recipe));
           for (let index = 1; index <= variations; index += 1) {
             setVariation({ index, total: variations });
             setStage('preparing');
@@ -385,7 +389,7 @@ function useGenerateController(): UseGenerateClone {
             );
             announceResultNotices(result);
             setLatestOutput(result, input.text);
-            addDesignVariation(result, seed);
+            addDesignVariation(result, seed, input.text);
           }
           recordActionBreadcrumb(`generate:${reportMode}:complete`);
           toast.success(tr('tts.generationComplete'));

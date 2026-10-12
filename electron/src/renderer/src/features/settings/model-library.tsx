@@ -14,7 +14,6 @@ import {
   SearchIcon,
   SparklesIcon,
   Trash2Icon,
-  TriangleAlertIcon,
   type LucideIcon,
   WrenchIcon,
   XIcon,
@@ -26,8 +25,8 @@ import { ExternalLink } from '@/components/external-link';
 import { Input } from '@/components/ui/input';
 import { ConfirmDialog } from '@/features/clone/confirm-dialog';
 import { engineFamilyState, useEngines } from '@/hooks/use-engines';
-import { relaxWhenBackendBusy } from '@/lib/status-polling';
 import {
+  modelInstallJobTarget,
   TERMINAL_MODEL_INSTALL_STATES,
   useModelInstallJobs,
   type ModelInstallJob,
@@ -41,9 +40,7 @@ import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
 import { SettingsSection, SettingsRow } from './settings-layout';
 import { familyIcons, type ModelFamily } from './model-family';
 import { useModelCatalogue, type CatalogueModel } from './model-catalogue-query';
-import { ModelLicense } from './model-license';
 import { resolvePerformanceModelPack } from './performance-model-packs';
-import { modelDiskShortfall } from './model-disk-space';
 import { fmtBytes } from '@shared/components/settings/models/format';
 import {
   engineSelectionFeedback,
@@ -60,6 +57,7 @@ interface RecommendedModel {
 }
 
 interface ModelRecommendations {
+  target?: string;
   device: { label: string };
   models: RecommendedModel[];
   download_gb_remaining: number;
@@ -131,22 +129,20 @@ export function PerformanceModelPacks({ compact = false }: { compact?: boolean }
       : profile.data?.global) ??
     'balanced';
   const pack = resolvePerformanceModelPack(catalogue.data?.models ?? [], tier);
+  const installTarget = catalogue.data?.target ?? 'local';
   const packRepos = new Set(pack.models.map((model) => model.repo_id));
   const activeJobs =
     jobs.data?.jobs.filter(
-      (job) => packRepos.has(job.repo_id) && !TERMINAL_MODEL_INSTALL_STATES.has(job.state),
+      (job) =>
+        packRepos.has(job.repo_id) &&
+        modelInstallJobTarget(job) === installTarget &&
+        !TERMINAL_MODEL_INSTALL_STATES.has(job.state),
     ) ?? [];
   const progressBytes = activeJobs.reduce((total, job) => total + (job.bytes_done ?? 0), 0);
   const progressTotal = activeJobs.reduce((total, job) => total + (job.total_bytes ?? 0), 0);
   const progress = progressTotal > 0 ? Math.round((progressBytes / progressTotal) * 100) : null;
-  const diskShortfall = pack.missing.length
-    ? modelDiskShortfall(
-        pack.downloadGb,
-        catalogue.data?.disk_free_gb,
-        catalogue.data?.disk_headroom_gb,
-      )
-    : null;
-  const lowDisk = diskShortfall !== null;
+  const diskFree = catalogue.data?.disk_free_gb;
+  const lowDisk = pack.missing.length > 0 && diskFree != null && pack.downloadGb + 10 > diskFree;
   const busy = starting || profile.isSaving || activeJobs.length > 0;
 
   const refresh = () =>
@@ -175,7 +171,7 @@ export function PerformanceModelPacks({ compact = false }: { compact?: boolean }
         pack.missing.map((model) =>
           apiJson('/models/install', {
             method: 'POST',
-            body: JSON.stringify({ repo_id: model.repo_id }),
+            body: JSON.stringify({ repo_id: model.repo_id, target: installTarget }),
           }),
         ),
       );
@@ -255,13 +251,10 @@ export function PerformanceModelPacks({ compact = false }: { compact?: boolean }
                   <Icon className="size-3.5" aria-hidden="true" />
                 </span>
                 <span className="min-w-0 flex-1">
-                  {/* Name the model even in the compact setup view: a pack can
-                      hold two models of one family (two dictation engines). */}
                   <span className="block truncate text-xs font-medium" title={model.label}>
-                    {model.label}
+                    {compact ? t('engineSidebar.' + family) : model.label}
                   </span>
                   <span className="text-[11px] text-muted-foreground">
-                    {compact && `${t('engineSidebar.' + family)} · `}
                     {t(
                       model.installed ? 'modelMaintenance.installed' : 'modelMaintenance.download',
                     )}{' '}
@@ -295,10 +288,10 @@ export function PerformanceModelPacks({ compact = false }: { compact?: boolean }
           </div>
         )}
 
-        {diskShortfall && (
+        {lowDisk && (
           <p role="alert" className="flex items-start gap-2 text-xs text-warning-foreground">
             <AlertTriangleIcon className="mt-0.5 size-3.5 shrink-0" aria-hidden="true" />
-            {t('models.pack_low_disk', { ...diskShortfall })}
+            {t('models.reco_low_disk', { need: pack.downloadGb.toFixed(1), free: diskFree })}
           </p>
         )}
 
@@ -337,13 +330,18 @@ export function SystemRecommendations() {
   });
   const jobs = useModelInstallJobs();
   const data = recommendations.data;
+  const installTarget = data?.target ?? 'local';
   const [starting, setStarting] = useState<Set<string>>(new Set());
 
   if (recommendations.isError || !data) return null;
 
   const activeDownloads = new Set(
     jobs.data?.jobs
-      .filter((job) => !TERMINAL_MODEL_INSTALL_STATES.has(job.state))
+      .filter(
+        (job) =>
+          modelInstallJobTarget(job) === installTarget &&
+          !TERMINAL_MODEL_INSTALL_STATES.has(job.state),
+      )
       .map((job) => job.repo_id) ?? [],
   );
   for (const repo of starting) activeDownloads.add(repo);
@@ -384,7 +382,10 @@ export function SystemRecommendations() {
         requested.map((model) =>
           apiJson('/models/install', {
             method: 'POST',
-            body: JSON.stringify({ repo_id: model.repo_id }),
+            body: JSON.stringify({
+              repo_id: model.repo_id,
+              target: data.target ?? 'local',
+            }),
           }),
         ),
       );
@@ -402,11 +403,7 @@ export function SystemRecommendations() {
   };
   const anyActive = activeDownloads.size > 0;
   const requiredGb = requiredMissing.reduce((sum, model) => sum + model.size_gb, 0);
-  const diskShortfall = modelDiskShortfall(
-    data.download_gb_remaining,
-    diskFree,
-    catalogue.data?.disk_headroom_gb,
-  );
+  const lowDisk = diskFree != null && data.download_gb_remaining > diskFree;
 
   return (
     <SettingsSection
@@ -448,13 +445,16 @@ export function SystemRecommendations() {
             </div>
           )}
         </div>
-        {diskShortfall && (
+        {lowDisk && (
           <p
             role="alert"
             className="flex items-start gap-2 text-xs leading-relaxed text-warning-foreground"
           >
             <AlertTriangleIcon aria-hidden="true" className="mt-0.5 size-3.5 shrink-0" />
-            {t('models.reco_low_disk', { ...diskShortfall })}
+            {t('models.reco_low_disk', {
+              need: data.download_gb_remaining,
+              free: diskFree,
+            })}
           </p>
         )}
         {data.all_installed ? (
@@ -552,6 +552,8 @@ export function ModelLibrary({
   const { t } = useTranslation();
   const client = useQueryClient();
   const catalogue = useModelCatalogue();
+  const installTarget = catalogue.data?.target ?? 'local';
+  const isRemoteCatalogue = installTarget !== 'local';
   const engineQuery = useEngines();
   const dictationPrefs = useQuery({
     queryKey: ['model-library-dictation-prefs'],
@@ -587,7 +589,7 @@ export function ModelLibrary({
     queryFn: () => apiJson<LoadedModelsResponse>('/model/loaded'),
     enabled: !setup,
     staleTime: 5_000,
-    refetchInterval: () => relaxWhenBackendBusy(15_000),
+    refetchInterval: 15_000,
   });
   const models = catalogue.data?.models.filter((model) => {
     if (setup) return model.supported !== false;
@@ -642,7 +644,7 @@ export function ModelLibrary({
   const installRequest = (repo: string) =>
     apiJson('/models/install', {
       method: 'POST',
-      body: JSON.stringify({ repo_id: repo }),
+      body: JSON.stringify({ repo_id: repo, target: installTarget }),
     });
   const action = async (repo: string, cancel = false) => {
     setPending(repo);
@@ -656,7 +658,7 @@ export function ModelLibrary({
       if (cancel) {
         await apiJson('/models/install/cancel', {
           method: 'POST',
-          body: JSON.stringify({ repo_id: repo }),
+          body: JSON.stringify({ repo_id: repo, target: installTarget }),
         });
       } else {
         await installRequest(repo);
@@ -811,7 +813,9 @@ export function ModelLibrary({
     }
   };
   const renderModel = (model: CatalogueModel) => {
-    const job = jobs.data?.jobs.find((job) => job.repo_id === model.repo_id);
+    const job = jobs.data?.jobs.find(
+      (job) => job.repo_id === model.repo_id && modelInstallJobTarget(job) === installTarget,
+    );
     const downloading = Boolean(job && !TERMINAL_MODEL_INSTALL_STATES.has(job.state));
     const cancelling = job?.state === 'cancelling' || job?.phase === 'cancelling';
     const failedJob = job?.state === 'failed' && !dismissedFailures.has(model.repo_id);
@@ -832,7 +836,6 @@ export function ModelLibrary({
             label: 'settings.storage',
           };
         case 'HF_MIRROR_UNREACHABLE':
-        case 'HF_MIRROR_GATED':
           return {
             to: '/settings/models' as const,
             label: 'models.mirror_title',
@@ -927,12 +930,6 @@ export function ModelLibrary({
             {t('firstrun.chip_recommended')}
           </span>
         )}
-        <ModelLicense
-          repoId={model.repo_id}
-          label={model.label}
-          info={model.license_info}
-          acceptance={model.license_acceptance}
-        />
         {!activeAsrModel &&
           (activeEngineModel || activeDictationModel || activeDiarisationModel) && (
             <span className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs text-primary">
@@ -1028,9 +1025,7 @@ export function ModelLibrary({
               {t('modelMaintenance.failed')}
             </summary>
             <p role="alert" className="mt-2 break-words text-muted-foreground">
-              {job?.docs_topic === 'HF_MIRROR_GATED'
-                ? t('modelMaintenance.mirrorGatedAccess')
-                : job?.error || t('modelMaintenance.failed')}
+              {job?.error || t('modelMaintenance.failed')}
             </p>
             <div className="mt-2 flex flex-wrap gap-1">
               <Button
@@ -1111,18 +1106,10 @@ export function ModelLibrary({
           </>
         ) : model.installed ? (
           <>
-            {model.license_acceptance?.required && !model.license_acceptance.accepted ? (
-              // Downloaded but unusable until its licence is accepted.
-              <span className="flex items-center gap-1 rounded-full bg-warning/10 px-2 py-1 text-xs text-warning">
-                <TriangleAlertIcon className="size-3.5" />
-                {t('modelLicense.acceptNeeded')}
-              </span>
-            ) : (
-              <span className="flex items-center gap-1 text-xs">
-                <CheckIcon className="size-3.5" />
-                {t('modelMaintenance.installed')}
-              </span>
-            )}
+            <span className="flex items-center gap-1 text-xs">
+              <CheckIcon className="size-3.5" />
+              {t('modelMaintenance.installed')}
+            </span>
             {!setup && resident && (
               <span
                 className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-1 text-xs text-primary"
@@ -1139,7 +1126,7 @@ export function ModelLibrary({
                 {resident.device ? ` · ${resident.device}` : ''}
               </span>
             )}
-            {!setup && resident?.unloadable && (
+            {!setup && !isRemoteCatalogue && resident?.unloadable && (
               <Button
                 size="sm"
                 variant="outline"
@@ -1184,7 +1171,7 @@ export function ModelLibrary({
                 {t(activeDictationModel ? 'modelSettings.selected' : 'modelSettings.select')}
               </Button>
             )}
-            {!setup && (
+            {!setup && !isRemoteCatalogue && (
               <>
                 <Button
                   size="icon-sm"

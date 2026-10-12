@@ -11,6 +11,7 @@ const settingsRoutes = new Set([
   '/settings/credentials',
   '/settings/performance',
   '/settings/usage',
+  '/settings/workers',
   '/settings/privacy',
   '/settings/permissions',
   '/settings/storage',

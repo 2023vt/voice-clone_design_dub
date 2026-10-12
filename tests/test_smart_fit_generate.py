@@ -82,7 +82,6 @@ async def _fake_stretch(wav, target_samples, sr):
 @pytest.fixture
 def patched_generate(monkeypatch, tmp_path):
     import api.routers.dub_generate as dg
-    from services import audio_io
 
     model = _FakeModel()
 
@@ -186,7 +185,6 @@ def test_final_dub_track_and_seg_wav_are_watermarked(patched_generate, monkeypat
     """
     run, model, job, job_dir = patched_generate
     import api.routers.dub_generate as dg
-    from services import audio_io
     from services import watermark
     import torchaudio
 
@@ -451,9 +449,8 @@ def test_natural_cache_remix_skips_mix_scratch_roundtrip(
     run(_body(segs, timing_strategy=natural_strategy))
 
     import api.routers.dub_generate as dg
-    from services import audio_io
 
-    original_load = audio_io.torchaudio.load
+    original_load = dg.torchaudio.load
     original_save = dg.atomic_save_wav
     loaded_paths: list[str] = []
     saved_paths: list[str] = []
@@ -466,7 +463,7 @@ def test_natural_cache_remix_skips_mix_scratch_roundtrip(
         saved_paths.append(os.fspath(path))
         return original_save(path, *args, **kwargs)
 
-    monkeypatch.setattr(audio_io.torchaudio, "load", spy_load)
+    monkeypatch.setattr(dg.torchaudio, "load", spy_load)
     monkeypatch.setattr(dg, "atomic_save_wav", spy_save)
     model.calls.clear()
 
@@ -490,7 +487,6 @@ def test_foreign_rate_natural_cache_keeps_resample_scratch_fallback(
     run(_body(segs, timing_strategy="concise"))
 
     import api.routers.dub_generate as dg
-    from services import audio_io
     import torchaudio
     import torchaudio.functional as AF
 
@@ -499,7 +495,7 @@ def test_foreign_rate_natural_cache_keeps_resample_scratch_fallback(
     foreign_sr = cached_sr // 2
     torchaudio.save(cached_path, AF.resample(cached_wav, cached_sr, foreign_sr), foreign_sr)
 
-    original_load = audio_io.torchaudio.load
+    original_load = dg.torchaudio.load
     original_save = dg.atomic_save_wav
     loaded_names: list[str] = []
     saved_names: list[str] = []
@@ -512,7 +508,7 @@ def test_foreign_rate_natural_cache_keeps_resample_scratch_fallback(
         saved_names.append(os.path.basename(os.fspath(path)))
         return original_save(path, *args, **kwargs)
 
-    monkeypatch.setattr(audio_io.torchaudio, "load", spy_load)
+    monkeypatch.setattr(dg.torchaudio, "load", spy_load)
     monkeypatch.setattr(dg, "atomic_save_wav", spy_save)
     model.calls.clear()
 
@@ -534,9 +530,8 @@ def test_natural_cache_decode_failure_blocks_export(
     run(_body(segs, timing_strategy="concise"))
 
     import api.routers.dub_generate as dg
-    from services import audio_io
 
-    original_load = audio_io.torchaudio.load
+    original_load = dg.torchaudio.load
     cached_path = str(job_dir / "seg_es_0.wav")
 
     def fail_cached_decode(path, *args, **kwargs):
@@ -544,7 +539,7 @@ def test_natural_cache_decode_failure_blocks_export(
             raise RuntimeError("truncated cached audio")
         return original_load(path, *args, **kwargs)
 
-    monkeypatch.setattr(audio_io.torchaudio, "load", fail_cached_decode)
+    monkeypatch.setattr(dg.torchaudio, "load", fail_cached_decode)
     model.calls.clear()
 
     parsed = run(_body(segs, timing_strategy="concise", regen_only=[]))
@@ -560,7 +555,6 @@ def test_rvc_keeps_natural_rate_audio_outside_strict_slot(
     """RVC output obeys the same timing-mode cache invariant as plain TTS."""
     run, _model, job, job_dir = patched_generate
     import api.routers.dub_generate as dg
-    from services import audio_io
     import torchaudio
 
     monkeypatch.setattr(dg, "rvc_is_enabled", lambda: True)

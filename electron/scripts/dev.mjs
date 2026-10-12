@@ -62,8 +62,8 @@ function run(command, args) {
   }
 }
 
-function replacePlistValue(infoPlist, key, value, runCommand = run) {
-  runCommand('plutil', ['-replace', key, '-string', value, infoPlist]);
+function replacePlistValue(infoPlist, key, value) {
+  run('plutil', ['-replace', key, '-string', value, infoPlist]);
 }
 
 export function prepareMacDevElectron({
@@ -72,7 +72,6 @@ export function prepareMacDevElectron({
   appVersion,
   iconPath,
   cacheRoot = defaultCacheRoot,
-  runCommand = run,
 }) {
   const icon = statSync(iconPath);
   const cacheFingerprint = `${icon.size}-${String(icon.mtimeMs).replace('.', '_')}`;
@@ -91,12 +90,13 @@ export function prepareMacDevElectron({
     iconModified: icon.mtimeMs,
   });
 
-  const cacheIsValid = () =>
+  if (
     existsSync(plan.destinationExecutable) &&
     existsSync(plan.manifest) &&
-    readFileSync(plan.manifest, 'utf8') === expectedManifest;
-
-  if (cacheIsValid()) return plan.destinationExecutable;
+    readFileSync(plan.manifest, 'utf8') === expectedManifest
+  ) {
+    return plan.destinationExecutable;
+  }
 
   mkdirSync(cacheRoot, { recursive: true });
   const stagingRoot = mkdtempSync(join(cacheRoot, '.staging-'));
@@ -107,24 +107,17 @@ export function prepareMacDevElectron({
   try {
     // APFS clone-copy keeps this fast and avoids duplicating Electron's full
     // framework bundle. The copied bundle is then re-signed after branding.
-    runCommand('cp', ['-cR', plan.sourceBundle, stagingBundle]);
+    run('cp', ['-cR', plan.sourceBundle, stagingBundle]);
     const infoPlist = join(stagingBundle, 'Contents', 'Info.plist');
-    replacePlistValue(infoPlist, 'CFBundleDisplayName', APP_NAME, runCommand);
-    replacePlistValue(infoPlist, 'CFBundleName', APP_NAME, runCommand);
-    replacePlistValue(infoPlist, 'CFBundleIdentifier', 'com.voicestudio.desktop.dev', runCommand);
-    replacePlistValue(infoPlist, 'CFBundleIconFile', `${APP_NAME}.icns`, runCommand);
-    replacePlistValue(infoPlist, 'CFBundleShortVersionString', appVersion, runCommand);
-    replacePlistValue(infoPlist, 'CFBundleVersion', appVersion, runCommand);
+    replacePlistValue(infoPlist, 'CFBundleDisplayName', APP_NAME);
+    replacePlistValue(infoPlist, 'CFBundleName', APP_NAME);
+    replacePlistValue(infoPlist, 'CFBundleIdentifier', 'com.voicestudio.desktop.dev');
+    replacePlistValue(infoPlist, 'CFBundleIconFile', `${APP_NAME}.icns`);
+    replacePlistValue(infoPlist, 'CFBundleShortVersionString', appVersion);
+    replacePlistValue(infoPlist, 'CFBundleVersion', appVersion);
     copyFileSync(iconPath, join(stagingBundle, 'Contents', 'Resources', `${APP_NAME}.icns`));
-    runCommand('codesign', ['--force', '--deep', '--sign', '-', stagingBundle]);
+    run('codesign', ['--force', '--deep', '--sign', '-', stagingBundle]);
     writeFileSync(join(stagingRoot, 'brand-manifest.json'), expectedManifest);
-
-    // Reaching here means the cache failed validation (e.g. its executable was
-    // lost). The invalid remnant still occupies the target, so the rename below
-    // would fail with ENOTEMPTY on every run; clear it first. A concurrent
-    // launcher may have just published a valid bundle, which we keep instead.
-    if (cacheIsValid()) return plan.destinationExecutable;
-    rmSync(plan.destinationRoot, { recursive: true, force: true });
 
     try {
       renameSync(stagingRoot, plan.destinationRoot);
@@ -138,7 +131,11 @@ export function prepareMacDevElectron({
       ) {
         throw error;
       }
-      if (!cacheIsValid()) {
+      if (
+        !existsSync(plan.destinationExecutable) ||
+        !existsSync(plan.manifest) ||
+        readFileSync(plan.manifest, 'utf8') !== expectedManifest
+      ) {
         throw new Error('Concurrent macOS development bundle creation produced an invalid cache');
       }
     }
@@ -149,18 +146,11 @@ export function prepareMacDevElectron({
   return plan.destinationExecutable;
 }
 
-export function launchElectronVite(
-  args = process.argv.slice(2),
-  spawnProcess = spawn,
-  resolveElectronExecutable = () => require('electron'),
-) {
+export function launchElectronVite(args = process.argv.slice(2), spawnProcess = spawn) {
   const electronVitePackage = require.resolve('electron-vite/package.json');
   const { bin } = JSON.parse(readFileSync(electronVitePackage, 'utf8'));
   const electronViteBin = resolve(dirname(electronVitePackage), bin['electron-vite']);
   const env = { ...process.env };
-  // Electron 42+ downloads lazily through its public entry point. electron-vite
-  // reads path.txt directly, so resolve the binary before it starts on every OS.
-  env.ELECTRON_EXEC_PATH ||= resolveElectronExecutable();
 
   if (process.platform === 'darwin') {
     const electronPackage = require.resolve('electron/package.json');
@@ -169,7 +159,7 @@ export function launchElectronVite(
       readFileSync(join(repoRoot, 'package.json'), 'utf8'),
     );
     env.ELECTRON_EXEC_PATH = prepareMacDevElectron({
-      electronExecutable: env.ELECTRON_EXEC_PATH,
+      electronExecutable: require('electron'),
       electronVersion,
       appVersion,
       iconPath: join(electronRoot, 'build', 'icons', 'icon.icns'),

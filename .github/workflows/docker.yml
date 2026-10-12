@@ -1,23 +1,18 @@
 # Publish Docker images to GitHub Container Registry (GHCR).
 #
 # Triggers:
-#   - GitHub Release published (`v*` tag, e.g. `v0.3.0`) → :0.3.0, :0.3, :stable, :sha-
-#     (never :latest; a tag push alone publishes nothing, so release images wait
-#     until the reviewed Electron draft release is published)
-#   - push to main branch                          → :latest, :main, :sha- (rolling preview)
-#   - workflow_dispatch                            → :sha- only (ad-hoc test build), or
-#     with backfill_release=true the release tags for an existing `vX.Y.Z` tag.
-#     Releases published by electron-release.yml (GITHUB_TOKEN, which cannot
-#     fire `release` events) dispatch that backfill path automatically.
+#   - push of a tag matching `v*` (e.g. `v0.3.0`) → :0.3.0, :0.3, :latest, :sha-
+#   - push to main branch                          → :main, :sha- (rolling "edge" build)
+#   - workflow_dispatch                            → :sha- only (ad-hoc test build)
 #
 # Tag ↔ image mapping (versioning hard rule, owner-set 2026-06-11:
 # :latest IS the preview channel; stable users pin :stable or a version tag)
-#   :latest   — rolling preview: latest commit on main (never a release build)
+#   :latest   — rolling preview: latest commit on main (always last release + 1 dev)
 #   :main     — alias of the same rolling main build (kept for back-compat)
-#   :stable   — most recent versioned release (set when a non-prerelease is published)
+#   :stable   — most recent versioned release (set on every v* tag push)
 #   :0.3.6    — exact version from the git tag
 #   :0.3      — major.minor floating tag (updated on every patch within the minor)
-#   :sha-xxxx — specific commit SHA; produced by every build
+#   :sha-xxxx — specific commit SHA; produced by workflow_dispatch
 #
 # ROCm/AMD GPU variant (#1165) — same semantics, `-rocm` suffixed, built by the
 # build-and-push-rocm job from the same Dockerfile via the BASE_IMAGE build-arg:
@@ -36,7 +31,7 @@
 # deploy/dockerhub-overview.md (source of truth for the hub.docker.com page).
 #
 # NOTE: the Docker image is the headless web-server build of VoiceStudio (FastAPI
-# backend + pre-built React frontend served over HTTP).  The desktop
+# backend + pre-built React frontend served over HTTP).  The Tauri desktop
 # auto-updater and its update-channel toggle are desktop-only features; they do
 # NOT apply to the Docker image.
 
@@ -44,9 +39,8 @@ name: Docker (GHCR)
 
 on:
   push:
+    tags: ['v*']
     branches: [main]
-  release:
-    types: [published]
   workflow_dispatch:
     inputs:
       backfill_release:
@@ -78,11 +72,9 @@ env:
 
 jobs:
   build-and-push:
-    # Only version releases publish images; other release tags are ignored.
-    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.backfill_release && inputs.release_ref || github.sha }}
 
@@ -122,13 +114,13 @@ jobs:
 
       # QEMU enables cross-platform builds (arm64 on x64 runner).
       # Skipped for now — only building linux/amd64.
-      # - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3.7.0
+      # - uses: docker/setup-qemu-action@v3
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -142,24 +134,23 @@ jobs:
 
       - name: Log in to Docker Hub
         if: steps.dockerhub.outputs.enabled == 'true'
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
       # Tag strategy (`:sha-<short>` is emitted on every trigger):
-      #   v0.3.6 release published → :0.3.6, :0.3, :stable, :sha-
-      #   main branch push         → :latest, :main, :sha-
-      #   workflow_dispatch        → :sha- only (backfill retags below)
+      #   v0.3.6 tag push   → :0.3.6, :0.3, :stable, :sha-
+      #   main branch push  → :latest, :main, :sha-
+      #   workflow_dispatch → :sha- only
       #
-      # Every mutable-tag rule is gated on its event, so a manual
-      # workflow_dispatch can only ever produce a throwaway `:sha-` tag (the
-      # stale-:latest fix from #249/#251). latest=false stops metadata-action's
-      # `auto` default from adding :latest to release builds; :latest is the
-      # main preview channel only. :stable excludes prereleases.
+      # All mutable-tag rules stay gated on `github.event_name == 'push'` so a
+      # manual workflow_dispatch can only ever produce a throwaway `:sha-` tag
+      # (the stale-:latest fix from #249/#251). :stable excludes prerelease
+      # tags (those contain a `-`) so a prerelease can't clobber it.
       - name: Extract metadata (tags, labels)
         id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        uses: docker/metadata-action@v5
         with:
           # Same tag set applied to both registries. The Docker Hub line is
           # blank when the secret is unset, so metadata-action emits GHCR-only
@@ -168,18 +159,16 @@ jobs:
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
             ${{ env.REGISTRY }}/${{ env.LEGACY_IMAGE_NAME }}
             ${{ steps.dockerhub.outputs.enabled == 'true' && env.DOCKERHUB_IMAGE || '' }}
-          flavor: |
-            latest=false
           tags: |
-            type=semver,pattern={{version}},enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' }}
-            type=raw,value=stable,enable=${{ github.event_name == 'release' && !github.event.release.prerelease && !contains(github.ref, '-') }}
+            type=semver,pattern={{version}},enable=${{ github.event_name == 'push' }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'push' }}
+            type=raw,value=stable,enable=${{ github.event_name == 'push' && github.ref_type == 'tag' && !contains(github.ref, '-') }}
             type=raw,value=latest,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
             type=raw,value=main,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
             type=raw,value=sha-${{ steps.source.outputs.short_sha }}
 
       - name: Build and push
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: deploy/Dockerfile
@@ -234,7 +223,7 @@ jobs:
       - name: Update Docker Hub description
         if: steps.dockerhub.outputs.enabled == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
         continue-on-error: true
-        uses: peter-evans/dockerhub-description@432a30c9e07499fd01da9f8a49f0faf9e0ca5b77 # v4.0.2
+        uses: peter-evans/dockerhub-description@v4
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -249,11 +238,9 @@ jobs:
   # build step — so it gets a full runner disk to itself: the ROCm base alone
   # is ~10 GB compressed / ~25 GB unpacked.
   build-and-push-rocm:
-    # Only version releases publish images; other release tags are ignored.
-    if: github.event_name != 'release' || startsWith(github.event.release.tag_name, 'v')
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+      - uses: actions/checkout@v4
         with:
           ref: ${{ inputs.backfill_release && inputs.release_ref || github.sha }}
 
@@ -291,10 +278,10 @@ jobs:
           df -h /
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3.12.0
+        uses: docker/setup-buildx-action@v3
 
       - name: Log in to GHCR
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -308,7 +295,7 @@ jobs:
 
       - name: Log in to Docker Hub
         if: steps.dockerhub.outputs.enabled == 'true'
-        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3.7.0
+        uses: docker/login-action@v3
         with:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
@@ -317,21 +304,21 @@ jobs:
       # prerelease gating) with a `-rocm` suffix on every tag.
       - name: Extract metadata (tags, labels)
         id: meta
-        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5.10.0
+        uses: docker/metadata-action@v5
         with:
           images: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
             ${{ env.REGISTRY }}/${{ env.LEGACY_IMAGE_NAME }}
             ${{ steps.dockerhub.outputs.enabled == 'true' && env.DOCKERHUB_IMAGE || '' }}
           # latest=false is load-bearing: metadata-action's default (`auto`)
-          # would add a bare un-suffixed `:latest` on release builds,
+          # would add a bare un-suffixed `:latest` on release-tag pushes,
           # clobbering the CUDA preview channel with a ROCm image.
           flavor: |
             latest=false
           tags: |
-            type=semver,pattern={{version}},suffix=-rocm,enable=${{ github.event_name == 'release' }}
-            type=semver,pattern={{major}}.{{minor}},suffix=-rocm,enable=${{ github.event_name == 'release' }}
-            type=raw,value=stable-rocm,enable=${{ github.event_name == 'release' && !github.event.release.prerelease && !contains(github.ref, '-') }}
+            type=semver,pattern={{version}},suffix=-rocm,enable=${{ github.event_name == 'push' }}
+            type=semver,pattern={{major}}.{{minor}},suffix=-rocm,enable=${{ github.event_name == 'push' }}
+            type=raw,value=stable-rocm,enable=${{ github.event_name == 'push' && github.ref_type == 'tag' && !contains(github.ref, '-') }}
             type=raw,value=rocm,enable=${{ github.event_name == 'push' && github.ref == 'refs/heads/main' }}
             type=raw,value=sha-${{ steps.source.outputs.short_sha }}-rocm
 
@@ -340,7 +327,7 @@ jobs:
       # multi-GB ROCm runtime layers would blow GitHub's 10 GB per-repo
       # Actions cache budget and evict the CUDA job's cache.
       - name: Build and push (ROCm)
-        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6.19.2
+        uses: docker/build-push-action@v6
         with:
           context: .
           file: deploy/Dockerfile

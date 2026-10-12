@@ -4,8 +4,6 @@
 # The backend loads it at startup via `load_model_catalog()`.
 #
 # To add a model: append an entry with the fields below.
-# Add its licence/evidence record to model_licenses.json in the same change;
-# CI checks top-level entries, nested dependencies and source-code defaults.
 # To remove: delete the entry. The UI will stop showing it immediately.
 #
 # Fields:
@@ -135,8 +133,7 @@ models:
     role: ASR
     engines: [faster-whisper, faster-whisper-isolated, whisperx]
     size_gb: 0.5
-    curated_on: [cpu]
-    note: "Quick previews and testing. ~2× faster than medium. The light pick on CPU-only machines, where large-v3 is slow and memory-hungry."
+    note: "Quick previews and testing. ~2× faster than medium."
 
   - repo_id: "Systran/faster-whisper-base"
     label: "Whisper base (minimal, fastest Whisper)"

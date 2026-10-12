@@ -16,9 +16,8 @@ Endpoints (admin-gated; loopback or authenticated server mode):
     GET    /pronunciation/export       → all entries as JSON (round-trips import)
     POST   /pronunciation/import       → bulk add entries from JSON
 
-Scope: ``language='*'`` is global (applies to every request); a language id
-(``'en'``, ``'kbt'``; picker names like ``'Spanish'`` are saved as their id)
-applies only when the request language resolves to the same id.
+Scope: ``language='*'`` is global (applies to every request); a 2-letter code
+(``'en'``, ``'de'``) applies only when the request language matches.
 """
 from __future__ import annotations
 
@@ -37,8 +36,6 @@ from services.pronunciation import (
     apply_pronunciation,
     entries_for_language,
     inert_entries_for_language,
-    language_scope_key,
-    load_entries_from_db,
 )
 
 logger = logging.getLogger("omnivoice.pronunciation")
@@ -91,9 +88,13 @@ def _validate_type_replacement(etype: str, replacement: str) -> None:
 
 
 def _norm_language(language: Optional[str]) -> str:
-    """Normalize a scope to '*' (global) or a language id (``language_scope_key``):
-    picker names resolve to their id, regional tags to the base id."""
-    return language_scope_key(language) or _ALL_LANG
+    """Normalize a scope to '*' (global) or a lowercase 2-letter code."""
+    if not language:
+        return _ALL_LANG
+    s = str(language).strip()
+    if not s or s == _ALL_LANG or s.lower() == "auto":
+        return _ALL_LANG
+    return s.lower()[:2]
 
 
 def _row_to_dict(r) -> dict:
@@ -138,7 +139,12 @@ class PronImportRequest(BaseModel):
 
 @router.get("/pronunciation")
 def list_entries():
-    return [_row_to_dict(r) for r in load_entries_from_db()]
+    with db_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, term, replacement, type, language, enabled, created_at "
+            "FROM pronunciation_entries ORDER BY created_at ASC, id ASC"
+        ).fetchall()
+    return [_row_to_dict(r) for r in rows]
 
 
 @router.post("/pronunciation")
@@ -241,8 +247,11 @@ def test_substitution(req: PronTestRequest):
     Applies the same dictionary + inline ``[[…]]`` resolution the synth path
     runs, so the user sees exactly what the engine will be handed.
     """
-    # Same rows in the same order as synthesis, so duplicate terms resolve alike.
-    rows = load_entries_from_db()
+    with db_conn() as conn:
+        rows = conn.execute(
+            "SELECT id, term, replacement, type, language, enabled, created_at "
+            "FROM pronunciation_entries"
+        ).fetchall()
     substituted = apply_pronunciation(req.text, rows, req.language)
     applied = entries_for_language(rows, req.language)
     # IPA/CMU rows are validated and stored but not applied yet, so a term that
@@ -263,9 +272,11 @@ def test_substitution(req: PronTestRequest):
 @router.get("/pronunciation/export")
 def export_entries():
     """Every entry as a JSON-serializable list (round-trips ``/import``)."""
-    # Entry order is precedence order; importing rows back in this order
-    # reproduces it.
-    rows = load_entries_from_db()
+    with db_conn() as conn:
+        rows = conn.execute(
+            "SELECT term, replacement, type, language, enabled "
+            "FROM pronunciation_entries ORDER BY created_at ASC, id ASC"
+        ).fetchall()
     return {"entries": [
         {"term": r["term"], "replacement": r["replacement"], "type": r["type"],
          "language": r["language"], "enabled": bool(r["enabled"])}

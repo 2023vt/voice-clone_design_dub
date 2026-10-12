@@ -32,7 +32,6 @@ import numpy as np
 import torch
 
 from omnivoice import OmniVoice, OmniVoiceGenerationConfig
-from omnivoice.utils.dtype import tts_dtype_name
 from omnivoice.utils.lang_map import LANG_NAMES, lang_display_name
 
 
@@ -523,7 +522,7 @@ def main(argv=None) -> int:
     model = OmniVoice.from_pretrained(
         checkpoint,
         device_map=device,
-        dtype=getattr(torch, tts_dtype_name(device)),
+        dtype=torch.float16,
         load_asr=not args.no_asr,
     )
     print("Model loaded.")

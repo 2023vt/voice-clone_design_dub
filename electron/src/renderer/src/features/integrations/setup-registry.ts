@@ -10,7 +10,6 @@ import { n8nSetup } from './n8n-setup';
 import { openaiAgentsSetup } from './openai-agents-setup';
 import type { ComponentType, ReactNode } from 'react';
 import { TwilioSetup, TWILIO_DOCS } from './twilio-setup';
-import { DEFAULT_BACKEND_PORT } from '@shared/app-config';
 
 /**
  * Directory entries VoiceStudio actually works with, keyed by catalog slug.
@@ -71,8 +70,6 @@ export interface IntegrationSetup {
 const REPO_DOCS = 'https://github.com/debpalash/VoiceStudio/blob/main/docs';
 const DOCKER_HUB_IMAGE = 'palashdeb/omnivoice-studio';
 const GHCR_IMAGE = 'ghcr.io/debpalash/voicestudio';
-// Published images keep this stable even when a desktop build chooses another local default.
-const PUBLISHED_CONTAINER_PORT = 3900;
 
 function mcpClient(slug: keyof typeof MCP_CLIENTS): IntegrationSetup {
   return {
@@ -102,12 +99,10 @@ function dockerRun(image: string) {
     'export OMNIVOICE_API_KEY="$(python3 -c \'import secrets; print(secrets.token_urlsafe(32))\')"',
     '',
     'docker run -d --name omnivoice \\',
-    `  -p 127.0.0.1:${DEFAULT_BACKEND_PORT}:${PUBLISHED_CONTAINER_PORT} \\`,
-    `  -e OMNIVOICE_PORT=${PUBLISHED_CONTAINER_PORT} \\`,
+    '  -p 127.0.0.1:3900:3900 \\',
     '  -e OMNIVOICE_API_KEY="$OMNIVOICE_API_KEY" \\',
     '  -v omnivoice-data:/app/omnivoice_data \\',
-    // The image's HF_HOME; mounting the host cache there reuses its downloads.
-    '  -v ~/.cache/huggingface:/app/omnivoice_data/huggingface \\',
+    '  -v ~/.cache/huggingface:/root/.cache/huggingface \\',
     `  ${image}:stable`,
     '',
   ].join('\n');
@@ -121,11 +116,10 @@ function dockerRunPowerShell(image: string) {
     "$env:OMNIVOICE_API_KEY = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')",
     '',
     'docker run -d --name omnivoice `',
-    `  -p 127.0.0.1:${DEFAULT_BACKEND_PORT}:${PUBLISHED_CONTAINER_PORT} \``,
-    `  -e OMNIVOICE_PORT=${PUBLISHED_CONTAINER_PORT} \``,
+    '  -p 127.0.0.1:3900:3900 `',
     '  -e OMNIVOICE_API_KEY="$env:OMNIVOICE_API_KEY" `',
     '  -v omnivoice-data:/app/omnivoice_data `',
-    '  -v "${HOME}/.cache/huggingface:/app/omnivoice_data/huggingface" `',
+    '  -v "${HOME}/.cache/huggingface:/root/.cache/huggingface" `',
     `  ${image}:stable`,
     '',
   ].join('\n');
@@ -137,9 +131,9 @@ function dockerCompose(image: string) {
     '  omnivoice:',
     `    image: ${image}:stable`,
     '    ports:',
-    `      - "127.0.0.1:${DEFAULT_BACKEND_PORT}:${PUBLISHED_CONTAINER_PORT}"`,
+    '      - "127.0.0.1:3900:3900"',
     '    environment:',
-    `      - OMNIVOICE_PORT=${PUBLISHED_CONTAINER_PORT}`,
+    '      - OMNIVOICE_BIND_HOST=0.0.0.0',
     '      - OMNIVOICE_API_KEY=${OMNIVOICE_API_KEY:?set a long random key}',
     '      - OMNIVOICE_DATA_DIR=/app/omnivoice_data',
     '      - HF_HOME=/app/omnivoice_data/huggingface',

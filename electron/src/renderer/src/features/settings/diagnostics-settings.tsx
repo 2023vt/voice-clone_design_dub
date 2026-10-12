@@ -26,7 +26,6 @@ import { apiJson, describeError } from '@/lib/api/client';
 import type { SystemInfo } from '@/lib/api/types';
 import { brandIcon } from '@/lib/brand';
 import { SettingsActionError } from './settings-action-error';
-import { ModelCredits } from './model-credits';
 import { SettingsRow, SettingsSection } from './settings-layout';
 
 type CheckStatus = 'ok' | 'warn' | 'fail';
@@ -264,8 +263,6 @@ export function DiagnosticsSettings() {
           </span>
         </SettingsRow>
       </SettingsSection>
-
-      <ModelCredits />
 
       <SettingsSection icon={ActivityIcon} title={t('about.diagnostics')}>
         <div className="flex flex-wrap items-center gap-2 p-4">

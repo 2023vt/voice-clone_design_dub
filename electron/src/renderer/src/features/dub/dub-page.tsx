@@ -8,10 +8,17 @@ import { getBridge } from '@/components/bridge';
 import { WorkspaceHeader } from '@/components/app-shell/workspace-header';
 import { Switch } from '@/components/ui/switch';
 import { MAX_COOKIE_EXPORT_BYTES } from '@shared/utils/cookieExport';
-import { hasCompleteTranslation, multiLangTargets } from '@shared/utils/multiLang';
+import {
+  hasCompleteTranslation,
+  multiLangTargets,
+} from '@shared/utils/multiLang';
 import { segmentGenInputs } from '@shared/utils/segments';
 import { clampSegmentEdit } from '@shared/utils/timeline';
-import { dialectLabel, dialectMatchesLang, dialectOptionsFor } from '@shared/api/dialects';
+import {
+  dialectLabel,
+  dialectMatchesLang,
+  dialectOptionsFor,
+} from '@shared/api/dialects';
 import { DubExportPanel } from './dub-export-panel';
 import { DubTimeline } from './dub-timeline';
 import { PasteTranslation } from './paste-translation';
@@ -49,7 +56,6 @@ import {
   ClipboardPasteIcon,
   Clock3Icon,
   AudioLinesIcon,
-  AudioWaveformIcon,
   FilmIcon,
   GaugeIcon,
   HeadphonesIcon,
@@ -116,8 +122,7 @@ import {
   redoDubEdit,
   resumeDub,
   discardDubRecovery,
-  removeDubSource,
-  dubSourceRemovable,
+  resetDubSession,
   dismissDubError,
   applyDubQc,
   applyDubTranslationRows,
@@ -134,7 +139,6 @@ import {
   ingestDubUrl,
   isDubUrl,
   cleanupDubSegments,
-  mirrorDubSourceDelivery,
   restoreDubSegments,
   skipFailedDubTranslations,
   planDubIncremental,
@@ -543,11 +547,9 @@ export function DubPage() {
           ? 'dub.translating'
           : session.phase === 'cleaning'
             ? 'dub.clean_up'
-            : session.phase === 'mirroring'
-              ? 'dub.mirror_delivery'
-              : session.phase === 'generating'
-                ? 'dub_workflow.generating_dub'
-                : 'common.loading';
+            : session.phase === 'generating'
+              ? 'dub_workflow.generating_dub'
+              : 'common.loading';
   const eventCurrent = Number(session.event?.current);
   const eventTotal = Number(session.event?.total);
   const progressPercent =
@@ -650,11 +652,8 @@ export function DubPage() {
     };
   }, [warmPreviewPaths]);
 
-  const sourceRemovable = dubSourceRemovable(session, cancelling);
-  const isAudioSource = session.inputType === 'audio';
-  const removeSourceLabel = t(isAudioSource ? 'dub.remove_audio' : 'dub.remove_video');
-  const removeVideo = async () => {
-    if (!sourceRemovable || !(await removeDubSource())) return;
+  const removeVideo = () => {
+    if (busy || cancelling || session.recovery || !resetDubSession()) return;
     livePreview.stop();
     segmentPreviewAbort.current?.abort();
     segmentPreviewAbort.current = null;
@@ -1074,29 +1073,23 @@ export function DubPage() {
                 <ConfirmDialog
                   open={removeVideoOpen}
                   onOpenChange={setRemoveVideoOpen}
-                  title={removeSourceLabel}
-                  description={t(
-                    session.recovery
-                      ? 'dub.remove_interrupted_confirm'
-                      : isAudioSource
-                        ? 'dub.remove_audio_confirm'
-                        : 'dub.remove_video_confirm',
-                  )}
-                  confirmLabel={removeSourceLabel}
-                  onConfirm={() => void removeVideo()}
+                  title={t('dub.remove_video')}
+                  description={t('dub.remove_video_confirm')}
+                  confirmLabel={t('dub.remove_video')}
+                  onConfirm={removeVideo}
                 />
                 <Button
                   size="xs"
                   variant="ghost"
-                  aria-label={removeSourceLabel}
-                  disabled={!sourceRemovable}
+                  aria-label={t('dub.remove_video')}
+                  disabled={busy || cancelling || Boolean(session.recovery)}
                   onClick={() => {
-                    if (session.recovery || session.segments.length > 0 || editHistory.undoDepth > 0)
+                    if (session.segments.length > 0 || editHistory.undoDepth > 0)
                       setRemoveVideoOpen(true);
-                    else void removeVideo();
+                    else removeVideo();
                   }}
                 >
-                  {removeSourceLabel}
+                  {t('dub.remove_video')}
                 </Button>
               </div>
             )}
@@ -2027,7 +2020,7 @@ export function DubPage() {
                           size: 'icon-sm',
                         })}
                       >
-                        {session.phase === 'cleaning' || session.phase === 'mirroring' ? (
+                        {session.phase === 'cleaning' ? (
                           <LoaderCircleIcon className="animate-spin" />
                         ) : (
                           <MoreHorizontalIcon />
@@ -2039,79 +2032,35 @@ export function DubPage() {
                             <Menu.Item
                               disabled={!session.jobId}
                               onClick={() =>
-                                void cleanupDubSegments()
-                                  .then((removed) => {
-                                    if (removed === null) {
-                                      toast.error(
-                                        t('dub_workflow.cleanup_failed', {
-                                          message: dubSession.state.error || t('common.error'),
-                                        }),
-                                      );
-                                      return;
-                                    }
-                                    const valid = new Set(
-                                      dubSession.state.segments.map((item) => item.id),
-                                    );
-                                    setSelectedSegmentIds(
-                                      (current) =>
-                                        new Set([...current].filter((id) => valid.has(id))),
-                                    );
-                                    toast.success(
-                                      removed
-                                        ? t('dub_workflow.cleaned', {
-                                            count: removed,
-                                          })
-                                        : t('dub_workflow.segments_clean'),
-                                    );
-                                  })
-                                  .catch((error) =>
+                                void cleanupDubSegments().then((removed) => {
+                                  if (removed === null) {
                                     toast.error(
                                       t('dub_workflow.cleanup_failed', {
-                                        message: describeError(error),
+                                        message: dubSession.state.error || t('common.error'),
                                       }),
-                                    ),
-                                  )
+                                    );
+                                    return;
+                                  }
+                                  const valid = new Set(
+                                    dubSession.state.segments.map((item) => item.id),
+                                  );
+                                  setSelectedSegmentIds(
+                                    (current) =>
+                                      new Set([...current].filter((id) => valid.has(id))),
+                                  );
+                                  toast.success(
+                                    removed
+                                      ? t('dub_workflow.cleaned', {
+                                          count: removed,
+                                        })
+                                      : t('dub_workflow.segments_clean'),
+                                  );
+                                })
                               }
                               className="flex cursor-default items-center gap-2 rounded-md px-3 py-2 text-sm outline-none data-disabled:opacity-40 data-highlighted:bg-accent"
                             >
                               <WandSparklesIcon className="size-4" />
                               {t('dub.clean_up')}
-                            </Menu.Item>
-                            <Menu.Item
-                              disabled={!session.jobId}
-                              onClick={() =>
-                                void mirrorDubSourceDelivery()
-                                  .then((outcome) => {
-                                    if (!outcome) {
-                                      toast.error(
-                                        t('dub_workflow.mirror_failed', {
-                                          message: dubSession.state.error || t('common.error'),
-                                        }),
-                                      );
-                                    } else if (outcome.applied) {
-                                      toast.success(
-                                        t('dub_workflow.mirror_applied', {
-                                          count: outcome.applied,
-                                        }),
-                                      );
-                                    } else if (!outcome.measured) {
-                                      toast.info(t('dub_workflow.mirror_insufficient'));
-                                    } else {
-                                      toast.info(t('dub_workflow.mirror_none'));
-                                    }
-                                  })
-                                  .catch((error) =>
-                                    toast.error(
-                                      t('dub_workflow.mirror_failed', {
-                                        message: describeError(error),
-                                      }),
-                                    ),
-                                  )
-                              }
-                              className="flex cursor-default items-center gap-2 rounded-md px-3 py-2 text-sm outline-none data-disabled:opacity-40 data-highlighted:bg-accent"
-                            >
-                              <AudioWaveformIcon className="size-4" />
-                              {t('dub.mirror_delivery')}
                             </Menu.Item>
                             <Menu.Item
                               disabled={!canRestoreOriginal}

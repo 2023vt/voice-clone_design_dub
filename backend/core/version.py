@@ -6,7 +6,8 @@ FastAPI/API version and exported-bundle metadata never drift to a stale literal
 "0.3.5" because the *frozen* backend couldn't read its own metadata.
 
 Resolution order:
-  1. installed package metadata — correct in any ``uv sync``'d env;
+  1. installed package metadata — correct in any ``uv sync``'d env and, thanks
+     to ``copy_metadata('omnivoice')`` in ``backend.spec``, in the frozen build;
   2. ``pyproject.toml`` walked up from this file — correct for a raw source
      checkout that was never installed;
   3. ``_FALLBACK_VERSION`` — a last resort, kept in lockstep with the maintained
@@ -23,7 +24,7 @@ from pathlib import Path
 # tests/test_app_version.py::test_all_version_files_in_lockstep and bumped by
 # the owner-approved release bump, so it stays equal to
 # pyproject.toml and the root package.json.
-_FALLBACK_VERSION = "0.5.7"
+_FALLBACK_VERSION = "0.5.6"
 
 
 def _fallback_version() -> str:

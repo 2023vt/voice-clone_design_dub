@@ -19,7 +19,6 @@ stored list, passes it into `/dub/translate`, and that's the full loop.
 import logging
 import os
 import time
-import unicodedata
 import uuid
 from typing import List, Optional
 
@@ -58,13 +57,6 @@ class AutoExtractRequest(BaseModel):
 
 
 # ── Helpers ──────────────────────────────────────────────────────────────────
-
-
-def _fold(text: str) -> str:
-    """Case-insensitive, normalization-insensitive key for source terms."""
-    # NFKC also folds compatibility forms (full-width Latin letters, the "fi"
-    # ligature), which LLM output in CJK-adjacent projects often contains.
-    return unicodedata.normalize("NFKC", text or "").casefold()
 
 
 def _row_to_dict(r) -> dict:
@@ -242,8 +234,7 @@ def auto_extract(project_id: str, req: AutoExtractRequest):
                 {"role": "user", "content": user},
             ],
         )
-        from services.llm_backend import _strip_reasoning
-        body = _strip_reasoning(res.choices[0].message.content or "", prompt=f"{system}\n{user}")
+        body = (res.choices[0].message.content or "").strip()
     except Exception as e:
         logger.warning("auto-extract LLM call failed: %s", e)
         # Scrub the provider error — some OpenAI-compatible providers echo the
@@ -278,24 +269,22 @@ def auto_extract(project_id: str, req: AutoExtractRequest):
     # Dedupe against existing (case-insensitive on source).
     with db_conn() as conn:
         existing = conn.execute(
-            "SELECT source FROM glossary_terms WHERE project_id = ?",
+            "SELECT LOWER(source) AS src FROM glossary_terms WHERE project_id = ?",
             (project_id,),
         ).fetchall()
-        # Fold in Python: SQLite LOWER() only folds ASCII, so accented and
-        # Cyrillic terms would otherwise slip past the dedupe.
-        existing_srcs = {_fold(r["source"]) for r in existing}
+        existing_srcs = {r["src"] for r in existing}
 
         inserted = 0
         now = time.time()
         for src, tgt, note in proposed:
-            if _fold(src) in existing_srcs:
+            if src.lower() in existing_srcs:
                 continue
             conn.execute(
                 "INSERT INTO glossary_terms (id, project_id, source, target, note, auto, created_at) "
                 "VALUES (?, ?, ?, ?, ?, 1, ?)",
                 (str(uuid.uuid4())[:12], project_id, src, tgt, note, now),
             )
-            existing_srcs.add(_fold(src))
+            existing_srcs.add(src.lower())
             inserted += 1
 
         rows = conn.execute(

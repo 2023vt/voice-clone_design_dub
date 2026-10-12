@@ -31,6 +31,7 @@ const SETTINGS_PAGES = new Set([
   'credentials',
   'performance',
   'usage',
+  'workers',
   'privacy',
   'permissions',
   'storage',

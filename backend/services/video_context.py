@@ -25,9 +25,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import shutil
 import tempfile
-import threading
 from concurrent.futures import ThreadPoolExecutor
 
 logger = logging.getLogger("omnivoice.video_context")
@@ -40,18 +38,15 @@ _analysis_pool = ThreadPoolExecutor(max_workers=2, thread_name_prefix="vid-ctx")
 def _extract_keyframes(
     video_path: str,
     timestamps: list[float],
-    out_dir: str,
     max_frames: int = 30,
-    cancel: threading.Event | None = None,
 ) -> list[tuple[float, str]]:
-    """Extract frames at specified timestamps into ``out_dir`` using ffmpeg.
+    """Extract frames at specified timestamps using ffmpeg.
 
-    The caller owns ``out_dir`` and removes it. Stops between frames once
-    ``cancel`` is set. Returns list of (timestamp, frame_path) tuples.
+    Returns list of (timestamp, frame_path) tuples.
     """
     import subprocess
 
-    from services.ffmpeg_utils import find_ffmpeg, local_inputs_only
+    from services.ffmpeg_utils import find_ffmpeg
 
     # Resolve ffmpeg the way every other call site does. `shutil.which("ffmpeg")`
     # only finds a system install: the binary imageio-ffmpeg ships — the app's
@@ -62,6 +57,7 @@ def _extract_keyframes(
         logger.warning("ffmpeg not found, skipping frame extraction")
         return []
 
+    tmp_dir = tempfile.mkdtemp(prefix="omnivoice_frames_")
     frames = []
 
     # Subsample if too many timestamps
@@ -69,16 +65,14 @@ def _extract_keyframes(
     selected = timestamps[::step][:max_frames]
 
     for i, ts in enumerate(selected):
-        if cancel is not None and cancel.is_set():
-            break
-        out_path = os.path.join(out_dir, f"frame_{i:04d}.jpg")
+        out_path = os.path.join(tmp_dir, f"frame_{i:04d}.jpg")
         try:
             subprocess.run(
-                local_inputs_only([
+                [
                     ffmpeg, "-ss", str(ts), "-i", video_path,
                     "-frames:v", "1", "-q:v", "3",
                     "-y", out_path,
-                ], tool="ffmpeg"),
+                ],
                 capture_output=True, timeout=10,
             )
             if os.path.exists(out_path) and os.path.getsize(out_path) > 0:
@@ -152,35 +146,6 @@ def _analyse_frame_basic(frame_path: str) -> dict:
     except Exception as e:
         logger.debug("Frame analysis failed: %s", e)
         return {"brightness": "unknown", "mood": "unknown", "complexity": "unknown"}
-
-
-def _analyse_keyframes(
-    video_path: str,
-    timestamps: list[float],
-    max_frames: int,
-    cancel: threading.Event,
-) -> dict[float, dict]:
-    """Extract and analyse keyframes in one worker call; return ts → analysis.
-
-    The frame directory lives exactly as long as this worker: it is removed on
-    success, on an exception and after a cancelled request, because the worker
-    thread finishes (and cleans up) even when the awaiting request is gone.
-    Cleaning up in the coroutine instead left the directory behind on every
-    run and every file behind on errors and cancellations (#2566).
-    """
-    tmp_dir = tempfile.mkdtemp(prefix="omnivoice_frames_")
-    try:
-        frames = _extract_keyframes(
-            video_path, timestamps, tmp_dir, max_frames, cancel=cancel,
-        )
-        analyses: dict[float, dict] = {}
-        for ts, frame_path in frames:
-            if cancel.is_set():
-                break
-            analyses[ts] = _analyse_frame_basic(frame_path)
-        return analyses
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
 
 
 # ── Full video analysis ──────────────────────────────────────────────
@@ -284,25 +249,35 @@ async def analyse_video(
         for seg in segments
     ]
 
-    # Extract + analyse frames (CPU-bound, run in pool). A cancelled request
-    # stops the worker between frames; the worker still removes its frames.
-    cancel = threading.Event()
-    try:
-        ctx.frame_analyses = await loop.run_in_executor(
+    # Extract frames (CPU-bound, run in pool)
+    frames = await loop.run_in_executor(
+        _analysis_pool,
+        _extract_keyframes,
+        video_path, timestamps, max_frames,
+    )
+
+    # Analyse each frame
+    for ts, frame_path in frames:
+        analysis = await loop.run_in_executor(
             _analysis_pool,
-            _analyse_keyframes,
-            video_path, timestamps, max_frames, cancel,
+            _analyse_frame_basic,
+            frame_path,
         )
-    except asyncio.CancelledError:
-        cancel.set()
-        raise
+        ctx.frame_analyses[ts] = analysis
 
     # Build segment-level context
     ctx = _build_segment_context(ctx, segments)
 
+    # Cleanup temp frames
+    for _, frame_path in frames:
+        try:
+            os.remove(frame_path)
+        except Exception:
+            pass
+
     logger.info(
         "Video analysis complete: %d frames, global_mood=%s, global_brightness=%s",
-        len(ctx.frame_analyses), ctx.global_mood, ctx.global_brightness,
+        len(frames), ctx.global_mood, ctx.global_brightness,
     )
     return ctx
 

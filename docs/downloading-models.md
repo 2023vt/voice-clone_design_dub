@@ -4,8 +4,25 @@ VoiceStudio downloads models from the Hugging Face Hub on first use. This page
 explains how downloads are made fast, how to read the progress, and what to do
 on slow or restricted networks.
 
+When a remote GPU is selected, the catalog is filtered and curated for that
+worker's reported OS, architecture, and GPU backend—not for the control-plane
+computer. Generation checks the worker's capability report before submitting a
+job. If the required weights are positively known to be absent, VoiceStudio
+shows “model not downloaded on &lt;worker&gt;” with a download action. The download
+runs on that worker and refreshes its capabilities when it finishes; press
+Generate again afterward (the interrupted job is not automatically resubmitted).
+The same `POST /models/install` request targets either `local` or the selected
+worker, and `/setup/download-stream` reports both with a `target` field. Progress
+is tracked by `(target, repo_id)`, so simultaneous downloads of one model on two
+machines remain separate. Workers receive only an opaque model identifier and
+resolve the reviewed Hugging Face repository and pinned revision from their own
+catalog.
 Unknown or user-managed cache layouts are allowed through so existing manual
 engine installs remain compatible.
+
+Managed sidecar engines are intentionally excluded from remote installation.
+Their current installer fetches mutable source before creating an editable
+environment; install those directly on the worker until that source is pinned.
 
 ## Download backend: legacy LFS by default (accurate progress)
 
@@ -128,15 +145,6 @@ failed download at once. Caveats:
   chunk-dedup and Xet's parallel fetch, but you gain reachability. On the
   classic path, per-byte speed/ETA **is** shown continuously.
 - Russia and some networks have no official mirror; use a VPN/tunnel.
-- A custom mirror URL must use `https://` (plain `http://` is accepted only
-  for a local proxy on `localhost`/`127.0.0.1`) and must not contain a user
-  name, password, query or fragment.
-- Your Hugging Face token is sent only to Hugging Face, never to a mirror —
-  including token checks and gated-access checks. Gated models (speaker
-  diarization) therefore download from the official endpoint: in **Auto** mode
-  they always do, even when automatic selection picked the mirror; with a
-  mirror you chose yourself, the install fails with `HF_MIRROR_GATED` — switch
-  to **Hugging Face (official)** to install them.
 
 ## Cancelling a download
 
@@ -156,6 +164,4 @@ takes effect at the next retry boundary.
   interrupted and left a partial snapshot. Delete the model in
   the engine's **Weights** list in **Model Catalogue** and install it again.
 - **Out of disk** — model sizes are shown in the catalog; free space or change
-  the cache location with `HF_HOME` / `HF_HUB_CACHE`. An install also keeps
-  10 GB free on the model disk after the download, so it needs the download
-  size plus 10 GB; the warning in Model Catalogue shows both numbers.
+  the cache location with `HF_HOME` / `HF_HUB_CACHE`.

@@ -1,5 +1,4 @@
 const { chromium } = require('playwright');
-const { ports } = require('../config/app.json');
 
 (async () => {
   const browser = await chromium.launch({ headless: true });
@@ -11,7 +10,7 @@ const { ports } = require('../config/app.json');
   const page = await ctx.newPage();
   const dir = 'docs';
 
-  await page.goto(`http://localhost:${ports.web}`, { waitUntil: 'networkidle', timeout: 15000 });
+  await page.goto('http://localhost:3901', { waitUntil: 'networkidle', timeout: 15000 });
   await page.waitForTimeout(2000);
 
   // Helper: click a sidebar icon by index (0-based, top to bottom)
@@ -88,7 +87,7 @@ const { ports } = require('../config/app.json');
   // 5. A/B Compare button
   try {
     // First go to launchpad
-    await page.goto(`http://localhost:${ports.web}`, { waitUntil: 'networkidle', timeout: 10000 });
+    await page.goto('http://localhost:3901', { waitUntil: 'networkidle', timeout: 10000 });
     await page.waitForTimeout(1500);
     const abBtn = page.locator('button:has-text("A/B"), button:has-text("Compare")').first();
     if (await abBtn.isVisible({ timeout: 1000 })) {

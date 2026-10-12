@@ -4,8 +4,10 @@ VoiceStudio dictation records from the system-wide shortcut, transcribes
 locally, and—where the desktop permits it—inserts the result into the app where
 the shortcut was pressed. The pill never needs keyboard focus.
 
-Editor extensions, agent hooks, and scripts can stream their own microphone
-audio to the versioned WebSocket API or transcribe files over HTTP. See the
+The same flow is available to other applications through the bundled Rust
+control sidecar. Herdr actions, editor extensions, agent hooks, and scripts can
+start or stop VoiceStudio's capture over loopback HTTP/JSON-RPC or stream their
+own microphone audio to the versioned WebSocket API. See the
 [local speech platform](../speech-platform.md) for the protocol and examples.
 
 ## Use it

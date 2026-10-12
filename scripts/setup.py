@@ -228,15 +228,14 @@ def main():
     # Check if CUDA is available before installing GPU-only libs
     try:
         result = subprocess.run(
-            [sys.executable, "-c", "import torch; print(torch.cuda.is_available() and not getattr(torch.version, 'hip', None))"],
+            [sys.executable, "-c", "import torch; print(torch.cuda.is_available())"],
             capture_output=True, text=True, timeout=30,
         )
-        if result.returncode != 0 or result.stdout.strip() != "True":
+        if result.stdout.strip() != "True":
             print("✓ No CUDA — cuDNN 8 compat not needed")
             return
     except Exception:
-        print("⚠ CUDA probe failed — skipping optional cuDNN 8 compatibility libraries")
-        return
+        pass  # Can't detect CUDA — install anyway, it's harmless on CPU
 
     print("⚙ Installing cuDNN 8 compatibility libraries for CTranslate2...")
     try:

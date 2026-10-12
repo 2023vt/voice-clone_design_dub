@@ -24,6 +24,9 @@ export function toastModelNotDownloaded(payload) {
       <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <span style={{ flex: 1 }}>
           {t('model_missing.message', { target: payload.target_label })}
+          {payload.downloadable === false
+            ? ` ${t('model_missing.manual_worker', { target: payload.target_label })}`
+            : ''}
         </span>
         {repoId && payload.downloadable !== false && (
           <button
@@ -32,7 +35,7 @@ export function toastModelNotDownloaded(payload) {
             onClick={async () => {
               toast.dismiss(item.id);
               try {
-                await apiPost('/models/install', { repo_id: repoId });
+                await apiPost('/models/install', { repo_id: repoId, target: payload.target });
                 toast.success(t('model_missing.started', { target: payload.target_label }));
               } catch (error) {
                 toast.error(

@@ -1,7 +1,6 @@
 import type { AboutPanelOptionsOptions, App, MenuItemConstructorOptions } from 'electron';
-import { PRODUCT_NAME } from '../../../config/app-config.mjs';
 
-export const DESKTOP_APP_NAME = PRODUCT_NAME;
+export const DESKTOP_APP_NAME = 'VoiceStudio';
 
 /** Set before Electron creates the native application menu. */
 export function installAppIdentity(application: Pick<App, 'setName'>): void {

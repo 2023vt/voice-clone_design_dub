@@ -164,10 +164,11 @@ Progress: **6/6 ✅** (both bets wired end-to-end; review banners + step-level r
 
 > *Do not build proactively. Trigger-based only.*
 
-Progress: **0/4 (0 %)**
+Progress: **0/5 (0 %)**
 
 | ID | Item | Trigger that starts it | Status |
 |----|------|------|:---:|
+| 5.1 | Multi-worker + Redis/Postgres job queue | First team asks to share a GPU across users | 🚫 |
 | 5.2 | OpenTelemetry tracing | First "why is this slow?" incident we can't diagnose | 🚫 |
 | 5.3 | Optional auth (magic-link / passkey) | First team-deployment request | 🚫 |
 | 5.4 | Signed installers + auto-update (Tauri) | Paid release or pre-order list forms | 🚫 |
@@ -212,7 +213,7 @@ None on the critical path to world-class. All are answers to real demand.
 | Voice memory across projects | ⏳ | After Phase 4 |
 | Context-aware pipeline (video frames → pipeline decisions) | ⏳ | After Phase 4 |
 | On-device learning from corrections (user edits → LoRA) | ⏳ | Research only; possibly Phase 5+ |
-| Real-time dub preview (stream TTS as you edit) | ✅ | Shipped 2026-09-02 (#1769) — opt-in "Live preview" toggle on the dub segment table streams the edited line over `/ws/tts` with its CAST voice; stopping playback also closes the live stream and releases the synthesis slot; export path unchanged. |
+| Real-time dub preview (stream TTS as you edit) | ✅ | Shipped 2026-09-02 (#1769) — opt-in "Live preview" toggle on the dub segment table streams the edited line over `/ws/tts` with its CAST voice; export path unchanged. |
 
 ### 🧪 Quality track _(🟡 underway)_
 

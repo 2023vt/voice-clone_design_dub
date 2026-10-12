@@ -2,7 +2,6 @@ import React, { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { AlertTriangle, Braces, Copy, ExternalLink, RefreshCw } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useTranslation } from 'react-i18next';
-import { DEFAULT_BACKEND_PORT } from '../../app-config.ts';
 import { API, apiFetch } from '../../api/client';
 import { getAdminSession } from '../../api/authSession';
 import { openExternal } from '../../api/external';
@@ -56,7 +55,7 @@ async function fetchSpec() {
       ['localhost', '127.0.0.1', '[::1]'].includes(window.location.hostname) &&
       base.protocol === 'http:' &&
       ['localhost', '127.0.0.1', '[::1]'].includes(base.hostname) &&
-      base.port === String(DEFAULT_BACKEND_PORT);
+      base.port === '3900';
     if (!sameOrigin && !knownDevProxy) throw err;
     const headers = new Headers();
     const session = getAdminSession(API);

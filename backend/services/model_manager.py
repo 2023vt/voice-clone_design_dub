@@ -1,5 +1,4 @@
 import asyncio
-import contextlib
 import logging
 import math
 import os
@@ -94,11 +93,6 @@ def _lazy_omnivoice():
 
 
 from core.config import IDLE_TIMEOUT_SECONDS, CPU_POOL_WORKERS
-from core.generate_budget import (
-    automatic_cpu_ceiling_s,
-    cpu_auto_budget_s,
-    length_bonus_s,
-)
 
 logger = logging.getLogger("omnivoice.model")
 
@@ -309,12 +303,6 @@ class _ResilientGpuPool(Executor):
                         elapsed if self._avg_job_s <= 0
                         else 0.7 * self._avg_job_s + 0.3 * elapsed
                     )
-                    idle = self._running == 0 and self._queued == 0
-                if idle:
-                    # Opt-in offload to RAM (#2618) arms its grace timer here:
-                    # the one place that sees the pool drain, whichever route
-                    # dispatched the last job. Never raises.
-                    _note_gpu_pool_idle()
 
         with self._stats_lock:
             self._queued += 1
@@ -462,24 +450,8 @@ MODEL_LOAD_HEARTBEAT_GRACE_S = float(
 # Without a cap, a load that heartbeats but never finishes would hold its
 # worker forever. 1800s of extension ≈ a 5 GB model at ~2.5 MB/s on top of the
 # 300s base — beyond that, telling the user is better than silently waiting.
-#
-# OMNIVOICE_PROGRESS_EXTENSION_CAP_S names it. The old name,
-# OMNIVOICE_MODEL_LOAD_TIMEOUT_S, read as the load ceiling that
-# OMNIVOICE_MODEL_LOAD_TIMEOUT (no _S) really is; it stays accepted as a
-# deprecated alias so existing configurations keep their value.
-PROGRESS_EXTENSION_CAP_ENV = "OMNIVOICE_PROGRESS_EXTENSION_CAP_S"
-PROGRESS_EXTENSION_CAP_LEGACY_ENV = "OMNIVOICE_MODEL_LOAD_TIMEOUT_S"
-
-
-def progress_extension_cap_s(env=os.environ) -> float:
-    """The heartbeat extension cap, honoring the deprecated alias."""
-    return float(
-        env.get(PROGRESS_EXTENSION_CAP_ENV)
-        or env.get(PROGRESS_EXTENSION_CAP_LEGACY_ENV)
-        or "1800.0")
-
-
-MODEL_LOAD_EXTRA_TIMEOUT_S = progress_extension_cap_s()
+MODEL_LOAD_EXTRA_TIMEOUT_S = float(
+    os.environ.get("OMNIVOICE_MODEL_LOAD_TIMEOUT_S", "1800.0"))
 # The cap also grows with the job's own budget: a job that keeps reporting
 # progress may run for this many extra budgets. A fixed 1800s cap made a job's
 # length a hard limit however steadily it progressed. A 50k-character audiobook
@@ -559,21 +531,6 @@ class GpuPoolBusyError(TimeoutError):
         self.retry_after = max(1, int(round(retry_after)))
 
 
-def _explicit_budget_flags() -> "tuple[bool, bool]":
-    """(universal_explicit, cpu_explicit): is the accelerated / CPU budget set
-    by the user (env, or changed at runtime)? The single definition shared by
-    ``generate_timeout_s`` and ``generate_budget_s``."""
-    universal = (
-        _GENERATE_TIMEOUT_EXPLICIT
-        or GPU_JOB_TIMEOUT_S != _CONFIGURED_GPU_JOB_TIMEOUT_S
-    )
-    cpu_explicit = (
-        _CPU_GENERATE_TIMEOUT_EXPLICIT
-        or CPU_JOB_TIMEOUT_S != _CONFIGURED_CPU_JOB_TIMEOUT_S
-    )
-    return universal, cpu_explicit
-
-
 def generate_timeout_s(
     text: "str | None", *, engine: object = None, execution_device: "str | None" = None,
     min_vram_gb: float = 0.0, hardware_family: "str | None" = None,
@@ -594,17 +551,9 @@ def generate_timeout_s(
     hosts) or OMNIVOICE_CPU_GENERATE_TIMEOUT_S (CPU hosts — the latter wins
     for CPU whenever it is itself explicit, even if the former also is; see
     the #1787 comment on the module-level constants), plus 1s per 40
-    characters past a 1200-character free allowance — a wedged job is caught
-    in minutes, not hours.
-
-    #2609: that length term is nothing next to CPU speed (a render is often
-    10-50x slower than on a GPU), so a CPU dispatch on the DEFAULT CPU budget
-    instead scales at ``core.generate_budget.CPU_SECONDS_PER_CHAR`` per
-    character, capped at ``CPU_AUTO_CAP_S`` (still finite, so a wedged engine
-    is caught). Any explicit budget keeps the formula above untouched. The
-    model cold-load is NOT part of this clock (it has its own budget, see the
-    prewarm in the generate router), and each streamed chunk is budgeted from
-    its own text.
+    characters past a 1200-character free allowance — generous enough for
+    CPU-class hardware, still bounded (a wedged job is caught in minutes, not
+    hours).
 
     #1804: "accelerated" is not one performance class. A card with less VRAM
     than the engine declares it needs pages to system RAM over PCIe and renders
@@ -623,10 +572,6 @@ def generate_timeout_s(
     """
     base = GPU_JOB_TIMEOUT_S
     explicit_budget = _GENERATE_TIMEOUT_EXPLICIT or GPU_JOB_TIMEOUT_S != _CONFIGURED_GPU_JOB_TIMEOUT_S
-    # True only for a CPU dispatch running on the DEFAULT CPU budget: that case
-    # scales with input length at CPU speed (#2609). Any explicit budget —
-    # either row — stays authoritative and keeps the legacy formula.
-    cpu_auto_scaled = False
     try:
         from core.device_caps import detect_host_caps
         caps = detect_host_caps()
@@ -640,14 +585,20 @@ def generate_timeout_s(
             min_vram_gb = profile["min_vram_gb"]
             hardware_family = profile.get("runtime_hardware_family")
             vram_gb = profile.get("runtime_vram_gb")
-        universal_override, cpu_explicit = _explicit_budget_flags()
+        universal_override = (
+            _GENERATE_TIMEOUT_EXPLICIT
+            or GPU_JOB_TIMEOUT_S != _CONFIGURED_GPU_JOB_TIMEOUT_S
+        )
         # An explicit (env-set, or runtime-changed the same way tests do)
         # CPU budget is more specific than the universal override and always
         # wins for CPU dispatches — see the #1787 comment above.
+        cpu_explicit = (
+            _CPU_GENERATE_TIMEOUT_EXPLICIT
+            or CPU_JOB_TIMEOUT_S != _CONFIGURED_CPU_JOB_TIMEOUT_S
+        )
         if family == "cpu" and (cpu_explicit or not universal_override):
             base = CPU_JOB_TIMEOUT_S
             explicit_budget = cpu_explicit
-            cpu_auto_scaled = not cpu_explicit
         elif not universal_override and family in (
             "cuda", "rocm", "vulkan", "xpu",
         ):
@@ -686,10 +637,7 @@ def generate_timeout_s(
         except (TypeError, ValueError):
             pass  # Invalid optional engine metadata cannot disable the outer guard.
 
-    chars = len(text or "")
-    if cpu_auto_scaled:
-        return cpu_auto_budget_s(base, chars) + sidecar_grace
-    return base + length_bonus_s(chars) + sidecar_grace
+    return base + (max(0, len(text or "") - 1200) / 40.0) + sidecar_grace
 
 
 def _retry_after_estimate(stats: dict) -> float:
@@ -1240,9 +1188,8 @@ def _timeout_guidance(
             "this machine renders on CPU, where long generations are "
             "compute-bound. For a durable fix try shorter text or a lighter "
             "engine (OmniVoice GGUF and Supertonic-3 are CPU-tuned). If you "
-            "expect very long single generations, raise \"CPU budget\" "
-            "(the compute-time budget) in Settings → Performance & Device "
-            "and restart the backend."
+            "expect very long single generations, raise "
+            "the compute-time budget in Settings → Performance & Device."
         )
     # #1226/#1222: two users on 4 GB cards were told, generically, that the GPU
     # "is VRAM-starved" — true, but it read as a transient contention problem
@@ -2271,9 +2218,6 @@ def _repair_model_cache(checkpoint: str, *, force: bool = False) -> bool:
         endpoint = os.environ.get("HF_ENDPOINT")
     if endpoint:
         dl_kwargs["endpoint"] = endpoint
-    from services.hf_auth import token_for_endpoint
-    if token_for_endpoint(endpoint, None) is False:
-        dl_kwargs["token"] = False  # a mirror never receives the HF token
     if force:
         # Replace present-but-corrupt blobs that resume would trust by size.
         dl_kwargs["force_download"] = True
@@ -2337,10 +2281,6 @@ def _repair_model_cache(checkpoint: str, *, force: bool = False) -> bool:
                             dl_kwargs["endpoint"] = new_ep
                         else:
                             dl_kwargs.pop("endpoint", None)
-                        if token_for_endpoint(new_ep, None) is False:
-                            dl_kwargs["token"] = False
-                        else:
-                            dl_kwargs.pop("token", None)
                         logger.info(
                             "Auto-repair of %s: endpoint failover — retrying on %s",
                             checkpoint, new_ep or "https://huggingface.co",
@@ -2428,36 +2368,17 @@ class ModelLoadAbandoned(RuntimeError):
     """
 
 
-class _LoadTicket:
-    """One caller's claim on a cold load, so a timeout blames the RIGHT load.
-
-    #2394: ``_load_model_with_timeout()`` must mark a load abandoned only when
-    *its own* worker is the one stuck in the native loader. A process-global
-    "a load is in progress" flag cannot tell that apart from "my worker is
-    still queued behind somebody else's load" — it would brand a healthy,
-    progressing load as abandoned and make every later cold load fail fast.
-
-    ``loading`` is set by the worker once it holds the load lock and is about to
-    enter the native loader. ``gave_up`` is set by the caller when its deadline
-    passes. Each side sets its own event BEFORE reading the other's, so either
-    the caller sees ``loading`` (and abandons the running load) or the worker
-    sees ``gave_up`` (and declines to start one nobody awaits) — never neither.
-    """
-
-    __slots__ = ("loading", "gave_up", "done")
-
-    def __init__(self) -> None:
-        self.loading = threading.Event()
-        self.gave_up = threading.Event()
-        #: Set by the worker as it leaves the critical section, so a caller
-        #: that times out a hair after the load finished does not brand a
-        #: finished load as stuck.
-        self.done = threading.Event()
-
+#: Set by a cold load for as long as it holds ``_model_load_thread_lock`` —
+#: i.e. while it is inside the native loader and cannot be cancelled.
+#: #2394: this is what lets a later caller tell "another load is still working,
+#: wait your turn" (fine, and it will return the model) apart from "a load was
+#: already abandoned and may never finish" (a restart is the only way out).
+#: An Event, not a flag: the wait must be able to distinguish the two without
+#: polling.
+_load_in_progress = threading.Event()
 
 #: Set when a load is GIVEN UP ON at its deadline while still running (#2394),
-#: cleared by that load's own ``finally`` when it exits — success or failure —
-#: because from then on the lock is free and nothing is stuck. Read before
+#: cleared by that load's own ``finally`` if it ever finishes. Read before
 #: waiting on the load lock: a caller that arrives after an abandonment must
 #: fail immediately, because the lock it would queue behind is held by a
 #: loader nobody is waiting on any more. Without this, a retry re-waits the
@@ -2573,7 +2494,6 @@ def _load_model_sync():
         torch = _lazy_torch()
         VoiceStudio = _lazy_omnivoice()
         device = get_best_device()
-        from omnivoice.utils.dtype import tts_dtype_name
 
         checkpoint = resolve_omnivoice_checkpoint()
         _set_loading("loading_weights", f"Loading TTS weights on {device}…")
@@ -2585,8 +2505,7 @@ def _load_model_sync():
             logger.info("Skipping PyTorch Whisper preload; ASR will load on demand.")
         def _load():
             return VoiceStudio.from_pretrained(
-                checkpoint, device_map=device,
-                dtype=getattr(torch, tts_dtype_name(device)), load_asr=False,
+                checkpoint, device_map=device, dtype=torch.float16, load_asr=False,
             )
 
         def _recover_corrupt_weights(exc: BaseException):
@@ -2963,43 +2882,7 @@ def _reset_gpu_pool() -> None:
         _gpu_pool_singleton.reset()
 
 
-_LOAD_WAIT_SLICE_S = 0.25
-
-
-def _raise_if_load_abandoned() -> None:
-    """Refuse promptly while a given-up-on loader still owns the load lock."""
-    if _load_abandoned.is_set():
-        # A loader was given up on and is still inside the native call. It will
-        # clear the flag itself when it exits, so this is not permanent.
-        raise ModelLoadAbandoned(
-            "A previous model load is stuck and cannot be interrupted, so it is "
-            "still holding the model in memory. Restart the backend (Settings → "
-            "Logs → Restart backend), then try again."
-        )
-
-
-def _acquire_load_lock(deadline: float) -> bool:
-    """Take the load lock, re-checking abandonment while queued.
-
-    A caller that starts waiting while a healthy load runs has already passed
-    the up-front abandonment check. If that load is then given up on, waiting
-    out this caller's own deadline would strand it for the full load budget
-    before it hears "restart the backend". Waiting in short slices lets a
-    queued caller notice the verdict within a fraction of a second.
-    """
-    end = time.monotonic() + max(0.0, deadline)
-    while True:
-        remaining = end - time.monotonic()
-        if _model_load_thread_lock.acquire(timeout=max(0.0, min(_LOAD_WAIT_SLICE_S, remaining))):
-            return True
-        _raise_if_load_abandoned()
-        if remaining <= _LOAD_WAIT_SLICE_S:
-            return False
-
-
-def _load_model_exclusive(
-    timeout: float | None = None, ticket: _LoadTicket | None = None
-):
+def _load_model_exclusive(timeout: float | None = None):
     """The single cold-load leaf: reclaim, load, publish — under ONE lock.
 
     #2394. Both cold routes reach the native `from_pretrained` through here:
@@ -3045,9 +2928,16 @@ def _load_model_exclusive(
     load alongside it.
     """
     global model
-    _raise_if_load_abandoned()
+    if _load_abandoned.is_set():
+        # A loader was given up on and is still inside the native call. It will
+        # clear the flag itself if it ever finishes, so this is not permanent.
+        raise ModelLoadAbandoned(
+            "A previous model load is stuck and cannot be interrupted, so it is "
+            "still holding the model in memory. Restart the backend (Settings → "
+            "Logs → Restart backend), then try again."
+        )
     deadline = _model_load_timeout() if timeout is None else timeout
-    if not _acquire_load_lock(deadline):
+    if not _model_load_thread_lock.acquire(timeout=max(0.0, deadline)):
         # The holder is still going, but it was never abandoned (its own
         # deadline has not passed), so waiting was correct and simply ran out
         # here. Name that honestly rather than implying a restart.
@@ -3057,35 +2947,21 @@ def _load_model_exclusive(
             "Logs → Restart backend) if it does not finish on its own, then try "
             "again."
         )
-    # Reaching the lock means whoever held it has finished, so any "stuck"
-    # verdict is stale and the backend needs no restart.
+    # Reaching the lock clears the "stuck" verdict: whoever held it has
+    # finished, so the backend is healthy again and needs no restart. A load
+    # that merely looked stuck from outside is not permanently disarmed.
     _load_abandoned.clear()
+    _load_in_progress.set()
     try:
-        if ticket is not None:
-            ticket.loading.set()
-            if ticket.gave_up.is_set():
-                # Our caller timed out while we were queued; it already told the
-                # user and moved on. Starting a native load nobody awaits would
-                # only pin this lock for the whole load.
-                raise ModelLoadAbandoned(
-                    "This model load request had already timed out; not "
-                    "starting a load nobody is waiting for."
-                )
         if model is not None:
-            # A load that finished while we waited.
+            # A load that finished while we waited. It also clears
+            # ``_load_in_progress`` on its way out.
             return model
         _make_room_before_tts_load()
         model = _load_model_sync()
         return model
     finally:
-        # Whether this load succeeded, failed or was an abandoned one finishing
-        # late, it is no longer inside the native loader: the lock is about to
-        # be free, so nothing is stuck any more. Without this a failed
-        # abandoned load would leave every later cold load refused until the
-        # backend restarts, despite a free lock.
-        if ticket is not None:
-            ticket.done.set()
-        _load_abandoned.clear()
+        _load_in_progress.clear()
         _model_load_thread_lock.release()
 
 
@@ -3114,11 +2990,10 @@ async def _load_model_with_timeout():
     """
     loop = asyncio.get_running_loop()
     timeout = _model_load_timeout()
-    ticket = _LoadTicket()
     try:
         return await asyncio.wait_for(
             loop.run_in_executor(
-                _get_gpu_pool(), _load_model_exclusive, timeout, ticket
+                _get_gpu_pool(), _load_model_exclusive, timeout
             ),
             timeout=timeout,
         )
@@ -3133,17 +3008,8 @@ async def _load_model_with_timeout():
         # rather than re-waiting the full budget behind this loader — the
         # inline route passes no deadline of its own, so without the flag it
         # would sit on the lock indefinitely (#2394).
-        ticket.gave_up.set()
-        stuck = False
-        if ticket.loading.is_set():
+        if _load_in_progress.is_set():
             _load_abandoned.set()
-            # Re-check after publishing: if the worker finished in between, its
-            # own clear may already have run and ours would be stale.
-            if ticket.done.is_set():
-                _load_abandoned.clear()
-            else:
-                stuck = True
-        if stuck:
             logger.error(
                 "Model load exceeded %ss and is still running in a worker that "
                 "cannot be interrupted; the load lock stays held until it "
@@ -3164,20 +3030,8 @@ async def _load_model_with_timeout():
         ) from exc
 
 
-def _ensure_omnivoice_licence() -> None:
-    """Raise ``ModelLicenceNotAccepted`` while OmniVoice's licence is unaccepted.
-
-    Checked on every ``get_model()``, warm or cold, so a revoked acceptance
-    stops a model that is already resident, not only the next load.
-    """
-    from services.model_acceptance import ensure_engine_accepted
-
-    ensure_engine_accepted("omnivoice")
-
-
-async def get_model(*, allow_load: bool = True):
+async def get_model():
     global model, _last_used
-    _ensure_omnivoice_licence()
     _last_used = time.time()
     if model is not None:
         # Placement self-heal (#1191). The ASR offload/restore pair below is a
@@ -3196,11 +3050,6 @@ async def get_model(*, allow_load: bool = True):
         # + cache drop + ASR teardown that can block for hundreds of ms.
         await asyncio.get_running_loop().run_in_executor(None, make_room_before_generate)
         return model
-
-    # Opportunistic profile samples must never load weights, including when
-    # ASR or idle cleanup evicted them after the caller's residency check.
-    if not allow_load:
-        raise RuntimeError("VoiceStudio model is not loaded")
 
     if running_on_gpu_pool():
         # Same reasoning as _heal_tts_placement below, applied to the COLD
@@ -3352,6 +3201,15 @@ def _checkpoint_in_local_cache(checkpoint: str) -> bool:
         return False
 
 
+def _headless_worker() -> bool:
+    """True when this process serves remote work and has no local UI."""
+    try:
+        from worker.agent import worker_mode_enabled  # noqa: PLC0415
+    except Exception:
+        return False
+    return worker_mode_enabled()
+
+
 async def preload_model():
     """Background model warm-up — call from lifespan startup.
 
@@ -3378,14 +3236,21 @@ async def preload_model():
     except Exception:  # noqa: BLE001 -- preload selection must stay best-effort
         logger.debug("effective TTS preload selection failed", exc_info=True)
 
-    # Installed but not accepted: nothing to warm. The user is asked when they
-    # first generate, so a boot-time error here would only be noise.
-    from services.model_acceptance import ModelLicenceNotAccepted
-
-    try:
-        _ensure_omnivoice_licence()
-    except ModelLicenceNotAccepted:
-        logger.info("Preload skipped: the OmniVoice model licence is not accepted yet.")
+    # A machine lending its GPU has no local user to warm the model FOR. This
+    # preload exists to make the first /generate feel instant for the person
+    # sitting in front of the app; on a headless node there is nobody sitting
+    # there, so it is several GB of VRAM held from boot against a request that
+    # may never come — and the idle sweep cannot reclaim it, because the sweep
+    # owns the worker executor's engines and this is the default local model.
+    # Observed on hardware: a node that had run nothing still sat at 2.4 GB.
+    #
+    # A machine that is BOTH a desktop app and a worker keeps the warm-up:
+    # there is a real user there, and the whole point stands.
+    if _headless_worker():
+        logger.info(
+            "Preload skipped: this process is running as a remote worker, so the "
+            "model loads on first request and is released when it goes idle."
+        )
         return
     try:
         # Warm-up is gated on LOCAL availability only — never a Hub API
@@ -3717,9 +3582,9 @@ def unload_shared_model() -> bool:
     registry, and ``nvidia-smi`` does not move.
 
     Six call sites open-coded this pair and one of them had it inverted — the
-    one the engine-registry sweep reaches. The backend therefore sat on 3.6 GB
-    indefinitely while reporting the engine released, and every other path
-    looked fine (#1495). One helper,
+    one the engine-registry sweep reaches, which is the sweep a headless worker
+    node runs. A worker therefore sat on 3.6 GB indefinitely while reporting
+    the engine released, and every other path looked fine (#1495). One helper,
     so there is one ordering and nowhere left to get it wrong.
 
     Takes no lock of its own: the sync engine-registry path
@@ -3728,11 +3593,10 @@ def unload_shared_model() -> bool:
     GIL-atomic, so the worst a race costs is a redundant reload. Idempotent —
     returns False when nothing was resident.
     """
-    global model, _ram_offload
+    global model
     if model is None:
         return False
     model = None
-    _ram_offload = None
     release_tts_side_caches()
     free_vram()
     return True
@@ -3819,23 +3683,18 @@ def offload_tts_for_asr():
                 return
     except Exception:
         pass
-    m = model
-    if not _acquire_exclusive_placement(_ASR_PLACEMENT_WAIT_S):
-        logger.warning("TTS offload for ASR skipped: a generation is still using the model.")
-        return
     try:
         logger.info("Offloading TTS model to CPU to free VRAM for ASR...")
-        _relocate_shared_model(m, "cpu")
+        model.to("cpu")
+        free_vram()
         logger.info("TTS model offloaded. VRAM freed for ASR.")
     except Exception as e:
         logger.warning("TTS offload failed: %s", e)
-    finally:
-        _release_exclusive_placement()
 
 
 def restore_tts_after_asr():
     """Move TTS model back to the GPU after ASR completes."""
-    global model, _ram_offload
+    global model
     torch = _lazy_torch()
     if model is None:
         return
@@ -3848,17 +3707,9 @@ def restore_tts_after_asr():
     try:
         device = get_best_device()
         if device in ("cuda", "xpu"):
-            m = model
-            if not _acquire_exclusive_placement(_ASR_PLACEMENT_WAIT_S):
-                # The next inference restores placement before it runs.
-                logger.warning("TTS restore after ASR deferred: the model is in use.")
-                return
-            try:
-                logger.info("Restoring TTS model to %s...", device)
-                _relocate_shared_model(m, device)
-                _ram_offload = None  # back on the device, whoever moved it off
-            finally:
-                _release_exclusive_placement()
+            logger.info("Restoring TTS model to %s...", device)
+            model.to(device)
+            free_vram()
     except Exception as e:
         logger.warning("TTS restore to %s failed: %s", get_best_device(), e)
 
@@ -3898,15 +3749,6 @@ def _stranded_tts_target():
     m = model
     if m is None:
         return None
-    # Offloaded to RAM by the opt-in post-generation offload (#2618): restore
-    # to the recorded device. Checked BEFORE the parameter probe so a caller
-    # arriving mid-move (some weights still on the GPU) still waits for the
-    # move and restores, instead of generating on a half-moved model. Also
-    # the only way MPS gets restored — the unified-memory bail below is for
-    # the ASR offload, which releases the model there instead of moving it.
-    offloaded = _ram_offload
-    if offloaded is not None and offloaded[0] == id(m):
-        return offloaded[1]
     dev = _first_param_device(m)
     if dev is None or getattr(dev, "type", None) != "cpu":
         return None
@@ -3921,58 +3763,29 @@ def _stranded_tts_target():
     return target if target in ("cuda", "xpu") else None
 
 
-def _restore_tts_placement() -> bool:
-    """Move the stranded/offloaded shared model back. Caller holds exclusive
-    placement (see :func:`tts_inference`). Never raises."""
-    global _ram_offload
+def ensure_tts_on_device() -> bool:
+    """Move the TTS model back onto its target device if it was stranded on CPU.
+
+    Returns True when a move actually happened. Never raises — a failed move
+    just leaves the model on CPU, which is exactly the pre-fix behaviour
+    (slow), never a failed generation.
+    """
     target = _stranded_tts_target()
     m = model
     if target is None or m is None:
         return False
-    planned = _ram_offload is not None and _ram_offload[0] == id(m)
     try:
-        if planned:
-            logger.info("Restoring the TTS model from system RAM to %s for this generation.", target)
-        else:
-            logger.warning(
-                "TTS model found stranded on CPU (an ASR offload was never restored) — "
-                "moving it back to %s; generation would otherwise run 10-50x slower (#1191).",
-                target,
-            )
-        _relocate_shared_model(m, target)
-        if planned:
-            _ram_offload = None
+        logger.warning(
+            "TTS model found stranded on CPU (an ASR offload was never restored) — "
+            "moving it back to %s; generation would otherwise run 10-50x slower (#1191).",
+            target,
+        )
+        m.to(target)
+        free_vram()
         return True
     except Exception as e:  # noqa: BLE001
-        logger.warning("TTS placement restore to %s failed (staying on CPU): %s", target, e)
-        # A move that fails part-way (the GPU filled up meanwhile) leaves
-        # weights split across devices, which fails every generate. Put
-        # it all back on CPU so generation still works, just slower; a
-        # planned offload keeps its record so the next generation retries.
-        try:
-            _relocate_shared_model(m, "cpu")
-        except Exception:  # noqa: BLE001
-            logger.debug("TTS fallback move to CPU failed", exc_info=True)
+        logger.warning("TTS placement self-heal to %s failed (staying on CPU): %s", target, e)
         return False
-
-
-def ensure_tts_on_device() -> bool:
-    """Move the TTS model back onto its target device if it was stranded on CPU
-    (an unbalanced ASR offload, #1191) or offloaded to RAM after generation
-    (#2618).
-
-    Returns True when a move actually happened. Never raises and never waits
-    for a running inference: while one holds the model, the move is left to
-    the next :func:`tts_inference` entry, which restores before it runs.
-    """
-    if _stranded_tts_target() is None:
-        return False  # hot path: one probe, no lock
-    if not _acquire_exclusive_placement(0.0):
-        return False
-    try:
-        return _restore_tts_placement()
-    finally:
-        _release_exclusive_placement()
 
 
 async def _heal_tts_placement() -> None:
@@ -4005,336 +3818,6 @@ async def _heal_tts_placement() -> None:
             )
         except Exception as e:  # noqa: BLE001
             logger.warning("TTS placement self-heal could not run: %s", e)
-
-# ── Placement guard: inference vs. moving the shared model ────────────────
-# Every inference on the shared TTS model (generate_with_cached_ref and
-# OmniVoiceBackend.generate_batch in services.tts_backend) holds a shared slot
-# through tts_inference(). Every move of the model between devices (ASR
-# offload/restore, the post-generation offload, the placement restore) needs
-# EXCLUSIVE placement, granted only while no inference holds a slot, and new
-# inference waits until the move ends. A GPU-pool slot is not that exclusion:
-# a multi-worker CUDA pool runs several generations at once, and moving
-# weights under one of them fails it (or worse, mixes devices mid-step).
-_placement_cond = threading.Condition()
-_inference_active = 0
-_placement_exclusive = False
-# How long the dub's ASR offload/restore wait for a running generation to
-# finish before skipping the move (the next inference heals placement).
-_ASR_PLACEMENT_WAIT_S = 30.0
-
-
-def _acquire_exclusive_placement(wait_s: float) -> bool:
-    """Exclusive right to move the shared model; False if not granted within
-    ``wait_s`` (0 = don't wait) because inference holds it or another move runs."""
-    global _placement_exclusive
-    deadline = time.monotonic() + max(0.0, wait_s)
-    with _placement_cond:
-        while _placement_exclusive or _inference_active > 0:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                return False
-            _placement_cond.wait(remaining)
-        _placement_exclusive = True
-        return True
-
-
-def _release_exclusive_placement() -> None:
-    global _placement_exclusive
-    with _placement_cond:
-        _placement_exclusive = False
-        _placement_cond.notify_all()
-
-
-@contextlib.contextmanager
-def tts_inference():
-    """Hold the shared TTS model in place for one inference call.
-
-    Waits while a move is in progress; the first inference to arrive with the
-    model off its device (offloaded to RAM, or stranded by an ASR offload)
-    restores it before running, so a generation that passed ``get_model()``
-    just before an offload still runs on the device. Re-entrant across
-    threads: nested calls while a slot is held just share it.
-    """
-    global _inference_active, _placement_exclusive
-    restore = False
-    with _placement_cond:
-        while _placement_exclusive:
-            _placement_cond.wait()
-        if _inference_active == 0 and _stranded_tts_target() is not None:
-            _placement_exclusive = True
-            restore = True
-        else:
-            _inference_active += 1
-    if restore:
-        try:
-            _restore_tts_placement()
-        finally:
-            with _placement_cond:
-                _placement_exclusive = False
-                _inference_active += 1
-                _placement_cond.notify_all()
-    try:
-        yield
-    finally:
-        with _placement_cond:
-            _inference_active -= 1
-            if _inference_active == 0:
-                _placement_cond.notify_all()
-
-
-# FlashInfer keeps device state outside the module's parameters: fused weight
-# copies (_fi_w_qkv / _fi_w_gate_up), its attention runner's workspace and,
-# in graph mode, captured CUDA graphs bound to the old weight storage.
-# ``.to()`` moves none of it, so a model moved off and back would keep that
-# VRAM while offloaded and replay stale graphs afterwards. Tear it down before
-# leaving the GPU; re-apply once the model is back on CUDA.
-def _suspend_flashinfer(m) -> None:
-    if "_fi_runner" not in vars(m):
-        return
-    state = (
-        bool(getattr(m, "_fi_enable_cuda_graph", False)),
-        getattr(m, "_fi_graph_buckets", None),
-        getattr(m, "_fi_overhead_budget", 512),
-        getattr(m, "_fi_orig_attn_impl", None) or "sdpa",
-    )
-    _unapply_flashinfer(m)
-    m._fi_suspended = state
-
-
-def _resume_flashinfer(m) -> None:
-    state = vars(m).pop("_fi_suspended", None)
-    if state is None:
-        return
-    graph, buckets, budget, orig_attn = state
-    try:
-        from omnivoice.models.omnivoice_flashinfer import apply_flashinfer
-
-        m._fi_orig_attn_impl = orig_attn
-        apply_flashinfer(
-            m, enable_cuda_graph=graph, cuda_graph_buckets=buckets, overhead_budget=budget,
-        )
-    except Exception as exc:  # noqa: BLE001 — perf opt: fall back to the standard path
-        logger.warning("FlashInfer could not be re-applied after a model move (%s); "
-                       "continuing without it.", exc)
-        from services.engine_env import mark_flashinfer_runtime_failure
-
-        mark_flashinfer_runtime_failure(f"{type(exc).__name__}: {exc}")
-        _unapply_flashinfer(m)
-
-
-def _relocate_shared_model(m, device: str) -> None:
-    """Move ``m`` to ``device`` with its out-of-module accelerator state. The
-    caller holds exclusive placement. Raises on a failed move."""
-    if str(device).split(":", 1)[0] == "cpu":
-        _suspend_flashinfer(m)
-    m.to(device)
-    free_vram()
-    if str(device).split(":", 1)[0] == "cuda":
-        _resume_flashinfer(m)
-
-
-# ── Opt-in: offload the TTS model to RAM after generation (#2618) ─────────
-# For users who share the GPU with something else VRAM-heavy (a local LLM, a
-# game, an image model): once generation finishes and the GPU pool has been
-# idle for a short grace period, the resident in-process TTS model moves to
-# system RAM, and the next generation moves it back (tts_inference() restores
-# before the model runs). A RAM -> VRAM move takes seconds; a cold reload from
-# disk takes much longer, which is the point of offloading rather than
-# unloading. Default OFF, so default behaviour is unchanged. CUDA (NVIDIA +
-# ROCm), XPU, NPU and MPS move the model; on CPU it already lives in RAM and
-# this is a no-op.
-
-OFFLOAD_AFTER_GENERATION_PREF = "offload_tts_after_generation"
-OFFLOAD_AFTER_GENERATION_ENV = "OMNIVOICE_OFFLOAD_AFTER_GENERATION"
-_OFFLOAD_GRACE_ENV = "OMNIVOICE_OFFLOAD_AFTER_GENERATION_GRACE_S"
-_OFFLOAD_GRACE_DEFAULT_S = 3.0
-# While a dub/batch/audiobook job is active the offload re-checks this often,
-# so the setting still applies after the job finishes without a GPU drain.
-_OFFLOAD_JOB_POLL_S = 10.0
-
-# (id(model), device) while the model sits in RAM because of this feature;
-# the device is where the next generation restores it. Cleared on restore and
-# on unload, and keyed by identity so a reloaded model never inherits it.
-_ram_offload: "tuple[int, str] | None" = None
-
-
-class _OffloadTimer:
-    """The one pending offload check; arming it again replaces it, so each
-    GPU drain restarts the grace period."""
-
-    def __init__(self) -> None:
-        self._lock = threading.Lock()
-        self._timer: "threading.Timer | None" = None
-
-    def arm(self, delay_s: float) -> None:
-        timer = threading.Timer(delay_s, _offload_when_idle)
-        timer.daemon = True
-        with self._lock:
-            if self._timer is not None:
-                self._timer.cancel()
-            self._timer = timer
-        timer.start()
-
-    def cancel(self) -> None:
-        with self._lock:
-            if self._timer is not None:
-                self._timer.cancel()
-            self._timer = None
-
-    @property
-    def pending(self) -> "threading.Timer | None":
-        with self._lock:
-            return self._timer
-
-
-_offload_timer = _OffloadTimer()
-
-
-def _truthy_setting(value) -> bool:
-    if isinstance(value, bool):
-        return value
-    return str(value).strip().lower() in ("1", "true", "yes", "on")
-
-
-def offload_after_generation_enabled() -> bool:
-    """Env ``OMNIVOICE_OFFLOAD_AFTER_GENERATION`` > prefs.json > False.
-    Resolved per call so a Settings change applies without a restart."""
-    try:
-        # Imported by name at call time: core.prefs reaches this module back
-        # through services.settings_store, and only this lazy edge keeps the
-        # dependency one-way at import time.
-        import importlib
-
-        prefs = importlib.import_module("core.prefs")
-        return _truthy_setting(prefs.resolve(
-            OFFLOAD_AFTER_GENERATION_PREF, env=OFFLOAD_AFTER_GENERATION_ENV, default=False,
-        ))
-    except Exception:  # noqa: BLE001 — an unreadable setting means "off"
-        return False
-
-
-def _offload_grace_s() -> float:
-    try:
-        return max(0.0, float(os.environ.get(_OFFLOAD_GRACE_ENV, _OFFLOAD_GRACE_DEFAULT_S)))
-    except ValueError:
-        return _OFFLOAD_GRACE_DEFAULT_S
-
-
-def _on_accelerator(m) -> bool:
-    dev = _first_param_device(m)
-    return dev is not None and getattr(dev, "type", "cpu") not in ("cpu", "meta")
-
-
-def offload_tts_to_ram(*, still_idle=None) -> bool:
-    """Move the resident TTS model from its accelerator to system RAM.
-
-    Takes exclusive placement without waiting, so it never moves weights under
-    a running inference. ``still_idle`` is re-checked once exclusive placement
-    is held, so the idle decision and the move are atomic against new work.
-    Returns True when the model moved. No-op (False) when nothing is loaded,
-    the model is already on CPU (every CPU-only host), or the model is busy.
-    Never raises.
-    """
-    global _ram_offload
-    m = model
-    if m is None:
-        return False
-    if not _acquire_exclusive_placement(0.0):
-        return False
-    try:
-        if model is not m or _ram_offload is not None or not _on_accelerator(m):
-            return False
-        if still_idle is not None and not still_idle():
-            return False
-        dev = _first_param_device(m)
-        index = getattr(dev, "index", None)
-        target = dev.type if index is None else f"{dev.type}:{index}"
-        _ram_offload = (id(m), target)
-        try:
-            _relocate_shared_model(m, "cpu")
-            logger.info("Generation finished: TTS model moved from %s to system RAM.", target)
-            return True
-        except Exception as e:  # noqa: BLE001
-            logger.warning("Offloading the TTS model to RAM failed (keeping it on %s): %s", target, e)
-            try:
-                _relocate_shared_model(m, target)
-                _ram_offload = None
-            except Exception:  # noqa: BLE001 — record stays, so the next generate restores
-                logger.debug("TTS move back after a failed offload failed", exc_info=True)
-            return False
-    finally:
-        _release_exclusive_placement()
-
-
-def _generation_jobs_active() -> bool:
-    """True while a dub/batch/audiobook (or other background task) is queued
-    or running. Their GPU jobs come in waves with idle gaps between them, so
-    the pool alone can't tell "finished" from "between segments"."""
-    try:
-        from core import job_store
-
-        if job_store.list_jobs(status="active", limit=1):
-            return True
-    except Exception:  # noqa: BLE001 — unknown means busy: never offload blind
-        return True
-    batch = sys.modules.get("api.routers.batch")
-    lister = getattr(batch, "list_batch_jobs", None)
-    if callable(lister):
-        try:
-            return bool(lister(status="active", limit=1))
-        except Exception:  # noqa: BLE001
-            return True
-    return False
-
-
-def _pool_is_idle(*, own_jobs: int = 0) -> bool:
-    stats = gpu_pool_stats()
-    return int(stats.get("queued") or 0) == 0 and int(stats.get("running") or 0) <= own_jobs
-
-
-def _offload_job() -> bool:
-    """Runs on the GPU pool, so it is ordered behind work queued before it."""
-    if not offload_after_generation_enabled():
-        return False
-    return offload_tts_to_ram(
-        still_idle=lambda: _pool_is_idle(own_jobs=1) and not _generation_jobs_active()
-    )
-
-
-def _offload_when_idle() -> None:
-    """Grace-timer callback: offload only if the pool is still idle, no
-    generation job is pending, and the model is resident on an accelerator.
-    While a background job is active it re-checks every few seconds, because
-    a job can finish (final mix, export) without another GPU drain."""
-    try:
-        if model is None or _ram_offload is not None:
-            return
-        if not offload_after_generation_enabled() or is_shutting_down():
-            return
-        if not _pool_is_idle():
-            return  # that work's own drain re-arms the check
-        if _generation_jobs_active():
-            _offload_timer.arm(_OFFLOAD_JOB_POLL_S)
-            return
-        if not _on_accelerator(model):
-            return
-        _get_gpu_pool().submit(_offload_job).add_done_callback(_swallow_abandoned)
-    except Exception:  # noqa: BLE001 — an offload attempt must never surface
-        logger.debug("post-generation TTS offload skipped", exc_info=True)
-
-
-def _note_gpu_pool_idle() -> None:
-    """The GPU pool just drained: (re)arm the grace timer. Each drain restarts
-    it, so back-to-back generations never pay a move between them."""
-    try:
-        if model is None or _ram_offload is not None:
-            return
-        if not offload_after_generation_enabled():
-            return
-        _offload_timer.arm(_offload_grace_s())
-    except Exception:  # noqa: BLE001 — called from the pool's finally block
-        logger.debug("could not arm the post-generation offload", exc_info=True)
-
 
 _diar_pipeline = None
 
@@ -4449,8 +3932,7 @@ def get_diarization_pipeline(return_error: bool = False):
     resolved = token_resolver.resolve()
     # Access is checked during explicit installation. An already-installed
     # local bundle remains usable after a token expires or is removed.
-    from services.hf_auth import token_for_endpoint
-    hf_token = token_for_endpoint(None, resolved.token) if resolved else False
+    hf_token = resolved.token if resolved else False
     try:
         torch = _lazy_torch()
         _ensure_pyannote_hf_token_compat()  # #167: use_auth_token -> token
@@ -4506,52 +3988,3 @@ def unload_diarization_pipeline() -> bool:
     except Exception:
         logger.debug("Could not clear accelerator cache after diarisation unload", exc_info=True)
     return True
-
-
-def _local_route_is_cpu(engine_id: "str | None" = None) -> bool:
-    """Does a local /generate for this engine (default: the active one) end up
-    computing on the CPU? True for a CPU host AND for an accelerated host whose
-    engine is CPU-only or falls back to CPU — the same routing decision the
-    generate dispatch budgets from. A failed lookup falls back to the host
-    family, which is what an engine-less budget uses."""
-    from core.device_caps import detect_host_caps
-
-    caps = detect_host_caps()
-    try:
-        from services.engine_routing import runtime_compute_profile
-        from services.tts_backend import active_backend_id, get_backend_class
-
-        cls = get_backend_class(engine_id or active_backend_id())
-        return runtime_compute_profile(cls, caps)["effective_device"] == "cpu"
-    except Exception:  # noqa: BLE001 — routing lookup is advisory
-        return caps.family == "cpu"
-
-
-def generate_budget_s(engine_id: "str | None" = None) -> dict[str, float]:
-    """The active /generate budgets, including operator overrides.
-
-    The client backstop (electron/src/shared/utils/generateBudget.ts) takes the
-    larger of these and its built-in defaults, so raising a timeout through the
-    environment never makes the UI give up on a job that is still running.
-
-    ``cpuAutoCeiling`` is the most the AUTOMATIC CPU budget can grant any text
-    (#2609). The client cannot see the normalized text the backend budgets, so
-    when the effective local route for this engine computes on the CPU and the
-    budget is the default one, it waits for this ceiling instead of guessing
-    from the typed length. 0 for GPU-routed jobs and explicit budgets, so the
-    GPU backstop does not grow.
-    """
-    ceiling = 0.0
-    try:
-        universal, cpu_explicit = _explicit_budget_flags()
-        if not cpu_explicit and not universal and _local_route_is_cpu(engine_id):
-            ceiling = automatic_cpu_ceiling_s(CPU_JOB_TIMEOUT_S)
-    except Exception:  # noqa: BLE001 — a failed probe just omits the hint
-        pass
-    return {
-        "modelLoad": _model_load_timeout(),
-        "queueWait": GPU_QUEUE_TIMEOUT_S,
-        "executionBase": max(GPU_JOB_TIMEOUT_S, CPU_JOB_TIMEOUT_S),
-        "progressExtensionCap": progress_extension_cap_s(),
-        "cpuAutoCeiling": ceiling,
-    }

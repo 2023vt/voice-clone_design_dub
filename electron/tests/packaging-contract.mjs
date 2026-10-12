@@ -7,7 +7,6 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
 import { verifyLinuxLibraries } from '../native-linux-libraries.mjs';
-import { APP_ID, PRODUCT_NAME } from '../../config/app-config.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 if (process.platform === 'linux') {
   const librariesTest = spawnSync(
@@ -31,14 +30,8 @@ const artifactCandidates =
       : ['release/win-unpacked']
     : process.platform === 'darwin'
       ? artifactArch === 'arm64'
-        ? [
-            `release/mac-arm64/${PRODUCT_NAME}.app/Contents`,
-            `release/mac/${PRODUCT_NAME}.app/Contents`,
-          ]
-        : [
-            `release/mac/${PRODUCT_NAME}.app/Contents`,
-            `release/mac-x64/${PRODUCT_NAME}.app/Contents`,
-          ]
+        ? ['release/mac-arm64/VoiceStudio.app/Contents', 'release/mac/VoiceStudio.app/Contents']
+        : ['release/mac/VoiceStudio.app/Contents', 'release/mac-x64/VoiceStudio.app/Contents']
       : artifactArch === 'arm64'
         ? ['release/linux-arm64-unpacked', 'release/linux-unpacked']
         : ['release/linux-unpacked'];
@@ -54,26 +47,20 @@ const artifactResources = resolve(
 const artifactExecutable = resolve(
   artifactRoot,
   process.platform === 'win32'
-    ? `${PRODUCT_NAME}.exe`
+    ? 'VoiceStudio.exe'
     : process.platform === 'darwin'
-      ? `MacOS/${PRODUCT_NAME}`
+      ? 'MacOS/VoiceStudio'
       : 'voicestudio-electron',
 );
 const electronPackage = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
 assert.match(electronPackage.author?.email ?? '', /@/, 'Linux package declares a maintainer email');
-assert.equal(config.productName, PRODUCT_NAME, 'Builder uses the central product name');
-assert.equal(config.appId, APP_ID, 'Builder uses the central application ID');
-assert.equal(
-  config.extraMetadata.desktopName,
-  PRODUCT_NAME,
-  'Linux desktop identity stays branded',
-);
+assert.equal(electronPackage.desktopName, 'VoiceStudio', 'Linux desktop identity stays branded');
 assert.equal(
   config.linux.syncDesktopName,
   true,
   'Linux window and desktop entry share one identity',
 );
-assert(config.mac.extendInfo.NSMicrophoneUsageDescription.includes(PRODUCT_NAME));
+assert(config.mac.extendInfo.NSMicrophoneUsageDescription.includes('VoiceStudio'));
 for (const entitlementFile of [config.mac.entitlements, config.mac.entitlementsInherit]) {
   const entitlements = readFileSync(resolve(root, entitlementFile), 'utf8');
   assert.match(entitlements, /<key>com\.apple\.security\.device\.audio-input<\/key>\s*<true\s*\/>/);
@@ -82,36 +69,11 @@ for (const entitlementFile of [config.mac.entitlements, config.mac.entitlementsI
 const project = readFileSync(resolve(root, '../pyproject.toml'), 'utf8');
 const readme = project.match(/^readme\s*=\s*"([^"]+)"/m)?.[1];
 assert(readme, 'Python project declares a README');
-for (const resource of [
-  readme,
-  'LICENSE',
-  'LICENSE-NOTICE.md',
-  'electron/T3CODE-LICENSE.txt',
-  'pyproject.toml',
-  'uv.lock',
-  'backend',
-  'omnivoice',
-  'config/app.json',
-]) {
+for (const resource of [readme, 'LICENSE', 'pyproject.toml', 'uv.lock', 'backend', 'omnivoice']) {
   const entry = config.extraResources.find((item) => item.to === resource);
   assert(entry && existsSync(resolve(root, entry.from)), 'Required resource: ' + resource);
   if (artifactRequested)
     assert(existsSync(resolve(artifactResources, resource)), 'Packaged resource: ' + resource);
-}
-// #2599: LAN devices load the web UI from the backend, which serves this
-// build from the app's resources. Without it they only get an error page.
-const webUi = config.extraResources.find((item) => item.to === 'frontend/dist');
-assert(webUi, 'Required resource: frontend/dist (web UI for LAN sharing)');
-for (const [label, dir] of [
-  ['Built', resolve(root, webUi.from)],
-  ...(artifactRequested ? [['Packaged', resolve(artifactResources, webUi.to)]] : []),
-]) {
-  const index = resolve(dir, 'index.html');
-  assert(existsSync(index), `${label} web UI entry (run build:web first): ${index}`);
-  const html = readFileSync(index, 'utf8');
-  for (const [, asset] of html.matchAll(/(?:src|href)="\/(assets\/[^"]+)"/g)) {
-    assert(existsSync(resolve(dir, asset)), `${label} web UI asset: ${asset}`);
-  }
 }
 const bundledUvSource = config.extraResources.find((item) => /^tools\/uv(?:\.exe)?$/.test(item.to));
 if (process.env.VOICESTUDIO_RUST_TARGET || process.env.VOICESTUDIO_BUNDLED_UV) {
@@ -139,18 +101,6 @@ for (const icon of ['brand/icon.png', 'brand/icon.ico', 'brand/32x32.png']) {
   assert(entry && existsSync(resolve(root, entry.from)), `Runtime icon: ${icon}`);
 }
 assert.equal(typeof config.afterPack, 'function', 'Native helper must be built before signing');
-// electron-builder UNIONS an explicit per-target `arch` with the --x64/--arm64
-// CLI flag, so `--win --arm64` over `{ target: 'nsis', arch: ['x64'] }` also
-// packages x64, and its native helper needs a toolchain the runner lacks. The
-// CLI matrix alone picks the architecture; the default is the host's.
-for (const platform of ['win', 'mac', 'linux']) {
-  for (const target of [config[platform]?.target ?? []].flat()) {
-    assert(
-      typeof target === 'string' || target.arch === undefined,
-      `${platform} target ${target.target} must not pin arch; CLI flags choose it`,
-    );
-  }
-}
 if (artifactRequested) {
   if (process.platform === 'linux') {
     await verifyLinuxLibraries(resolve(artifactResources, 'native/voicestudio-desktop-bridge'));
@@ -192,5 +142,5 @@ assert(
 );
 
 console.log(
-  `PASS: built entry syntax, Python and web UI resource contract, app version source${artifactRequested ? ` and ${process.platform} artifact` : ''}`,
+  `PASS: built entry syntax, Python resource contract, app version source${artifactRequested ? ` and ${process.platform} artifact` : ''}`,
 );

@@ -1,13 +1,12 @@
 import { getBridge } from '@/components/bridge';
-import { saveNativeData } from '@/lib/native-save';
 
 export async function saveLocalFile(blob: Blob, suggestedName: string) {
-  if (getBridge()) {
-    const saved = await saveNativeData({
+  const bridge = getBridge();
+  if (bridge) {
+    return bridge.files.saveData({
       data: new Uint8Array(await blob.arrayBuffer()),
       suggestedName,
     });
-    if (saved) return saved;
   }
   const url = URL.createObjectURL(blob);
   const link = document.createElement('a');

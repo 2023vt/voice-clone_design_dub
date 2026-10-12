@@ -27,40 +27,20 @@ import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_BACKEND_PORT } from "../config/app-config.mjs";
-
-export { DEFAULT_BACKEND_PORT };
-
-/** The port Vite proxies to (OMNIVOICE_PORT or config/app.json). */
-export function backendPort(env = process.env) {
-  const port = Number.parseInt(String(env.OMNIVOICE_PORT ?? "").trim(), 10);
-  return Number.isInteger(port) && port > 0 && port < 65536 ? port : DEFAULT_BACKEND_PORT;
-}
-
-/**
- * Loopback by default, like backend/main.py: the API ships unauthenticated on
- * loopback, so `dev:api` must not publish it to the LAN. OMNIVOICE_BIND_HOST
- * opts in to another interface, the same knob the backend honours.
- */
-export function bindHost(env = process.env) {
-  return String(env.OMNIVOICE_BIND_HOST ?? "").trim() || "127.0.0.1";
-}
 
 // The wrapper owns Python source reloads so uvicorn's reload parent cannot stay
 // alive after its server worker dies (#1690).
-export function uvicornArgs(env = process.env) {
-  return [
-    "run",
-    "uvicorn",
-    "main:app",
-    "--app-dir",
-    "backend",
-    "--host",
-    bindHost(env),
-    "--port",
-    String(backendPort(env)),
-  ];
-}
+export const UVICORN_ARGS = [
+  "run",
+  "uvicorn",
+  "main:app",
+  "--app-dir",
+  "backend",
+  "--host",
+  "0.0.0.0",
+  "--port",
+  "3900",
+];
 
 export const CRASH_RESTART_DELAY_MS = 1_000;
 export const CRASH_RESTART_LIMIT = 3;
@@ -149,11 +129,13 @@ export function buildExitBanner({ code, signal, logTail, logPath, platform = pro
   return lines.join("\n");
 }
 
-// Setup is explicit and chooses the CPU/CUDA wheel graph. Never let launch or
-// restart silently restore the default CUDA group (or undo a ROCm swap).
+// `uv run` re-syncs the venv to uv.lock before launching — which would undo
+// the opt-in ROCm torch swap `scripts/setup.py` just performed (the lock pins
+// the CUDA build). `bun run setup:api` already did the sync, so skip it here
+// whenever the ROCm variant is requested (#1665).
 export function uvRunArgs(env = process.env) {
-  const args = uvicornArgs(env);
-  return [args[0], "--no-sync", ...args.slice(1)];
+  const rocm = (env.OMNIVOICE_TORCH_VARIANT || "").trim().toLowerCase() === "rocm";
+  return rocm ? [UVICORN_ARGS[0], "--no-sync", ...UVICORN_ARGS.slice(1)] : UVICORN_ARGS;
 }
 
 /**

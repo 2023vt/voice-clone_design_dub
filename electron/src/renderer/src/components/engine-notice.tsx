@@ -6,7 +6,11 @@ import { toast } from 'sonner';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Button } from '@/components/ui/button';
 import { useTtsReadiness } from '@/hooks/use-tts-readiness';
-import { TERMINAL_MODEL_INSTALL_STATES, useModelInstallJobs } from '@/hooks/use-model-install-sync';
+import {
+  modelInstallJobTarget,
+  TERMINAL_MODEL_INSTALL_STATES,
+  useModelInstallJobs,
+} from '@/hooks/use-model-install-sync';
 import { apiJson, describeError } from '@/lib/api/client';
 import { openRepairAgent } from '@/lib/repair-agent-events';
 import type { EnginesResponse } from '@/lib/api/types';
@@ -19,24 +23,32 @@ interface RecommendedModel {
 }
 
 interface ModelRecommendations {
+  target?: string;
   models: RecommendedModel[];
 }
 
 export function EngineNotice({
   operation = 'tts',
+  requireLocal = false,
   compact = false,
 }: {
   operation?: string;
+  requireLocal?: boolean;
   compact?: boolean;
 }) {
   const { t } = useTranslation();
   const client = useQueryClient();
   const [fixing, setFixing] = useState(false);
-  const [install, setInstall] = useState<{ repo: string } | null>(null);
+  const [install, setInstall] = useState<{
+    repo: string;
+    target: string;
+  } | null>(null);
   const installSeen = useRef(false);
   const jobs = useModelInstallJobs();
-  const blocker = useTtsReadiness(operation);
-  const job = jobs.data?.jobs.find((item) => item.repo_id === install?.repo);
+  const blocker = useTtsReadiness(operation, requireLocal);
+  const job = jobs.data?.jobs.find(
+    (item) => item.repo_id === install?.repo && modelInstallJobTarget(item) === install?.target,
+  );
   const progress =
     job?.total_bytes && job.total_bytes > 0
       ? Math.min(100, Math.round(((job.bytes_done ?? 0) / job.total_bytes) * 100))
@@ -45,9 +57,13 @@ export function EngineNotice({
   const refreshReadiness = useCallback(
     () =>
       Promise.all(
-        ['model-install-jobs', 'model-catalogue', 'model-recommendations', 'engines'].map((key) =>
-          client.invalidateQueries({ queryKey: [key] }),
-        ),
+        [
+          'model-install-jobs',
+          'model-catalogue',
+          'model-recommendations',
+          'engines',
+          'workers',
+        ].map((key) => client.invalidateQueries({ queryKey: [key] })),
       ),
     [client],
   );
@@ -99,7 +115,7 @@ export function EngineNotice({
     }
     void (async () => {
       try {
-        if (!(await activateAvailableEngine())) {
+        if (install.target === 'local' && !(await activateAvailableEngine())) {
           repair('The model installed, but no compatible local TTS engine became available.');
         } else {
           await refreshReadiness();
@@ -119,26 +135,29 @@ export function EngineNotice({
         (item) => item.required && item.role.toLowerCase() === 'tts' && !item.installed,
       );
       if (!missing) {
-        if (!(await activateAvailableEngine())) {
+        if (recommendation.target !== 'local' || !(await activateAvailableEngine())) {
           repair(
             'The required model is installed, but no compatible engine is ready. Diagnose the live engine state and complete supported app-level recovery.',
           );
         }
         return;
       }
+      const target = recommendation.target ?? 'local';
       const existing = jobs.data?.jobs.find(
         (item) =>
-          item.repo_id === missing.repo_id && !TERMINAL_MODEL_INSTALL_STATES.has(item.state),
+          item.repo_id === missing.repo_id &&
+          modelInstallJobTarget(item) === target &&
+          !TERMINAL_MODEL_INSTALL_STATES.has(item.state),
       );
       installSeen.current = false;
-      setInstall({ repo: missing.repo_id });
+      setInstall({ repo: missing.repo_id, target });
       if (existing) {
         installSeen.current = true;
         return;
       }
       await apiJson('/models/install', {
         method: 'POST',
-        body: JSON.stringify({ repo_id: missing.repo_id }),
+        body: JSON.stringify({ repo_id: missing.repo_id, target }),
       });
       await client.invalidateQueries({ queryKey: ['model-install-jobs'] });
       toast.success(t('models.started_downloading', { count: 1 }));

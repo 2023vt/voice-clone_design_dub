@@ -102,7 +102,9 @@ export function DictationSetup({ onReady }: { onReady: () => void }) {
       setInstalling(model.id);
       await apiJson('/models/install', {
         method: 'POST',
-        body: JSON.stringify({ repo_id: model.repo_id }),
+        // Live dictation intentionally stays on this machine for latency; the
+        // selected batch/synthesis worker must not retarget its inline setup.
+        body: JSON.stringify({ repo_id: model.repo_id, target: 'local' }),
       });
       void catalogue.refetch();
     } catch (error) {
@@ -116,7 +118,7 @@ export function DictationSetup({ onReady }: { onReady: () => void }) {
     try {
       await apiJson('/models/install/cancel', {
         method: 'POST',
-        body: JSON.stringify({ repo_id: activeModel.repo_id }),
+        body: JSON.stringify({ repo_id: activeModel.repo_id, target: 'local' }),
       });
     } finally {
       setInstalling(null);

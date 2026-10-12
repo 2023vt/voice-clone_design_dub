@@ -9,15 +9,13 @@ ARG BASE_IMAGE=pytorch/pytorch:2.8.0-cuda12.8-cudnn9-runtime
 # ==========================================
 # Builder Stage: Compile React Frontend
 # ==========================================
-# Keep in lockstep with package.json packageManager (tests/test_bun_toolchain_pins.py).
-FROM oven/bun:1.4.2-alpine AS frontend-builder
+FROM oven/bun:1-alpine AS frontend-builder
 WORKDIR /app
 
 # Monorepo — bun workspace with lockfile at repo root. Copy manifests first
 # so `bun install` caches independently of source edits.
 COPY package.json bun.lock ./
 COPY electron/package.json ./electron/
-COPY config/ ./config/
 
 RUN bun install --frozen-lockfile
 
@@ -131,7 +129,6 @@ RUN if [ "$GPU_FLAVOR" = "cuda" ]; then \
 # Copy application source
 COPY backend/ ./backend/
 COPY omnivoice/ ./omnivoice/
-COPY config/ ./config/
 # Alembic config so schema migrations run natively on existing volumes
 # (without it the backend fell back to the additive-column self-heal —
 # functional, but the real migration chain is the first-class path).
@@ -140,19 +137,18 @@ COPY alembic.ini ./
 # Copy the pre-built React frontend from the builder stage
 COPY --from=frontend-builder /app/frontend/dist ./frontend/dist
 
-# Stable container interface for `docker run -P` and published-image consumers.
+# Expose the single unified API and UI port
 EXPOSE 3900
 
 # Image-level health probe (compose files define their own; this covers plain
 # `docker run`). Generous start period: first boot creates the venv-less
 # schema + may pull model metadata before /health answers.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=120s --retries=5 \
-  CMD ["python3", "backend/docker_entrypoint.py", "--health-check"]
+  CMD curl -fsS http://127.0.0.1:3900/health || exit 1
 
 # Mount points for persistent data (sqlite db, user voices, huggingface cache)
 VOLUME ["/app/omnivoice_data"]
 
-# Bind to 0.0.0.0 for external access. The entrypoint reads the manifest default
-# (or OMNIVOICE_PORT) and forwards any explicit Uvicorn options after the image.
-ENV OMNIVOICE_BIND_HOST=0.0.0.0
-ENTRYPOINT ["python3", "backend/docker_entrypoint.py"]
+# Bind to 0.0.0.0 for external access. `python3 -m` keeps runtime imports on
+# the same interpreter whose torch flavor the build guard validated (#1274).
+ENTRYPOINT ["python3", "-m", "uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "3900"]

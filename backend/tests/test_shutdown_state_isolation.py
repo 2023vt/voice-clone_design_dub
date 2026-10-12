@@ -29,10 +29,7 @@ import sys
 
 import services.model_manager as mm
 
-# The fixture lives in the repository-root conftest.py so tests/ shares it.
-_CONFTEST = os.path.join(
-    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "conftest.py"
-)
+_CONFTEST = os.path.join(os.path.dirname(os.path.abspath(__file__)), "conftest.py")
 
 
 def test_dirty_the_shutdown_state():
@@ -47,7 +44,7 @@ def test_next_test_starts_clean():
     """Runs immediately after the test above and must not inherit its state."""
     assert not mm.is_shutting_down(), (
         "the shutdown flag leaked from the previous test — the autouse fixture "
-        "in the root conftest.py is not resetting it, and every executor "
+        "in backend/tests/conftest.py is not resetting it, and every executor "
         "submit in this test will now raise 'cannot schedule new futures after "
         "shutdown' and be misread as a benign cancellation (#1269)"
     )
@@ -87,7 +84,7 @@ def test_stale_module_alias_starts_clean():
     assert stale_mm is not None, "the previous test did not run — check ordering"
     assert not stale_mm.is_shutting_down(), (
         "the shutdown flag leaked on a stale duplicate of services.model_manager "
-        "— the autouse fixture in the root conftest.py is only cleaning the "
+        "— the autouse fixture in backend/tests/conftest.py is only cleaning the "
         "module in sys.modules, so in a combined `pytest tests/ backend/tests/` "
         "run every backend/tests module that holds an `import services."
         "model_manager as mm` alias starts dirty (#1269)"

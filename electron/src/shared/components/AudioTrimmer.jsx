@@ -1,4 +1,3 @@
-import { formatTimestamp } from '../utils/timeFormat';
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { Scissors, Play, Pause, Check, ZoomIn, ZoomOut, Maximize2, Repeat } from 'lucide-react';
 import {
@@ -30,7 +29,11 @@ function fmtSec(t, precision = 2) {
 
 function fmtHMS(t) {
   if (!isFinite(t)) return '0:00.00';
-  return formatTimestamp(t, { decimals: 2, hours: true });
+  const h = Math.floor(t / 3600);
+  const m = Math.floor((t % 3600) / 60);
+  const s = t % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${s.toFixed(2).padStart(5, '0')}`;
+  return `${m}:${s.toFixed(2).padStart(5, '0')}`;
 }
 
 export default function AudioTrimmer({ file, maxSeconds = 15, onConfirm, onCancel }) {

@@ -23,7 +23,6 @@ import {
 } from './main-error-journal';
 import { activateLiveWindow, isLiveWindow } from './window-safety';
 import { installAppIdentity, installMacApplicationMenu } from './app-identity';
-import { APP_ID, DEFAULT_ELECTRON_PROXY_PORT, PRODUCT_NAME } from '../../../config/app-config.mjs';
 
 // Packaged GUI launches can inherit a short-lived terminal pipe. When that
 // launcher exits, diagnostic console writes emit EPIPE asynchronously and can
@@ -32,6 +31,7 @@ import { APP_ID, DEFAULT_ELECTRON_PROXY_PORT, PRODUCT_NAME } from '../../../conf
 process.stdout?.on('error', () => {});
 process.stderr?.on('error', () => {});
 
+const APP_USER_MODEL_ID = 'com.voicestudio.desktop';
 const here = dirname(fileURLToPath(import.meta.url));
 const PRELOAD_PATH = join(here, '../preload/index.mjs');
 const RENDERER_DIR = join(here, '../renderer');
@@ -235,7 +235,7 @@ if (process.env.VOICESTUDIO_ALLOW_MULTIPLE_INSTANCES !== '1' && !app.requestSing
   void app
     .whenReady()
     .then(async () => {
-      electronApp.setAppUserModelId(APP_ID);
+      electronApp.setAppUserModelId(APP_USER_MODEL_ID);
       if (process.platform === 'darwin') installMacApplicationMenu(app, Menu, __APP_VERSION__);
       installRendererPermissions(session.defaultSession, process.env.ELECTRON_RENDERER_URL);
       app.on('browser-window-created', (_event, window) => optimizer.watchWindowShortcuts(window));
@@ -271,10 +271,7 @@ if (process.env.VOICESTUDIO_ALLOW_MULTIPLE_INSTANCES !== '1' && !app.requestSing
         const proxy = await startDevBackendProxy(
           () => backend.baseUrl,
           () => backend.requestHeaders(),
-          Number(process.env.VOICESTUDIO_ELECTRON_PROXY_PORT) || DEFAULT_ELECTRON_PROXY_PORT,
-          process.env.ELECTRON_RENDERER_URL
-            ? [new URL(process.env.ELECTRON_RENDERER_URL).origin]
-            : [],
+          Number(process.env.VOICESTUDIO_ELECTRON_PROXY_PORT) || 3903,
         );
         closeDevProxy = proxy.close;
       }
@@ -310,7 +307,7 @@ if (process.env.VOICESTUDIO_ALLOW_MULTIPLE_INSTANCES !== '1' && !app.requestSing
       const icon = nativeImage.createFromPath(brandIconPath('icon.png'));
       if (process.platform === 'darwin') app.dock?.setIcon(icon);
       tray = new Tray(createTrayIcon(brandIconPath('32x32.png')));
-      tray.setToolTip(PRODUCT_NAME);
+      tray.setToolTip('VoiceStudio');
       closeCapture = installNativeCapture(PRELOAD_PATH, tray, () => mainWindow);
       tray.on('click', () => {
         if (!isLiveWindow(mainWindow)) mainWindow = createWindow();

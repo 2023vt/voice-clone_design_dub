@@ -23,9 +23,7 @@ export function publicFailureFromEvent(
         ? i18next.t('dubIntegrity.missingSpeech')
         : event.error_code === 'dub_timing_overflow'
           ? i18next.t('dubIntegrity.timingOverflow')
-          : event.error_code === 'dub_source_changed'
-            ? i18next.t('dubIntegrity.sourceChanged')
-            : undefined) ||
+          : undefined) ||
       localized ||
       text(event.reason) ||
       text(event.detail) ||

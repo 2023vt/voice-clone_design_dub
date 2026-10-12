@@ -27,7 +27,6 @@ import torchaudio
 
 from omnivoice.models.omnivoice import OmniVoice
 from omnivoice.utils.common import str2bool
-from omnivoice.utils.dtype import tts_dtype_name
 
 
 def get_best_device():
@@ -128,9 +127,7 @@ def main():
     device = args.device or get_best_device()
     logging.info(f"Loading model from {args.model} on {device} ...")
     model = OmniVoice.from_pretrained(
-        args.model,
-        device_map=device,
-        dtype=getattr(torch, tts_dtype_name(device)),
+        args.model, device_map=device, dtype=torch.float16
     )
 
     logging.info(f"Generating audio for: {args.text[:80]}...")

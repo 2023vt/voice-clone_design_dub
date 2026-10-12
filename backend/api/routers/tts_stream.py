@@ -46,8 +46,6 @@ async def _resolve_stream_backend(engine_id: str | None):
 
     selected_id = engine_id or tts_backend.active_backend_id()
     cls = tts_backend.get_backend_class(selected_id)
-    # Every branch below can hand back an already-built instance; refuse first.
-    tts_backend.ensure_engine_licence(cls)
     if cls is tts_backend.OmniVoiceBackend:
         if engine_id:
             # Preserve the explicit core override path; the shared model is
@@ -88,35 +86,6 @@ class StreamTTSRequest(BaseModel):
     engine: Optional[str] = None
 
 
-EMO_AUDIO_DETAIL = (
-    "emo_audio must name an audio clip stored in VoiceStudio's voices or "
-    "outputs folder."
-)
-
-
-def resolve_emotion_clip(value: object) -> str:
-    """Resolve an ``emo_audio`` reference to a file VoiceStudio owns.
-
-    Accepts a bare filename in the voices folder, or a path inside the voices
-    or outputs folders (voice-gallery imports live there). Anything else —
-    including arbitrary absolute paths — is refused, so a socket client can
-    never make the engine read an unrelated file from disk.
-    """
-    from core.config import OUTPUTS_DIR, VOICES_DIR
-    from core.path_security import UnsafePath, resolve_within
-
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(EMO_AUDIO_DETAIL)
-    for root in (VOICES_DIR, OUTPUTS_DIR):
-        try:
-            candidate = resolve_within(root, value.strip())
-        except (OSError, UnsafePath):
-            continue
-        if candidate.is_file() and not candidate.is_symlink():
-            return str(candidate)
-    raise ValueError(EMO_AUDIO_DETAIL)
-
-
 def build_stream_kwargs(data: dict) -> dict:
     """Generation kwargs for one streaming request, voice profile resolved.
 
@@ -135,7 +104,7 @@ def build_stream_kwargs(data: dict) -> dict:
     if data.get("emo_text"):
         kw["emo_text"] = data["emo_text"]
     if data.get("emo_audio"):
-        kw["emo_audio"] = resolve_emotion_clip(data["emo_audio"])
+        kw["emo_audio"] = data["emo_audio"]
     # Default 1.0 when absent: a missing key must not trip the
     # `!= 1.0` branch into a KeyError (any minimal request that
     # omitted emo_alpha got an error frame instead of audio).
@@ -148,7 +117,6 @@ def build_stream_kwargs(data: dict) -> dict:
         try:
             from core.db import db_conn
             from core.config import VOICES_DIR
-            from core.path_security import contained_join
             with db_conn() as conn:
                 row = conn.execute(
                     "SELECT * FROM voice_profiles WHERE id=?",
@@ -156,9 +124,13 @@ def build_stream_kwargs(data: dict) -> dict:
                 ).fetchone()
             if row:
                 if row["is_locked"] and row["locked_audio_path"]:
-                    kw["ref_audio"] = contained_join(VOICES_DIR, row["locked_audio_path"])
+                    kw["ref_audio"] = os.path.join(
+                        VOICES_DIR, row["locked_audio_path"]
+                    )
                 elif row["ref_audio_path"]:
-                    kw["ref_audio"] = contained_join(VOICES_DIR, row["ref_audio_path"])
+                    kw["ref_audio"] = os.path.join(
+                        VOICES_DIR, row["ref_audio_path"]
+                    )
                 if row["ref_text"]:
                     kw["ref_text"] = row["ref_text"]
                 if row["instruct"] and not data.get("instruct"):
@@ -282,6 +254,11 @@ async def ws_tts(websocket: WebSocket):
     await websocket.accept()
     logger.info("TTS streaming WebSocket connected")
 
+    # Said once per socket, not once per utterance: a conversational client
+    # sends many requests down one connection and a repeated notice would be
+    # noise. See `_announce_local_only`.
+    announced_local_only = False
+
     try:
         while True:
             # Wait for a text request from the client
@@ -302,6 +279,43 @@ async def ws_tts(websocket: WebSocket):
 
             t0 = _perf_counter()
             text = data["text"]
+
+            # Remote GPU: this socket stays on this machine, and says so.
+            #
+            # /generate's port trades progressive playback for the remote
+            # render — the classic path was always a single wait, so spending
+            # it on a faster GPU is a straight win. This route is the opposite
+            # shape: it exists to put audio in the user's ear before the
+            # sentence has finished synthesizing, and sending each utterance to
+            # a worker would pay queue admission, a round trip and cold-load
+            # risk per utterance, for the one surface where latency IS the
+            # feature.
+            #
+            # Silence would be worse than the limitation: the header badge
+            # would read "gpu2" while this machine does 100% of the work, the
+            # same class of lie the op-aware picker exists to stop. Said once
+            # per socket — a conversational client sends many requests down one
+            # connection — and BEFORE engine resolution, so an engine that
+            # cannot load still tells the user where it would have run.
+            if not announced_local_only:
+                announced_local_only = True
+                try:
+                    from worker import routing as worker_routing
+
+                    target = worker_routing.decide(op="tts")
+                except Exception:  # noqa: BLE001 — advisory; never break audio
+                    target = None
+                if target is not None and target.remote:
+                    from core.scrub import scrub_text as _scrub
+
+                    await websocket.send_json({
+                        "type": "routing",
+                        "status": "local_stream",
+                        "reason": _scrub(
+                            f"{target.label} is your GPU target, but live "
+                            f"streaming runs on this machine"
+                        ),
+                    })
 
             # Close on every exit: normal completion, routing rejection,
             # disconnect, generation failure or task cancellation.
@@ -359,12 +373,8 @@ async def ws_tts(websocket: WebSocket):
                     })
 
                 from services.engine_memory import evict_other_tts_engines
-                try:
-                    kw = build_stream_kwargs(data)
-                except ValueError as exc:
-                    await websocket.send_json({"type": "error", "detail": str(exc)})
-                    continue
                 await evict_other_tts_engines(backend.id)
+                kw = build_stream_kwargs(data)
 
                 # Normalized exactly once on the whole text, then chunked
                 # (see split_stream_sentences). The request's `language` is all
@@ -475,19 +485,11 @@ async def ws_tts(websocket: WebSocket):
                 )
 
             except Exception as e:
-                from core.failure import licence_required_detail
-
-                licence = licence_required_detail(e)
-                if licence is None:
-                    logger.exception("TTS streaming failed: %s", e)
-                else:
-                    logger.info("TTS stream refused: model licence not accepted")
+                logger.exception("TTS streaming failed: %s", e)
                 try:
                     await websocket.send_json({
                         "type": "error",
                         "detail": str(e),
-                        # code + models let the client open the acceptance dialog.
-                        **({"code": licence["code"], "models": licence["models"]} if licence else {}),
                     })
                 except Exception:
                     break

@@ -13,7 +13,6 @@ if _backend_dir not in sys.path:
 # native crash inside torch/CUDA leaves a named frame in backend_err.log
 # instead of a silently vanished process. See core/crash_diagnostics.py.
 from core.crash_diagnostics import enable_fault_handler  # noqa: E402
-from core.app_config import PRODUCT_NAME  # noqa: E402
 
 enable_fault_handler()
 
@@ -136,12 +135,6 @@ try:
     _load_user_env()
 except ImportError:
     pass
-
-# A mirror in HF_ENDPOINT must never receive the Hugging Face token, here or in
-# engine processes that inherit this environment.
-from services.hf_auth import apply_process_token_policy as _apply_hf_token_policy  # noqa: E402
-
-_apply_hf_token_policy()
 
 # ── cuDNN 8 library preload ─────────────────────────────────────────────
 # Moved into _phase_a_build (`native_preload` step, early-bind refactor): the
@@ -578,8 +571,8 @@ _phase_a_finished = threading.Event()
 
 def _phase_a_build() -> None:
     """Everything heavy that used to run at module scope, same relative
-    order per step. Idempotent. Imports are literal statements so static
-    import analysis still sees them.
+    order per step. Idempotent. Imports are literal statements so
+    PyInstaller's tracer still sees them (backend.spec unchanged).
 
     `_phase_a_finished` is set on EVERY exit — including the already-built
     early return — so a shutdown that observed `_phase_a_started` can never
@@ -619,16 +612,6 @@ def _phase_a_build_inner() -> None:
         restore_env(_load_all_prefs())
     except Exception:
         pass  # prefs.json missing or broken — fine on first run
-    # MIOpen's default find mode runs an exhaustive algorithm search the first
-    # time it sees each convolution *shape*, and shape-varying vocoders pay it
-    # again on nearly every call — ~18 s per new BigVGAN input shape on an
-    # RX 6800 XT, which is what made IndexTTS sidecar chunks take 17–24 s
-    # (#2373). FAST answers in well under a second with a near-optimal kernel.
-    # Read only by MIOpen, i.e. only in ROCm builds (Linux or Windows HIP) —
-    # inert on CUDA/MPS/CPU. It lands here, after restore_env, so an exported
-    # MIOPEN_FIND_MODE (shell, `.env`, Docker) still wins; `setdefault` is
-    # load-bearing, never an assignment.
-    os.environ.setdefault("MIOPEN_FIND_MODE", "FAST")
     # yt-dlp user-update overlay: must run before anything imports yt_dlp so
     # a user-updated version wins over the locked wheel. Best-effort.
     try:
@@ -741,6 +724,7 @@ def _phase_a_build_inner() -> None:
         voice_convert,  # Studio Convert: speech-to-speech via ASR → TTS
     )
     from api.routers import mcp_bindings as _mcp_bindings_router  # noqa: E402
+    from api.routers import workers as workers_router  # noqa: E402
     from api.routers import telephony_twilio as _telephony_twilio_router  # noqa: E402
     from api.routers import calls as _calls_router  # noqa: E402
     _router_modules.extend([
@@ -750,7 +734,7 @@ def _phase_a_build_inner() -> None:
         batch, watermark, events, capture, capture_ws, speech_platform, dictation,
         openai_compat, tts_stream, marketplace, personas, sonitranslate,
         audiobook, longform_jobs, pronunciation, settings_router,
-        media_tools_router, auth_router, _mcp_bindings_router,
+        media_tools_router, auth_router, _mcp_bindings_router, workers_router,
         _telephony_twilio_router, _calls_router,
     ])
     # Download-acceleration state, once, for triage-from-logs (FDL-03).
@@ -799,17 +783,10 @@ def _phase_a_finalize() -> None:
         app.mount("/demo_audio", StaticFiles(directory=_demo_dir), name="demo_audio")
 
     # SPA shell LAST so the "/" StaticFiles mount can't shadow any router.
-    from core.spa_inject import (
-        dev_ui_redirect,
-        frontend_available,
-        frontend_dist_dir,
-        inject_api_base,
-        is_valid_public_api_base,
-        web_ui_missing_body,
-    )
+    from core.spa_inject import frontend_dist_dir, is_valid_public_api_base, inject_api_base
 
     _frontend_path = frontend_dist_dir()
-    if frontend_available(_frontend_path):
+    if os.path.exists(_frontend_path):
         # Runtime API-base override (Docker / reverse-proxy): inject
         # OMNIVOICE_PUBLIC_API_BASE into index.html; unset → untouched.
 
@@ -840,21 +817,9 @@ def _phase_a_finalize() -> None:
         app.mount("/", StaticFiles(directory=_frontend_path, html=True), name="frontend")
     else:
 
-        logging.getLogger("omnivoice.api").info(
-            "No web UI build at %s; \"/\" serves an explanation to other devices.",
-            _frontend_path,
-        )
-
         @app.get("/", include_in_schema=False)
-        def _no_web_ui(request: Request):
-            # Only a local browser may be sent to the local dev UI; a LAN
-            # device redirected to localhost reaches itself, not us (#2599).
-            client = request.client.host if request.client else None
-            target = dev_ui_redirect(client, request.headers.get("host", ""), _ui_port())
-            if target:
-                return RedirectResponse(url=target)
-            media_type, body = web_ui_missing_body(request.headers.get("accept", ""))
-            return Response(body, status_code=503, media_type=media_type)
+        def _dev_fallback():
+            return RedirectResponse(url=f"http://localhost:{_ui_port()}")
 
     # An early /docs or /openapi.json hit may have cached a schema without
     # the routers — bust it so the next request rebuilds the full one.
@@ -937,13 +902,6 @@ async def _phase_b(app: FastAPI) -> None:
             logger.info("Startup: marked %d orphaned job(s) as failed.", swept)
     except Exception:
         logger.exception("Startup job-sweep failed (non-fatal).")
-    # Superseded voice takes kept for in-flight renders (#2535) past their grace.
-    try:
-        from api.routers.profiles import sweep_retired_voice_files
-
-        sweep_retired_voice_files()
-    except Exception:
-        logger.exception("Startup retired-voice sweep failed (non-fatal).")
     # #2279: note the voices root in the longform cache before anything can
     # move the data dir, so legacy-keyed chapters stay findable after a move.
     from services.longform_render import record_startup_voices_root
@@ -1086,6 +1044,20 @@ async def _phase_b(app: FastAPI) -> None:
     app.state.mcp_stop = mcp_stop
     if mcp_mounted:
         logger.info("MCP server mounted at /mcp")
+    # Remote GPU workers (opt-in). Starts nothing unless enabled.
+    try:
+        from worker import service as worker_service
+        await worker_service.start_if_enabled()
+    except Exception:
+        logger.exception("Remote worker startup failed (continuing without it)")
+
+    # The other side of the same feature: worker mode connects out.
+    try:
+        from worker import agent as worker_agent
+        await worker_agent.start_if_worker_mode()
+    except Exception:
+        logger.exception("Worker agent startup failed (continuing without it)")
+
     # Phone calls (opt-in): the separate loopback telephony listener resumes
     # only when the user left the Twilio integration enabled.
     try:
@@ -1208,6 +1180,19 @@ async def lifespan(app: FastAPI):
     # before Phase A began pays nothing.
     if _phase_a_started.is_set() and not _phase_a_finished.is_set():
         await asyncio.to_thread(_phase_a_finished.wait, 20.0)
+    # Stop accepting remote work early in shutdown: a worker that reconnects
+    # to a half-torn-down control plane is worse than one that simply finds it
+    # gone and backs off.
+    try:
+        from worker import agent as worker_agent
+        await worker_agent.stop()
+    except Exception:
+        logger.exception("Worker agent shutdown failed")
+    try:
+        from worker import service as worker_service
+        await worker_service.stop()
+    except Exception:
+        logger.exception("Remote worker shutdown failed")
     try:
         from services.telephony import gateway as telephony_gateway
         await telephony_gateway.stop()
@@ -1320,7 +1305,7 @@ async def lifespan(app: FastAPI):
 from core.version import APP_VERSION  # single source of truth (pyproject metadata)
 
 app = FastAPI(
-    title=f"{PRODUCT_NAME} API",
+    title="VoiceStudio API",
     version=APP_VERSION,
     lifespan=lifespan,
     docs_url=None,       # Disabled — replaced by Scalar at /docs
@@ -1338,10 +1323,10 @@ def prepare_deliberate_shutdown_during_startup(request: Request):
     a false crash sentinel behind.  Keep this one tiny control route available
     from socket bind; its authorization remains identical to the system router.
     """
-    from api.dependencies import check_admin
+    from api.dependencies import require_admin
     from core import run_sentinel
 
-    check_admin(request)
+    require_admin(request)
     return {"prepared": run_sentinel.clear_sentinel()}
 
 
@@ -1413,13 +1398,7 @@ def _safe_validation_input(value):
     return value
 
 
-from core.failure import (  # noqa: E402
-    InvalidMediaFileError,
-    NoAudioTrackError,
-    invalid_media_file_detail,
-    no_audio_track_detail,
-)
-from services.model_acceptance import ModelLicenceNotAccepted  # noqa: E402
+from core.failure import NoAudioTrackError, no_audio_track_detail  # noqa: E402
 
 
 @app.exception_handler(NoAudioTrackError)
@@ -1432,28 +1411,6 @@ async def no_audio_track_handler(request: Request, exc: NoAudioTrackError):
     return JSONResponse(
         status_code=422,
         content={"detail": no_audio_track_detail()},
-        headers=_cors_headers_for(request),
-    )
-
-
-@app.exception_handler(ModelLicenceNotAccepted)
-async def model_licence_handler(request: Request, exc: ModelLicenceNotAccepted):
-    """403 with the models whose licence still needs acceptance, so the desktop
-    client can show the acceptance dialog instead of a generic failure."""
-    return JSONResponse(
-        status_code=403,
-        content={"detail": exc.detail()},
-        headers=_cors_headers_for(request),
-    )
-
-
-@app.exception_handler(InvalidMediaFileError)
-async def invalid_media_file_handler(request: Request, exc: InvalidMediaFileError):
-    """422 for an upload that is unreadable or not media at all (a playlist or
-    manifest named like a video), on every route that checks its input."""
-    return JSONResponse(
-        status_code=422,
-        content={"detail": invalid_media_file_detail()},
         headers=_cors_headers_for(request),
     )
 
@@ -1579,18 +1536,6 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 _SHELL_PATHS = {"/", "/index.html", "/favicon.ico", "/early-error-capture.js", "/health"}
 
-
-def _is_public_path(path: str) -> bool:
-    """HTTP paths every gate leaves reachable: the SPA shell and its assets,
-    so a remote UI can load and say what is wrong, and the credential
-    exchange, which validates the presented key itself."""
-    return (
-        path in _SHELL_PATHS
-        or path.startswith("/assets/")
-        or path.startswith("/favicon")
-        or path == "/api/auth/session"
-    )
-
 # Paths that answer while deferred startup is still running. The shutdown
 # signal must exist before the ordinary system router so a bounded Windows
 # process-tree stop cannot leave a false crash sentinel.
@@ -1667,7 +1612,13 @@ class NetworkAccessMiddleware:
         client = scope["client"][0] if scope.get("client") else None
         if is_local_host(client):
             return await self.app(scope, receive, send)
-        if _is_public_path(scope["path"]):
+        path = scope["path"]
+        if (
+            path in _SHELL_PATHS
+            or path.startswith("/assets/")
+            or path.startswith("/favicon")
+            or path == "/api/auth/session"
+        ):
             return await self.app(scope, receive, send)
         supplied = (
             request.headers.get("x-omnivoice-pin")
@@ -1762,7 +1713,13 @@ class BearerKeyMiddleware:
         key = remote_api_key() or ""
         if not key:
             return await self.app(scope, receive, send)
-        if scope["type"] == "http" and _is_public_path(scope.get("path", "")):
+        path = scope.get("path", "")
+        if scope["type"] == "http" and (
+            path in _SHELL_PATHS
+            or path.startswith("/assets/")
+            or path.startswith("/favicon")
+            or path == "/api/auth/session"
+        ):
             return await self.app(scope, receive, send)
 
         from starlette.requests import HTTPConnection
@@ -1810,12 +1767,25 @@ class BearerKeyMiddleware:
         return await self.app(scope, receive, send)
 
 
-# Origin policy is single-sourced in core.csrf: the UI port (OMNIVOICE_UI_PORT,
-# alias VOICESTUDIO_UI_PORT) and OMNIVOICE_ALLOWED_ORIGINS feed both this CORS
-# allow-list and the CSRF origin checks, so the two can never disagree.
-from core.csrf import CORS_EXPOSED_HEADERS, allowed_origin_values, ui_port as _ui_port
+# UI dev-server port — single-sourced from OMNIVOICE_UI_PORT so a user who
+# moves the Vite dev server off 3901 still gets a matching CORS allow-list.
+def _ui_port() -> int:
+    raw = os.environ.get("OMNIVOICE_UI_PORT")
+    if raw is None:
+        return 3901
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        return 3901
 
-_allowed = allowed_origin_values()
+
+from core.csrf import DEFAULT_DESKTOP_ORIGINS
+
+_ui = _ui_port()
+_allowed = os.environ.get(
+    "OMNIVOICE_ALLOWED_ORIGINS",
+    f"http://localhost:{_ui},http://127.0.0.1:{_ui}," + ",".join(DEFAULT_DESKTOP_ORIGINS),
+).split(",")
 
 # Registered FIRST → innermost: the startup gate holds every request except
 # the two probe paths until the deferred startup completes (and is a no-op
@@ -1838,25 +1808,16 @@ app.add_middleware(NetworkAccessMiddleware)
 # keyed non-loopback client must reach them.
 app.add_middleware(BearerKeyMiddleware)
 
-# Applies whatever the auth configuration: refuses state-changing requests and
-# WebSocket handshakes that another website's page sends, and requests that
-# address this backend by an unrecognized host name (DNS rebinding). Just
-# inside CORS so preflights reach CORS and refusals keep their CORS headers.
-from core.browser_guard import BrowserGuardMiddleware
-app.add_middleware(BrowserGuardMiddleware, is_public_path=_is_public_path)
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_allowed,
+    allow_origins=[o.strip() for o in _allowed if o.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
     # The marker must be readable cross-origin too — a browser UI served from
     # another origin is exactly the deployment that needs to tell "the backend
     # answered 404" from "something else answered 404" (#1385).
-    # The /generate take metadata (X-Audio-Id, X-Seed, routing, ...) is read
-    # from headers too, so every header the client reads is exposed.
-    expose_headers=[*CORS_EXPOSED_HEADERS, BACKEND_MARKER_HEADER],
+    expose_headers=["Content-Disposition", BACKEND_MARKER_HEADER],
 )
 
 # Registered LAST, which in Starlette means OUTERMOST — so the marker lands on
@@ -1886,59 +1847,8 @@ _mimetypes.add_type("audio/flac", ".flac")
 # not-ready, exactly like the connection-refused it replaces), the full body
 # once ready. No torch import pre-ready — it would block 10-20s on the very
 # import whose progress this endpoint exists to report.
-_health_device: str | None = None
-_health_device_lock = threading.Lock()
-_health_device_thread: threading.Thread | None = None
-
-
-def _probe_health_device() -> str:
-    """Name the compute device. Blocking: imports torch and may initialise the
-    CUDA driver, which can take seconds and stall behind a busy GPU."""
-    import torch
-
-    if torch.cuda.is_available():
-        return f"cuda ({torch.cuda.get_device_name(0)})"
-    if hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
-        return "mps"
-    return "cpu"
-
-
-def _resolve_health_device() -> None:
-    global _health_device
-    try:
-        _health_device = _probe_health_device()
-    except Exception:  # noqa: BLE001 - a liveness label must never fail a probe
-        _health_device = "unknown"
-
-
-def _cached_health_device() -> str:
-    """The device label without ever blocking the caller.
-
-    The first call starts one background resolver and answers "unknown"; every
-    later call returns the cached label. /health is the shell's liveness probe,
-    polled every 2 s for the life of the app with a 1.5 s deadline, so it must
-    cost O(1): re-asking torch/the CUDA driver on each probe, from a worker
-    thread competing with a generation for the GIL and the driver, is how a
-    healthy, busy backend got reported as "not responding" (#2490, #2491).
-    """
-    global _health_device_thread
-    if _health_device is not None:
-        return _health_device
-    with _health_device_lock:
-        if _health_device is None and _health_device_thread is None:
-            _health_device_thread = threading.Thread(
-                target=_resolve_health_device, name="health-device", daemon=True
-            )
-            _health_device_thread.start()
-    return _health_device or "unknown"
-
-
-# `async def`, deliberately: a sync route runs in the shared 40-thread worker
-# pool, where it queues behind every blocked sync route (model/status polls
-# waiting on a load lock, long synchronous handlers). The liveness probe must
-# depend on the event loop alone, because that is what it is reporting on.
 @app.get("/health")
-async def health():
+def health():
     if not _startup_progress.is_ready():
         _step, _label = _startup_progress.current_step()
         return JSONResponse(
@@ -1951,7 +1861,15 @@ async def health():
             },
             headers={"Retry-After": "2"},
         )
-    return {"status": "ok", "device": _cached_health_device(), "version": APP_VERSION}
+    import torch
+
+    device = "cpu"
+    if torch.cuda.is_available():
+        device = f"cuda ({torch.cuda.get_device_name(0)})"
+    elif hasattr(torch.backends, "mps") and torch.backends.mps.is_available():
+        device = "mps"
+
+    return {"status": "ok", "device": device, "version": APP_VERSION}
 
 
 # ── Startup progress ────────────────────────────────────────────────────
@@ -1993,7 +1911,7 @@ if __name__ == "__main__":
         "--health-check",
         action="store_true",
         help="Boot the server, poll /health, exit 0 on success / 1 on timeout. "
-             "A self-contained smoke test for an installed or packaged backend.",
+             "Used by the release-time installer smoke step in .github/workflows/release.yml.",
     )
     parser.add_argument(
         "--diagnose",
@@ -2073,9 +1991,9 @@ if __name__ == "__main__":
     # SECURITY: default to loopback (127.0.0.1) so the API isn't reachable
     # from the LAN out of the box. VoiceStudio ships no authentication; binding
     # to 0.0.0.0 by default would expose every router on this process to any
-    # host on the user's network. The Docker image never reaches this block:
-    # its uvicorn ENTRYPOINT binds 0.0.0.0 itself (deploy/Dockerfile), and the
-    # host-side `127.0.0.1:` port mapping is what keeps it loopback-only there.
+    # host on the user's network. Docker images that need to publish the port
+    # set OMNIVOICE_BIND_HOST=0.0.0.0 explicitly (see deploy/docker-compose.yml)
+    # — the host-side port mapping is what enforces 127.0.0.1-only there.
     _bind_host = os.environ.get("OMNIVOICE_BIND_HOST", "127.0.0.1")
 
     def _port_taken(host: str, port: int) -> "OSError | None":
@@ -2113,28 +2031,6 @@ if __name__ == "__main__":
         )
         sys.exit(_EXIT_PORT_IN_USE)
 
-    def _fail_port_denied(exc: "OSError | None") -> None:
-        """The OS refused the bind (EACCES / WSAEACCES 10013), not "in use".
-
-        On Windows a possible cause is a TCP excluded port range reserved by
-        Hyper-V, WSL, Docker or WinNAT (an exclusive listener gives the same
-        error), so the message stays hedged. Reported through stderr so the desktop
-        shell's "Last output" shows it instead of a bare exit code.
-        """
-        print(
-            f"FATAL: the operating system refused to let VoiceStudio listen on "
-            f"port {_port} (permission denied). On Windows a possible cause is "
-            f"a reserved port range (check "
-            f"`netsh interface ipv4 show excludedportrange protocol=tcp`) or "
-            f"another program holding the port exclusively; on macOS/Linux "
-            f"ports below 1024 need elevated rights. "
-            f"Choose another port by setting OMNIVOICE_PORT to a free one."
-            + (f" Underlying error: {exc}" if exc else ""),
-            file=sys.stderr,
-            flush=True,
-        )
-        sys.exit(1)
-
     class _BindErrorWatcher(logging.Filter):
         """Remembers the EADDRINUSE uvicorn logged on its way out (#1364).
 
@@ -2147,9 +2043,6 @@ if __name__ == "__main__":
         def __init__(self) -> None:
             super().__init__()
             self.bind_error: "OSError | None" = None
-            # Permission refusals are a different problem from a taken port
-            # and get their own advice; they never set ``bind_error``.
-            self.denied_error: "OSError | None" = None
 
         def filter(self, record: logging.LogRecord) -> bool:
             msg = record.msg
@@ -2158,10 +2051,6 @@ if __name__ == "__main__":
                 or getattr(msg, "winerror", None) == 10048
             ):
                 self.bind_error = msg
-            elif isinstance(msg, OSError) and (
-                msg.errno == 13 or getattr(msg, "winerror", None) == 10013
-            ):
-                self.denied_error = msg
             return True
 
     # #1223: uvicorn does NOT let a bind failure reach the caller — it logs the
@@ -2206,6 +2095,4 @@ if __name__ == "__main__":
             _fail_port_in_use(_watcher.bind_error)
         if _port_taken(_bind_host, _port) is not None:
             _fail_port_in_use(None)
-        if _watcher.denied_error is not None:
-            _fail_port_denied(_watcher.denied_error)
         raise

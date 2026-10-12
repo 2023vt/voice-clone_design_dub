@@ -1,34 +1,91 @@
 import { app, BrowserWindow, ipcMain } from 'electron';
 import updaterPackage, { type ProgressInfo, type UpdateInfo } from 'electron-updater';
-import { rmSync } from 'node:fs';
+import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { isTrustedRenderer } from './trusted-renderer';
-import type { UpdateReleaseInfo, UpdateState } from '../preload/index.d';
+import type { UpdateChannel, UpdateReleaseInfo, UpdateState } from '../preload/index.d';
 import { sendToLiveWindow } from './window-safety';
 
 // electron-updater is CommonJS. Electron executes our main bundle as ESM, so
 // named runtime imports fail before the app can create a window.
 const { autoUpdater } = updaterPackage;
 
-// Only tagged releases are published as an update feed. A Preview channel used
-// to exist, but no workflow ever published its feed, so it silently served
-// Stable; it was removed rather than left as a choice that does nothing.
-const STABLE_FEED = 'https://github.com/debpalash/VoiceStudio/releases/latest/download';
+const FEEDS: Record<UpdateChannel, string> = {
+  stable: 'https://github.com/debpalash/VoiceStudio/releases/latest/download',
+  preview: 'https://github.com/debpalash/VoiceStudio/releases/download/preview',
+};
 const RELEASES_API = 'https://api.github.com/repos/debpalash/VoiceStudio/releases?per_page=30';
 
 function feedChannelName(
+  channel: UpdateChannel,
   platform: NodeJS.Platform = process.platform,
   arch: string = process.arch,
 ): string {
-  return `electron-stable-${platform}-${arch}`;
+  return `electron-${channel}-${platform}-${arch}`;
 }
 
 export function feedManifestName(
+  channel: UpdateChannel,
   platform: NodeJS.Platform = process.platform,
   arch: string = process.arch,
 ): string {
   const suffix = platform === 'darwin' ? '-mac' : platform === 'linux' ? '-linux' : '';
-  return `${feedChannelName(platform, arch)}${suffix}.yml`;
+  return `${feedChannelName(channel, platform, arch)}${suffix}.yml`;
+}
+
+function releaseVersion(value: string): [number, number, number, number | null] | null {
+  const match = /^(\d+)\.(\d+)\.(\d+)(?:-(\d+))?$/.exec(value.trim());
+  if (!match) return null;
+  return [Number(match[1]), Number(match[2]), Number(match[3]), match[4] ? Number(match[4]) : null];
+}
+
+export function compareReleaseVersions(left: string, right: string): number {
+  const a = releaseVersion(left);
+  const b = releaseVersion(right);
+  if (!a || !b) return 0;
+  for (let index = 0; index < 3; index += 1) {
+    if (a[index]! !== b[index]!) return a[index]! > b[index]! ? 1 : -1;
+  }
+  if (a[3] === b[3]) return 0;
+  if (a[3] === null) return 1;
+  if (b[3] === null) return -1;
+  return a[3] > b[3] ? 1 : -1;
+}
+
+async function feedVersion(
+  channel: UpdateChannel,
+  fetcher: typeof fetch,
+  platform: NodeJS.Platform,
+  arch: string,
+): Promise<string | null> {
+  try {
+    const response = await fetcher(
+      `${FEEDS[channel]}/${feedManifestName(channel, platform, arch)}`,
+      {
+        headers: { Accept: 'text/yaml', 'User-Agent': 'VoiceStudio' },
+        signal: AbortSignal.timeout(5_000),
+      },
+    );
+    if (!response.ok) return null;
+    const version = /^version:\s*['"]?([^'"\s]+)['"]?\s*$/m.exec(await response.text())?.[1];
+    return version && releaseVersion(version) ? version : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function resolvePreviewFeed(
+  fetcher: typeof fetch = fetch,
+  platform: NodeJS.Platform = process.platform,
+  arch: string = process.arch,
+): Promise<UpdateChannel> {
+  const [preview, stable] = await Promise.all([
+    feedVersion('preview', fetcher, platform, arch),
+    feedVersion('stable', fetcher, platform, arch),
+  ]);
+  if (!preview && stable) return 'stable';
+  if (preview && stable && compareReleaseVersions(stable, preview) > 0) return 'stable';
+  return 'preview';
 }
 
 export const UPDATE_CHANNELS = {
@@ -37,6 +94,7 @@ export const UPDATE_CHANNELS = {
   download: 'updates:download',
   dismiss: 'updates:dismiss',
   install: 'updates:install',
+  setChannel: 'updates:setChannel',
   listReleases: 'updates:listReleases',
   state: 'updates:state',
 } as const;
@@ -89,21 +147,23 @@ function releaseSize(info: UpdateInfo): number | undefined {
   return total > 0 ? total : undefined;
 }
 
-/**
- * updates.json only ever stored the retired channel choice. Forget it so a
- * saved "preview" cannot linger; the updater always follows Stable now.
- */
-export function forgetSavedUpdateChannel(userData: string = app.getPath('userData')): void {
+function readChannel(): UpdateChannel {
   try {
-    rmSync(join(userData, 'updates.json'), { force: true });
+    const value = JSON.parse(readFileSync(join(app.getPath('userData'), 'updates.json'), 'utf8'));
+    return value?.channel === 'preview' ? 'preview' : 'stable';
   } catch {
-    // Best effort: an unreadable leftover is ignored either way.
+    return 'stable';
   }
 }
 
-/** Packaged builds update in-app unless a package manager owns the install. */
-function updatesSupported(): boolean {
-  return app.isPackaged && process.env.VOICESTUDIO_DISABLE_UPDATER !== '1';
+function writeChannel(channel: UpdateChannel): void {
+  const path = join(app.getPath('userData'), 'updates.json');
+  const temporary = `${path}.tmp`;
+  writeFileSync(temporary, JSON.stringify({ channel }, null, 2), {
+    encoding: 'utf8',
+    mode: 0o600,
+  });
+  renameSync(temporary, path);
 }
 
 export class DesktopUpdater {
@@ -112,14 +172,14 @@ export class DesktopUpdater {
   private checkInFlight: Promise<UpdateState> | null = null;
   private downloadInFlight: Promise<UpdateState> | null = null;
 
-  constructor() {
-    const supported = updatesSupported();
+  constructor(private readonly fetcher: typeof fetch = fetch) {
+    const supported = app.isPackaged;
     this.state = {
       status: supported ? 'idle' : 'unsupported',
       currentVersion: app.getVersion(),
+      channel: readChannel(),
       progress: 0,
     };
-    forgetSavedUpdateChannel();
     if (!supported) return;
 
     autoUpdater.autoDownload = false;
@@ -209,12 +269,14 @@ export class DesktopUpdater {
   }
 
   async check(quiet = false): Promise<UpdateState> {
-    if (!updatesSupported() || ['downloading', 'downloaded'].includes(this.state.status))
+    if (!app.isPackaged || ['downloading', 'downloaded'].includes(this.state.status))
       return this.snapshot();
     if (this.checkInFlight) return this.checkInFlight;
     const operation = (async () => {
       try {
-        this.configureFeed();
+        const feed =
+          this.state.channel === 'preview' ? await resolvePreviewFeed(this.fetcher) : 'stable';
+        this.configureFeed(feed);
         await autoUpdater.checkForUpdates();
       } catch (error) {
         if (quiet) this.patch({ status: 'idle', error: undefined });
@@ -235,7 +297,7 @@ export class DesktopUpdater {
   }
 
   async download(): Promise<UpdateState> {
-    if (!updatesSupported() || this.state.status !== 'available') return this.snapshot();
+    if (!app.isPackaged || this.state.status !== 'available') return this.snapshot();
     if (this.downloadInFlight) return this.downloadInFlight;
     const operation = (async () => {
       this.patch({
@@ -269,6 +331,7 @@ export class DesktopUpdater {
     this.state = {
       status: 'idle',
       currentVersion: this.state.currentVersion,
+      channel: this.state.channel,
       progress: 0,
       lastCheckedAt: this.state.lastCheckedAt,
     };
@@ -277,22 +340,36 @@ export class DesktopUpdater {
   }
 
   install(): void {
-    if (!updatesSupported() || this.state.status !== 'downloaded') return;
+    if (!app.isPackaged || this.state.status !== 'downloaded') return;
     autoUpdater.quitAndInstall(false, true);
   }
 
-  private configureFeed(): void {
-    if (!updatesSupported()) return;
-    autoUpdater.allowPrerelease = false;
-    const feedChannel = feedChannelName();
+  async setChannel(channel: UpdateChannel): Promise<UpdateState> {
+    if (channel !== 'stable' && channel !== 'preview') throw new Error('Invalid update channel');
+    writeChannel(channel);
+    this.state = {
+      status: app.isPackaged ? 'idle' : 'unsupported',
+      currentVersion: app.getVersion(),
+      channel,
+      progress: 0,
+    };
+    this.configureFeed();
+    this.emit();
+    if (app.isPackaged) await this.check();
+    return this.snapshot();
+  }
+
+  private configureFeed(feed: UpdateChannel = this.state.channel): void {
+    if (!app.isPackaged) return;
+    autoUpdater.allowPrerelease = this.state.channel === 'preview';
+    const feedChannel = feedChannelName(feed);
     autoUpdater.channel = feedChannel;
-    // electron-updater's channel setter silently enables downgrades; keep the
-    // app monotonic.
+    // electron-updater's channel setter silently enables downgrades. Keep the
+    // app monotonic even when Preview temporarily resolves to the Stable feed.
     autoUpdater.allowDowngrade = false;
-    // Explicit, so a build packaged with another feed URL still follows Stable.
     autoUpdater.setFeedURL({
       provider: 'generic',
-      url: STABLE_FEED,
+      url: FEEDS[feed],
       channel: feedChannel,
     });
   }
@@ -345,8 +422,13 @@ export function registerUpdateIpc(
     await beforeInstall();
     updater.install();
   });
-  ipcMain.handle(UPDATE_CHANNELS.listReleases, (event) => {
+  ipcMain.handle(UPDATE_CHANNELS.setChannel, (event, channel: UpdateChannel) => {
     trusted(event);
+    return updater.setChannel(channel);
+  });
+  ipcMain.handle(UPDATE_CHANNELS.listReleases, (event, channel: UpdateChannel) => {
+    trusted(event);
+    if (channel !== 'stable' && channel !== 'preview') throw new Error('Invalid update channel');
     return listDesktopReleases();
   });
   const unsubscribe = updater.subscribe((state) => {

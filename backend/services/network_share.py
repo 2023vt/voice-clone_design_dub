@@ -17,27 +17,26 @@ from typing import Optional
 import psutil
 import uvicorn
 
-from core.app_config import DEFAULT_BACKEND_PORT, DEFAULT_WEB_PORT
-
+_DEFAULT_BACKEND_PORT = 3900  # must match backend/main.py uvicorn.run(port=...)
 logger = logging.getLogger("omnivoice.network_share")
 
 
 def backend_port() -> int:
     """The port the main backend listens on.
 
-    Single source of truth is the ``OMNIVOICE_PORT`` env var (the Electron
-    shell sets it and passes the same value to uvicorn's ``--port``). LAN-share
+    Single source of truth is the ``OMNIVOICE_PORT`` env var (read by the Rust
+    sidecar at startup and passed through to uvicorn's ``--port``). LAN-share
     and Tailscale derive their target ports from this so a user who runs the
     backend on a custom port gets a consistent share/proxy port. Falls back to
     the default on a missing or malformed value — never throws.
     """
     raw = os.environ.get("OMNIVOICE_PORT")
     if raw is None:
-        return DEFAULT_BACKEND_PORT
+        return _DEFAULT_BACKEND_PORT
     try:
         return int(raw)
     except (TypeError, ValueError):
-        return DEFAULT_BACKEND_PORT
+        return _DEFAULT_BACKEND_PORT
 
 
 def backend_self_url() -> str:
@@ -106,11 +105,11 @@ def share_port_base() -> int:
     """
     raw = os.environ.get("OMNIVOICE_SHARE_PORT")
     if raw is None:
-        return DEFAULT_WEB_PORT if backend_port() == DEFAULT_BACKEND_PORT else backend_port() + 1
+        return backend_port() + 1
     try:
         return int(raw)
     except (TypeError, ValueError):
-        return DEFAULT_WEB_PORT if backend_port() == DEFAULT_BACKEND_PORT else backend_port() + 1
+        return backend_port() + 1
 
 
 @dataclass

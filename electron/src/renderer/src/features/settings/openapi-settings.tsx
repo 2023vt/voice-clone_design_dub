@@ -12,7 +12,6 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { getBridge } from '@/components/bridge';
 import { useBackendStatus } from '@/hooks/use-backend-status';
-import { isBackendReachable } from '@shared/utils/backendStage';
 import { apiJson, apiPath, describeError } from '@/lib/api/client';
 import { SettingsActionError } from './settings-action-error';
 
@@ -69,7 +68,7 @@ export function OpenApiSettings() {
           <CheckCircle2Icon
             aria-hidden="true"
             className={
-              isBackendReachable(backend.stage)
+              backend.stage === 'ready'
                 ? 'size-4 shrink-0 text-emerald-500'
                 : 'size-4 shrink-0 text-muted-foreground'
             }

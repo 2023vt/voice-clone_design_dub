@@ -1,5 +1,4 @@
 import os
-import re
 import errno
 import uuid
 import asyncio
@@ -11,7 +10,7 @@ from urllib.parse import urlsplit
 import soundfile as sf
 import torch
 from typing import Optional
-from fastapi import Request, Depends
+from fastapi import Request
 from fastapi import APIRouter, File, Form, UploadFile, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse, JSONResponse
 
@@ -19,11 +18,8 @@ from core.db import db_conn
 from core.config import PREVIEW_DIR
 from core.tasks import task_manager
 from core.logging_utils import log_safe
-from core.media_types import AUDIO_EXTS, MEDIA_EXTS, media_extension, media_upload_suffix, unsupported_media_detail
-from core.url_safety import UnsafeURLError, check_public_url, is_manifest_head, is_manifest_file
-from core.failure import InvalidMediaFileError
 from core import event_bus
-from schemas.requests import CleanupSegmentsRequest, DubIngestUrlRequest, ParseSubtitleTextRequest
+from schemas.requests import DubIngestUrlRequest, ParseSubtitleTextRequest
 from services.srt_parser import CUE_SOURCE_FIELDS, CUE_SOURCE_ID
 from services.model_manager import get_model, _gpu_pool, _cpu_pool, get_diarization_pipeline, offload_tts_for_asr, restore_tts_after_asr, should_preload_tts_asr, release_device_cache
 from services.asr_backend import (
@@ -33,9 +29,7 @@ from services.asr_backend import (
     run_transcribe_guarded,
 )
 from services.audio_io import _safe_soundfile_write
-from services.diarization_runtime import ensure_selected_accepted as _ensure_diarisation_accepted
-from services.ffmpeg_utils import find_ffmpeg, local_inputs_only
-from services.model_acceptance import ModelLicenceNotAccepted
+from services.ffmpeg_utils import find_ffmpeg
 from services.segmentation import (
     segment_transcript,
     assign_speakers_from_diarization,
@@ -48,7 +42,6 @@ from services.segmentation import (
 )
 from services.onset_align import snap_segment_starts
 from services import dub_pipeline
-from core.browser_guard import reject_cross_site_get
 
 router = APIRouter()
 logger = logging.getLogger("omnivoice.api")
@@ -68,7 +61,9 @@ def _cookie_transport_allowed(
         origin_host = urlsplit(origin or "").hostname or ""
     except ValueError:
         return False
-    return is_local_host(client_host or "") and is_local_host(origin_host)
+    return is_local_host(client_host or "") and (
+        is_local_host(origin_host) or origin_host == "tauri.localhost"
+    )
 
 
 def _stage_cookie_export(contents: str | None) -> str | None:
@@ -134,19 +129,6 @@ _unregister_proc   = dub_pipeline.unregister_proc
 _kill_job_procs    = dub_pipeline.kill_job_procs
 _get_job           = dub_pipeline.get_job
 _save_job          = dub_pipeline.save_job
-replace_source_segments = dub_pipeline.replace_source_segments
-segments_revision = dub_pipeline.segments_revision
-
-# Language codes name per-track files (``dubbed_{lang}.wav``,
-# ``seg_{lang}_{id}.wav``) and export filenames, so every route that accepts
-# one must pass it through this check before it reaches a path.
-_SAFE_LANG = re.compile(r"^[A-Za-z0-9_-]{1,32}$")
-
-
-def _safe_lang_or_400(lang: str | None) -> str | None:
-    if lang is not None and not _SAFE_LANG.fullmatch(lang):
-        raise HTTPException(status_code=400, detail="Invalid language code")
-    return lang
 
 # Pasted subtitle text is a transcript, not a media file: a feature-length
 # film's .srt is ~150 KB. 2 MB of characters is ~13x the worst realistic case
@@ -333,38 +315,36 @@ async def dub_import_srt(job_id: str, file: UploadFile = File(...)):
     else:
         segments = result.segments
 
-    from services.speaker_clone import build_cast_sources
+    prior_segments = [
+        segment for segment in (job.get("segments") or []) if isinstance(segment, dict)
+    ]
+    segments, segment_clones = _carry_srt_voice_metadata(
+        segments,
+        prior_segments,
+        job.get("segment_clones"),
+        job.get("speaker_clones"),
+    )
+    job["segments"] = segments
+    job["segment_clones"] = segment_clones
+    # A pooled speaker clone is keyed only by a display label. Replacement
+    # cues can reuse that label without overlapping the original speaker, so
+    # retain matched pooled references as segment-specific clones above and
+    # drop the global map before rebuilding the cast.
+    job["speaker_clones"] = {}
+    if segment_clones:
+        from services.speaker_clone import build_cast_sources
 
-    # Select the references to keep and save them in one locked step. Selected
-    # outside the lock, they could come from a transcript that a finishing
-    # transcription replaces, and whose reference folder it then deletes,
-    # before this import saves them. Under the lock a render or transcription
-    # finishing meanwhile sees either the old subtitles or all imported ones.
-    with dub_pipeline._dub_jobs_lock:
-        prior_segments = [
-            segment for segment in (job.get("segments") or []) if isinstance(segment, dict)
-        ]
-        segments, segment_clones = _carry_srt_voice_metadata(
+        job["cast_sources"] = build_cast_sources(
             segments,
-            prior_segments,
-            job.get("segment_clones"),
-            job.get("speaker_clones"),
+            None,
+            segment_clones,
         )
-        replace_source_segments(job, segments)
-        job["segment_clones"] = segment_clones
-        # A pooled speaker clone is keyed only by a display label. Replacement
-        # cues can reuse that label without overlapping the original speaker, so
-        # retain matched pooled references as segment-specific clones above and
-        # drop the global map before rebuilding the cast.
-        job["speaker_clones"] = {}
-        if segment_clones:
-            job["cast_sources"] = build_cast_sources(segments, None, segment_clones)
-        else:
-            job.pop("cast_sources", None)
-        # `source_lang` stays whatever the user (or the upload step) set; we
-        # don't try to language-detect off the cue text — that's noisy and the
-        # user usually knows what their .srt is.
-        _save_job(job_id, job)
+    else:
+        job.pop("cast_sources", None)
+    # `source_lang` stays whatever the user (or the upload step) set; we
+    # don't try to language-detect off the cue text — that's noisy and the
+    # user usually knows what their .srt is.
+    _save_job(job_id, job)
     logger.info(
         "Imported %d cue(s) from .srt for job %s (skipped=%d, overlap_shifted=%d, clamped=%d)",
         len(segments), log_safe(job_id), result.skipped_cues, result.dropped_overlaps, clamped,
@@ -508,17 +488,16 @@ def dub_use_downloaded_captions(job_id: str):
         raise HTTPException(status_code=422, detail="Downloaded captions contain no usable cues")
 
     source_lang = job.get("source_lang_override") or _detected_source_lang(caption_lang)
-    with dub_pipeline._dub_jobs_lock:
-        replace_source_segments(job, segments)
-        job["source_lang"] = source_lang
-        job["full_transcript"] = " ".join(segment["text"] for segment in segments)
-        # Caption files contain timing and text, but no trustworthy speaker or
-        # reference-audio attribution. Never retain stale clone maps from a
-        # prior transcript on the same job.
-        job["segment_clones"] = {}
-        job["speaker_clones"] = {}
-        job.pop("cast_sources", None)
-        _save_job(job_id, job)
+    job["segments"] = segments
+    job["source_lang"] = source_lang
+    job["full_transcript"] = " ".join(segment["text"] for segment in segments)
+    # Caption files contain timing and text, but no trustworthy speaker or
+    # reference-audio attribution. Never retain stale clone maps from a prior
+    # transcript on the same job.
+    job["segment_clones"] = {}
+    job["speaker_clones"] = {}
+    job.pop("cast_sources", None)
+    _save_job(job_id, job)
     return {
         "segments": segments,
         "source_lang": source_lang,
@@ -528,26 +507,15 @@ def dub_use_downloaded_captions(job_id: str):
 
 
 @router.post("/dub/cleanup-segments/{job_id}")
-def dub_cleanup_segments(job_id: str, req: Optional[CleanupSegmentsRequest] = None):
-    """Re-run merge/stitch passes to drop fragments.
-
-    Cleans the editor's segments when sent, so unsaved text, timing and
-    direction edits survive; otherwise the job's stored segments. The
-    editor's result is returned without being stored: it is an undoable edit
-    like any other, and the job keeps the segments its existing audio and
-    subtitle exports were generated from until the next generation.
-    """
+def dub_cleanup_segments(job_id: str):
+    """Re-run merge/stitch passes on a job's existing segments to drop fragments."""
     job = _get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    if req is not None:
-        cleaned = clean_up_segments(req.segments)
-        return {"segments": cleaned, "before": len(req.segments), "after": len(cleaned)}
-    with dub_pipeline._dub_jobs_lock:
-        segments = job.get("segments") or []
-        cleaned = clean_up_segments(segments)
-        replace_source_segments(job, cleaned)
-        _save_job(job_id, job)
+    segments = job.get("segments") or []
+    cleaned = clean_up_segments(segments)
+    job["segments"] = cleaned
+    _save_job(job_id, job)
     return {"segments": cleaned, "before": len(segments), "after": len(cleaned)}
 
 
@@ -636,19 +604,11 @@ def delete_single_dub_history(history_id: str):
 
 @router.post("/preview/upload")
 async def preview_upload(video: UploadFile = File(...)):
-    ext = media_upload_suffix(video.filename, ".mp4")
-    if ext is None:
-        raise HTTPException(
-            status_code=415,
-            detail=unsupported_media_detail("video", MEDIA_EXTS, os.path.splitext(video.filename or "")[1]),
-        )
+    ext = os.path.splitext(video.filename or "video.mp4")[1].lower()
     safe_name = f"{uuid.uuid4().hex[:12]}"
     vid_path = os.path.join(PREVIEW_DIR, f"{safe_name}{ext}")
     wav_path = os.path.join(PREVIEW_DIR, f"{safe_name}.wav")
     payload = await video.read()
-    if is_manifest_head(payload[:512]):
-        # A playlist/manifest named like a video: ffmpeg would follow its URLs.
-        raise InvalidMediaFileError()
 
     def _write_and_extract() -> bool:
         with open(vid_path, "wb") as f:
@@ -656,11 +616,11 @@ async def preview_upload(video: UploadFile = File(...)):
         if ext in {".wav", ".mp3", ".m4a", ".aac"}:
             return False
         try:
-            ffmpeg_cmd = local_inputs_only([
+            ffmpeg_cmd = [
                 find_ffmpeg(), "-y", "-i", vid_path,
                 "-vn", "-acodec", "pcm_s16le", "-ar", "22050", "-ac", "1",
                 wav_path
-            ])
+            ]
             subprocess.run(
                 ffmpeg_cmd, check=True,
                 stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
@@ -712,7 +672,7 @@ _ingest_gen       = dub_pipeline.ingest_pipeline
 #: Recognised audio extensions for audio-only dubbing (#119). When the client
 #: declares input_type=audio we refuse anything that isn't a known audio
 #: container so a mislabelled video can't slip past the video-skipping branch.
-_AUDIO_EXTS = AUDIO_EXTS
+_AUDIO_EXTS = {".wav", ".mp3", ".m4a", ".aac", ".flac", ".ogg", ".opus", ".wma"}
 
 def _dub_upload_disk_error() -> HTTPException:
     return HTTPException(
@@ -811,13 +771,7 @@ async def dub_upload(
             detail="Invalid job_id. Must be alphanumeric + hyphens/underscores only, ≤64 chars. Generate a fresh job_id or omit it to auto-create one.",
         )
     ext = os.path.splitext(video.filename or "video.mp4")[1]
-    if input_type == "video" and media_extension(video.filename, MEDIA_EXTS, ".mp4") is None:
-        raise HTTPException(
-            status_code=415,
-            detail=unsupported_media_detail("video", MEDIA_EXTS, ext),
-        )
-    ext = ext.lower()
-    if input_type == "audio" and ext not in _AUDIO_EXTS:
+    if input_type == "audio" and ext.lower() not in _AUDIO_EXTS:
         raise HTTPException(
             status_code=400,
             detail=f"Audio-only dubbing needs an audio file ({', '.join(sorted(_AUDIO_EXTS))}); got '{ext or 'no extension'}'.",
@@ -901,15 +855,6 @@ async def dub_upload(
     finally:
         await video.close()
 
-    # Refuse a playlist/manifest named like media before any ffmpeg sees it.
-    try:
-        manifest = await asyncio.to_thread(is_manifest_file, video_path)
-    except OSError:
-        manifest = False  # The prep task reports the unreadable file.
-    if manifest:
-        _discard_upload()
-        raise InvalidMediaFileError()
-
     filename = video.filename or f"video{ext}"
     task_id = f"prep_{job_id}"
     await task_manager.add_task(
@@ -937,10 +882,12 @@ async def dub_ingest_url(req: DubIngestUrlRequest, request: Request):
     audio extract, Demucs, scene detect, thumbnail) happens in the background
     task and progress is streamed via /tasks/stream/{task_id}.
     """
-    try:
-        url = await asyncio.to_thread(check_public_url, req.url or "")
-    except UnsafeURLError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from None
+    url = (req.url or "").strip()
+    if not url or not (url.startswith("http://") or url.startswith("https://")):
+        raise HTTPException(
+            status_code=400,
+            detail="URL must start with http:// or https://. Paste a full video link (e.g. https://youtube.com/watch?v=…) or drop a local file instead.",
+        )
     source_lang_override = _source_lang_override(req.source_lang)
 
     try:
@@ -1090,19 +1037,6 @@ CLONE_SKIP_HEURISTIC_MSG = (
 )
 
 
-def _diarization_pipeline_checked():
-    """``get_diarization_pipeline(return_error=True)`` behind licence acceptance.
-
-    An unaccepted selected model returns ``(None, detail)`` with the typed
-    ``model_licence_required`` detail instead of loading it (#2689).
-    """
-    try:
-        _ensure_diarisation_accepted()
-    except ModelLicenceNotAccepted as exc:
-        return None, exc.detail()
-    return get_diarization_pipeline(return_error=True)
-
-
 def _clamp_num_speakers(value) -> Optional[int]:
     """Clamp the user's speaker-count hint to a sane 1–20 range.
 
@@ -1231,7 +1165,7 @@ def _recover_from_phrase_embeddings(
         return None
 
 
-@router.get("/dub/transcribe-stream/{job_id}", dependencies=[Depends(reject_cross_site_get)])
+@router.get("/dub/transcribe-stream/{job_id}")
 async def dub_transcribe_stream(
     job_id: str,
     num_speakers: Optional[int] = None,
@@ -1271,9 +1205,6 @@ async def dub_transcribe_stream(
     # every subsequent /generate run on CPU. Set on a successful offload,
     # cleared by the normal restore, honoured by gen()'s `finally` on EVERY exit.
     _tts_offloaded: dict = {"v": False}
-    # This pass's voice-reference folder; gen()'s `finally` deletes it unless
-    # the pass committed, so discarded and aborted passes leave no clips.
-    _ref_run: dict = {"dir": None, "committed": False}
 
     def _log_bg_failure(f, what):
         """Retrieve a fire-and-forget future's exception so it isn't swallowed."""
@@ -1329,9 +1260,6 @@ async def dub_transcribe_stream(
         touch_activity("transcribe", "dub")
 
         job = _get_job(job_id)
-        # Subtitles imported or a dub published while this pass runs win over
-        # its result.
-        start_rev = segments_revision(job) if job else 0
 
         # The durable job is written before the terminal SSE events below. If
         # the renderer, proxy, or backend connection drops in that narrow
@@ -1397,11 +1325,6 @@ async def dub_transcribe_stream(
                             break
                         yield b": tts-load keepalive\n\n"
                     _model = _model_task.result()
-                except ModelLicenceNotAccepted:
-                    # Only a best-effort harvest of a preloaded ASR pipe; the TTS
-                    # model's licence is asked for when it is actually used.
-                    logger.info("transcribe preflight: TTS model licence not accepted; skipping preload")
-                    _model = None
                 except Exception as e:
                     logger.error(
                         "transcribe preflight: model load failed (job=%s): %s",
@@ -1518,10 +1441,6 @@ async def dub_transcribe_stream(
                             # (and download CTA) as the initial preflight.
                             preflight_error = asr_model_missing_detail(e.payload)
                             preflight_payload = e.payload
-                        except ModelLicenceNotAccepted as e:
-                            # Typed payload → the client's acceptance dialog (#2689).
-                            preflight_error = str(e)
-                            preflight_payload = e.detail()
                         except Exception as e:
                             logger.error("Transcription preflight ASR load failed")
                             from core.failure import build_failure
@@ -1655,18 +1574,17 @@ async def dub_transcribe_stream(
                     return {"chunks": shifted, "language": r.get("language"), "speaker_turns": turns}
                 except Exception as exc:
                     # Keep diagnostics local and fixed-shape. In particular,
-                    # CUDA OOM, a missing ffmpeg and a closed stdio pipe are
-                    # distinct, actionable recovery classes rather than the
-                    # generic "no segments" dead end.
+                    # CUDA OOM is a distinct, actionable recovery class rather
+                    # than the generic "no segments" dead end.
                     is_memory = isinstance(exc, torch.OutOfMemoryError)
                     logger.error(
                         "Chunk transcription failed (backend=%s; class=%s; details withheld)",
                         _asr_backend.id,
                         type(exc).__name__,
                     )
-                    from core.public_errors import stream_failure, transcription_failure_code
+                    from core.public_errors import stream_failure
                     failure = stream_failure(
-                        "transcription_memory" if is_memory else transcription_failure_code(exc)
+                        "transcription_memory" if is_memory else "transcription_failed"
                     )
                     return {
                         "chunks": [],
@@ -1910,9 +1828,6 @@ async def dub_transcribe_stream(
                         f"speaker count."
                     )
                 return resplit, {
-                    # A licence-blocked diarisation model carries its typed
-                    # payload (code + models) through to the client (#2689).
-                    **(err_sentinel if isinstance(err_sentinel, dict) else {}),
                     "detail": detail,
                     "error_class": error_class,
                     "docs_url": error_docs_map.lookup(error_class),
@@ -1931,7 +1846,7 @@ async def dub_transcribe_stream(
             err_sentinel = None
             if asr_speaker_turns:
                 if num_speakers:
-                    diar_pipe, err_sentinel = _diarization_pipeline_checked()
+                    diar_pipe, err_sentinel = get_diarization_pipeline(return_error=True)
                 if not diar_pipe:
                     return _use_turns(err_sentinel=err_sentinel)
                 logger.info(
@@ -1940,23 +1855,7 @@ async def dub_transcribe_stream(
                     num_speakers, len(asr_speaker_turns),
                 )
             else:
-                diar_pipe, err_sentinel = _diarization_pipeline_checked()
-            if not diar_pipe and isinstance(err_sentinel, dict):
-                # The selected diarisation model's licence is not accepted
-                # (#2689): no model ran; say so with the typed payload so the
-                # client can offer acceptance, and label by silence gaps.
-                return (
-                    assign_speakers_heuristic(all_segments, num_speakers),
-                    {
-                        **err_sentinel,
-                        "detail": err_sentinel["message"]
-                        + " Using silence gaps for now; rapid speaker turns may be merged."
-                        + _hint_suffix(),
-                        "error_class": "MODEL_LICENCE_REQUIRED",
-                        "docs_url": error_docs_map.lookup("MODEL_LICENCE_REQUIRED"),
-                    },
-                    "heuristic",
-                )
+                diar_pipe, err_sentinel = get_diarization_pipeline(return_error=True)
             if not diar_pipe:
                 # Phase 1 AUTH-01: ask the resolver (App → Env → HF-CLI),
                 # not just the env var. This is the #35 fix — users who
@@ -2133,22 +2032,7 @@ async def dub_transcribe_stream(
 
         from services.segmentation import deduplicate_chunk_segments
         final_segs = deduplicate_chunk_segments(final_segs)
-        # Everything this pass derives is committed together at the end, so an
-        # SRT import that lands while references are extracted is never mixed
-        # with, or overwritten by, this transcript. The clone maps are replaced
-        # wholesale: references cut for the previous transcript are keyed by
-        # that transcript's segment ids and must not attach to this one's.
-        commit: dict = {"segment_clones": {}, "speaker_clones": {}, "cast_sources": {}}
-
-        def _ref_run_dir(fallback_dir: str) -> str:
-            # One private folder per pass (see REFERENCE_RUNS_DIRNAME): an SRT
-            # import landing mid-extraction keeps clips that this pass would
-            # otherwise overwrite under the same names.
-            if _ref_run["dir"] is None:
-                _ref_run["dir"] = dub_pipeline.new_reference_run_dir(
-                    _safe_job_dir(job_id) or fallback_dir
-                )
-            return _ref_run["dir"]
+        job["segments"] = final_segs
 
         # Auto-speaker-clone: sample each detected speaker's voice from the
         # Demucs-isolated vocals track and assign `auto:speaker_N` as the
@@ -2186,7 +2070,8 @@ async def dub_transcribe_stream(
                 # new job's clone refs into a directory the user can delete by
                 # removing that older history entry — after which every
                 # single-segment regen silently rendered in the default voice.
-                _clone_dir = _ref_run_dir(os.path.dirname(vocals_for_clone))
+                _clone_dir = _safe_job_dir(job_id) or os.path.dirname(vocals_for_clone)
+                os.makedirs(_clone_dir, exist_ok=True)
                 fut_clones = loop.run_in_executor(
                     _cpu_pool, lambda: extract_speaker_clones(
                         vocals_for_clone, final_segs,
@@ -2224,7 +2109,7 @@ async def dub_transcribe_stream(
             # per-speaker clone below. Default on; the user can force
             # per-speaker by disabling it (job["per_segment_refs"]).
             seg_clones = {}
-            commit["per_segment_refs"] = per_segment_refs
+            job["per_segment_refs"] = per_segment_refs
             if per_segment_refs:
                 try:
                     from services.speaker_clone import extract_segment_refs
@@ -2234,7 +2119,8 @@ async def dub_transcribe_stream(
                     # live in THIS job's dir, or a cache-hit job's clips die
                     # with the older job they were written next to (both
                     # reviewers, on the first version of this fix).
-                    _seg_clone_dir = _ref_run_dir(os.path.dirname(vocals_for_clone))
+                    _seg_clone_dir = _safe_job_dir(job_id) or os.path.dirname(vocals_for_clone)
+                    os.makedirs(_seg_clone_dir, exist_ok=True)
                     fut_seg_refs = loop.run_in_executor(
                         _cpu_pool, lambda: extract_segment_refs(
                             vocals_for_clone, final_segs,
@@ -2262,15 +2148,15 @@ async def dub_transcribe_stream(
                             logger.warning(
                                 "segment ref-text refine timed out; keeping original ref_text: %s", e
                             )
-                        commit["segment_clones"] = seg_clones
+                        job["segment_clones"] = seg_clones
                 except Exception as e:
                     logger.warning("per-segment clone refs skipped: %s", e)
 
             cast_sources = build_cast_sources(final_segs, clones, seg_clones)
-            commit["cast_sources"] = cast_sources
+            job["cast_sources"] = cast_sources
             if cast_sources:
                 if clones:
-                    commit["speaker_clones"] = clones
+                    job["speaker_clones"] = clones
                 # Default each segment's profile_id to its detected speaker's
                 # auto-clone — but only if the user hasn't already assigned
                 # something. (#486)
@@ -2298,40 +2184,12 @@ async def dub_transcribe_stream(
         except Exception as e:
             logger.warning("speaker_clone extraction skipped: %s", e)
 
-        previous_ref_run = None
-        with dub_pipeline._dub_jobs_lock:
-            superseded = segments_revision(job) != start_rev
-            if not superseded:
-                previous_ref_run = job.get("ref_run")
-                commit["ref_run"] = (
-                    os.path.basename(_ref_run["dir"]) if _ref_run["dir"] else None
-                )
-                replace_source_segments(job, final_segs)
-                job.update(commit)
-                job["source_lang"] = job.get("source_lang_override") or _detected_source_lang(
-                    detected_lang
-                )
-                job["full_transcript"] = " ".join(s.get("text", "") for s in final_segs)
-                job["transcription_complete"] = True
-                _save_job(job_id, job)
-            else:
-                # Report the subtitles the job now holds, so the editor shows
-                # what a later dub will actually use.
-                final_segs = job.get("segments") or []
-        if superseded:
-            logger.info(
-                "Transcription result for %s discarded: subtitles were replaced while it ran",
-                log_safe(job_id),
-            )
-        else:
-            _ref_run["committed"] = True
-            # The job no longer references the previous pass's clips.
-            _job_dir = _safe_job_dir(job_id)
-            if _job_dir and previous_ref_run and previous_ref_run != commit["ref_run"]:
-                dub_pipeline.discard_reference_run(os.path.join(
-                    _job_dir, dub_pipeline.REFERENCE_RUNS_DIRNAME,
-                    os.path.basename(str(previous_ref_run)),
-                ), job)
+        job["source_lang"] = job.get("source_lang_override") or _detected_source_lang(
+            detected_lang
+        )
+        job["full_transcript"] = " ".join(s.get("text", "") for s in final_segs)
+        job["transcription_complete"] = True
+        _save_job(job_id, job)
 
         # Restore TTS model to GPU now that ASR is done. unload() blocks
         # (gc.collect + CUDA cache drop) — run it on the GPU pool so the
@@ -2367,8 +2225,8 @@ async def dub_transcribe_stream(
 
         yield _sse_event("final", {
             "segments": final_segs,
-            "source_lang": job.get("source_lang") or "",
-            "full_transcript": job.get("full_transcript") or "",
+            "source_lang": job["source_lang"],
+            "full_transcript": job["full_transcript"],
             # The client only needs labels and durations. Never send host
             # paths or reference transcripts through this public event.
             "speaker_clones": job.get("cast_sources", {}),
@@ -2393,15 +2251,13 @@ async def dub_transcribe_stream(
         try:
             async for ev in _gen_body():
                 yield ev
-        except Exception as exc:  # noqa: BLE001 — last-resort stream finalizer
-            logger.error("Transcription stream failed unexpectedly (class=%s)", type(exc).__name__)
-            from core.public_errors import stream_failure, transcription_failure_code
-            yield _sse_event("error", stream_failure(transcription_failure_code(exc)))
+        except Exception:  # noqa: BLE001 — last-resort stream finalizer
+            logger.error("Transcription stream failed unexpectedly")
+            from core.public_errors import stream_failure
+            yield _sse_event("error", stream_failure("transcription_failed"))
             yield _sse_event("done", {})
         finally:
             _asr_work.stop()
-            if _ref_run["dir"] and not _ref_run["committed"]:
-                dub_pipeline.discard_reference_run(_ref_run["dir"], _get_job(job_id))
             # Last-resort VRAM release (see _loaded_asr above): covers crashes,
             # early terminal-error returns, and client disconnects
             # (GeneratorExit bypasses the except, never this finally).
@@ -2465,25 +2321,12 @@ async def dub_transcribe(job_id: str, num_speakers: Optional[int] = None):
     job = _get_job(job_id)
     if not job:
         raise HTTPException(status_code=404, detail="Job not found")
-    # Subtitles imported or a dub published while this pass runs win over its
-    # result.
-    start_rev = segments_revision(job)
-    # Committed with the segments. This pass cuts no voice references, and the
-    # previous transcript's are keyed by its segment ids, which the new
-    # segments reuse for other lines.
-    detected: dict = {"segment_clones": {}, "speaker_clones": {}, "cast_sources": {}}
     # Same as the streaming preflight: the only use of the TTS core here is the
     # last-resort `_model._asr_pipe` fallback below, which exists solely under
     # OMNIVOICE_PRELOAD_TTS_ASR — and when it is off, that branch raises "fallback
     # is not preloaded" anyway. Loading ~3 GB to reach a None attribute (and then
     # having offload_tts_for_asr free it) was pure cost.
-    _model = None
-    if should_preload_tts_asr():
-        try:
-            _model = await get_model()
-        except ModelLicenceNotAccepted:
-            # Harvest-only preload; skip it rather than fail transcription.
-            logger.info("transcribe: TTS model licence not accepted; skipping preload")
+    _model = await get_model() if should_preload_tts_asr() else None
 
     # TTS-only install: no ASR model on disk → typed 409 with a download CTA,
     # BEFORE any backend is constructed (the whisper backends auto-download
@@ -2503,9 +2346,6 @@ async def dub_transcribe(job_id: str, num_speakers: Optional[int] = None):
                 status_code=409,
                 detail={**missing, "message": asr_model_missing_detail(missing)},
             )
-    # Diarisation runs after ASR; refuse an unaccepted model before any work
-    # (ModelLicenceNotAccepted → typed 403, #2689).
-    await asyncio.to_thread(_ensure_diarisation_accepted)
 
     def _transcribe():
 
@@ -2556,7 +2396,7 @@ async def dub_transcribe(job_id: str, num_speakers: Optional[int] = None):
             except Exception as e:
                 logger.warning("Failed to unload ASR backend: %s", e)
 
-        detected["source_lang"] = job.get("source_lang_override") or _detected_source_lang(
+        job["source_lang"] = job.get("source_lang_override") or _detected_source_lang(
             detected_lang
         )
 
@@ -2601,7 +2441,7 @@ async def dub_transcribe(job_id: str, num_speakers: Optional[int] = None):
 
         for s in segments:
             s.setdefault("text_original", s.get("text", ""))
-        detected["full_transcript"] = " ".join(s["text"] for s in segments)
+        job["full_transcript"] = " ".join(s["text"] for s in segments)
 
         # Transcription is done with the resident TTS model still offloaded;
         # release the accelerator cache the offload freed, on whichever
@@ -2626,25 +2466,16 @@ async def dub_transcribe(job_id: str, num_speakers: Optional[int] = None):
             raise HTTPException(status_code=499, detail="Transcription aborted")
         from services.segmentation import deduplicate_chunk_segments
         segments_result = deduplicate_chunk_segments(segments_result)
-        with dub_pipeline._dub_jobs_lock:
-            if segments_revision(job) == start_rev:
-                replace_source_segments(job, segments_result)
-                job.update(detected)
-                _save_job(job_id, job)
-            else:
-                logger.info(
-                    "Transcription result for %s discarded: subtitles were replaced while it ran",
-                    log_safe(job_id),
-                )
-                segments_result = job.get("segments") or []
+        job["segments"] = segments_result
         source_lang = job.get("source_lang")
+        _save_job(job_id, job)
         return {
             "job_id": job_id,
             "segments": segments_result,
             "full_transcript": job.get("full_transcript", ""),
             "source_lang": source_lang,
         }
-    except (HTTPException, ModelLicenceNotAccepted):
+    except HTTPException:
         raise
     except asyncio.CancelledError:
         raise

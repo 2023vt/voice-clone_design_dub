@@ -6,6 +6,9 @@ const state = vi.hoisted(() => ({ names: ['english'] as string[] | null }));
 vi.mock('@/hooks/use-engines', () => ({
   useEngines: () => ({ activeTts: { supported_language_names: state.names } }),
 }));
+vi.mock('@/hooks/use-compute-target', () => ({
+  useComputeTarget: () => ({ data: { active: { remote: false } } }),
+}));
 vi.mock('@/lib/languages', () => ({
   LANGUAGES: ['Auto', 'English', 'Japanese'],
   POPULAR_LANGUAGES: ['English'],

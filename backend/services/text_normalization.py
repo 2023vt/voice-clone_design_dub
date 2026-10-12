@@ -51,8 +51,9 @@ audiobook ``apply_lexicon`` overlay). Rationale from the code:
 
 Pinned by ``tests/test_text_normalization.py`` (dictionary-order test).
 
-Gate: default ON; the ``OMNIVOICE_TEXT_NORMALIZATION`` env var disables it,
-the same contract as ``OMNIVOICE_PRONUNCIATION`` ("0"/"false"/"no"/"off").
+Gate: prefs key ``text_normalization_enabled`` (default ON) with env override
+``OMNIVOICE_TEXT_NORMALIZATION`` — the same env-wins contract as
+``OMNIVOICE_PRONUNCIATION`` ("0"/"false"/"no"/"off" disable).
 :func:`normalize_for_tts` is the gated entry point every pipeline calls; it
 never raises — normalization is never allowed to break synthesis.
 """
@@ -68,6 +69,7 @@ from typing import Callable, Optional
 logger = logging.getLogger("omnivoice.text_normalization")
 
 ENV_VAR = "OMNIVOICE_TEXT_NORMALIZATION"
+PREF_KEY = "text_normalization_enabled"
 
 
 # ── Language resolution ───────────────────────────────────────────────────────
@@ -470,17 +472,17 @@ def _expand_abbreviations(text: str, lang: str) -> str:
 # zeros ("007") or 7+ digits (IDs, phone numbers) are all left alone.
 
 # EN-only clock time: H:MM, 0-23 hours. Rejects H:MM:SS (durations).
-_TIME_RE = re.compile(r"(?<![\w:.,/$%+-])([01]?\d|2[0-3]):([0-5]\d)(?![\w:/%+-])(?![.,]\d)")
+_TIME_RE = re.compile(r"(?<![\d:.,])([01]?\d|2[0-3]):([0-5]\d)(?![\d:])")
 
 # EN-only ordinal, suffix verified in the callback ("2th" stays as-is).
-_ORDINAL_RE = re.compile(r"(?<![\w.,:/$%+-])(\d{1,4})(st|nd|rd|th)(?![\w:/%+-])(?![.,]\d)")
+_ORDINAL_RE = re.compile(r"(?<![\w.,])(\d{1,4})(st|nd|rd|th)\b")
 
 # EN-only dollars: $N or $N.CC. "$1,000" and "$5.5" are blocked by the
 # lookahead; a period or comma that ends the sentence or clause is not, the
 # same guard the integer and decimal rules use ("It costs $5." is spoken).
-_CURRENCY_RE = re.compile(r"(?<![\w.,:/$%+-])\$(\d{1,6})(?:\.(\d{2}))?(?![\w:/%+-])(?![.,]\d)")
+_CURRENCY_RE = re.compile(r"(?<!\w)\$(\d{1,6})(?:\.(\d{2}))?(?!\d)(?![.,]\d)")
 
-_PERCENT_RE = re.compile(r"(?<![\w.,:/$%+-])(\d{1,6}(?:\.\d{1,4})?)\s?%(?![\w:/%+-])(?![.,]\d)")
+_PERCENT_RE = re.compile(r"(?<![\w.,])(\d{1,6}(?:\.\d{1,4})?)\s?%")
 
 _DECIMAL_RE = re.compile(
     r"(?<![\w.,:/$%-])(\d{1,6})\.(\d{1,6})(?![\w:/%-])(?![.,]\d)"
@@ -525,9 +527,9 @@ def _numbers_to_words(text: str, lang: str) -> str:
     except ImportError:  # pragma: no cover — direct dependency; belt & braces
         return text
 
-    def _safe(m: re.Match, render: Callable[[re.Match], str], *, clock: bool = False) -> str:
+    def _safe(m: re.Match, render: Callable[[re.Match], str]) -> str:
         # Any num2words hiccup leaves this occurrence untouched.
-        if _glued_to_mark(m) or (not clock and _leading_zero(m.group(1).partition(".")[0])):
+        if _glued_to_mark(m):
             return m.group(0)
         try:
             return render(m)
@@ -544,7 +546,7 @@ def _numbers_to_words(text: str, lang: str) -> str:
                 return f"{hw} oh {num2words(mm, lang='en')}"
             return f"{hw} {num2words(mm, lang='en')}"
 
-        text = _TIME_RE.sub(lambda m: _safe(m, _time, clock=True), text)
+        text = _TIME_RE.sub(lambda m: _safe(m, _time), text)
 
         def _ordinal(m: re.Match) -> str:
             n = int(m.group(1))
@@ -634,7 +636,7 @@ def _numbers_to_words_native(text: str, lang: str) -> str:
 
     def _safe(m: re.Match, render: Callable[[re.Match], str]) -> str:
         """Render one match; on any error return the original text."""
-        if _glued_to_mark(m) or _leading_zero(m.group(1).partition(".")[0]):
+        if _glued_to_mark(m):
             return m.group(0)
         try:
             return render(m)
@@ -678,12 +680,16 @@ def normalize_text(text: str, language: Optional[str] = None) -> str:
 
 
 def normalization_enabled() -> bool:
-    """Default ON; the env var is the power-user off switch. (A prefs key was
-    once read here too, but nothing ever wrote it.)"""
+    """Env wins (power-user override, mirrors OMNIVOICE_PRONUNCIATION);
+    otherwise the ``text_normalization_enabled`` pref, default ON."""
     env = os.environ.get(ENV_VAR)
-    if env is None:
+    if env is not None:
+        return env.strip().lower() not in ("0", "false", "no", "off", "")
+    try:
+        from core import prefs
+        return bool(prefs.get(PREF_KEY, True))
+    except Exception:  # noqa: BLE001 — prefs unreadable → default ON
         return True
-    return env.strip().lower() not in ("0", "false", "no", "off", "")
 
 
 def normalize_for_tts(text: str, language: Optional[str] = None) -> str:

@@ -6,6 +6,7 @@ same response works on loopback, a tailnet GPU host, and a reverse proxy.
 """
 from __future__ import annotations
 
+import os
 from typing import Literal
 
 from fastapi import APIRouter
@@ -109,6 +110,20 @@ def speech_capabilities() -> SpeechCapabilities:
             protocol="mcp",
         ),
     }
+    native_control = False
+    try:
+        control_port = int(os.environ.get("VOICESTUDIO_SPEECH_CONTROL_PORT", ""))
+    except (TypeError, ValueError):
+        control_port = 0
+    if 0 < control_port <= 65535:
+        native_control = True
+        endpoints["native_dictation_control"] = EndpointCapability(
+            path=f"http://127.0.0.1:{control_port}/v1/capabilities",
+            transport="http",
+            method="GET",
+            protocol=SPEECH_PROTOCOL,
+        )
+
     return SpeechCapabilities(
         endpoints=endpoints,
         stream_input=StreamInputCapability(
@@ -123,9 +138,9 @@ def speech_capabilities() -> SpeechCapabilities:
             events=["session.started", "status", "partial", "final", "error"],
             final_kinds=["utterance", "summary"],
         ),
-        # Native dictation control was served by the retired Tauri shell;
-        # the field stays in the v1 schema and is always false.
-        features=SpeechFeatureCapabilities(native_dictation_control=False),
+        features=SpeechFeatureCapabilities(
+            native_dictation_control=native_control,
+        ),
         authentication=SpeechAuthCapabilities(),
     )
 

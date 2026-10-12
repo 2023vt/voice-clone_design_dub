@@ -7,9 +7,8 @@ from html.parser import HTMLParser
 from urllib.parse import urlsplit
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, HTTPException, Query
 
-from core.browser_guard import reject_cross_site_get
 from core.profile_images import MAX_IMAGE_BYTES, normalize_portrait
 
 router = APIRouter()
@@ -112,7 +111,7 @@ async def openverse_thumbnails(client: httpx.AsyncClient, name: str) -> list[tup
     return results
 
 
-@router.get("/profile-images/search", dependencies=[Depends(reject_cross_site_get)])
+@router.get("/profile-images/search")
 async def search_profile_images(name: str = Query(min_length=1, max_length=100)):
     if not name.strip():
         raise HTTPException(422, detail={"code": "image_search_failed"})

@@ -1,17 +1,18 @@
 """Actual streaming sentence renderer validates generated samples before DSP."""
+import importlib
 from types import ModuleType, SimpleNamespace
 import sys
 
 import pytest
 import torch
 
-from api.routers.tts_stream import render_stream_sentence
-from services import audio_dsp
-
-
 @pytest.mark.parametrize("invalid", [float("nan"), float("inf"), -float("inf"), 0.0])
 @pytest.mark.parametrize("own_mastering", [False, True])
 def test_streaming_sentence_sanitizes_tail_before_dsp(monkeypatch, invalid, own_mastering):
+    # Other collected suites reload route/DSP modules. Patch the exact module
+    # the maintained renderer imports at call time, not a stale collection ref.
+    audio_dsp = importlib.import_module("services.audio_dsp")
+    render_stream_sentence = importlib.import_module("api.routers.tts_stream").render_stream_sentence
     original = torch.tensor([[.5, .25, 0, invalid]])
     seen = []
 

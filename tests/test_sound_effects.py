@@ -122,3 +122,35 @@ def test_generate_saves_every_variation_as_a_marked_take(monkeypatch):
         modes = [row[0] for row in conn.execute(
             "SELECT mode FROM generation_history WHERE text = ?", ("door creak",))]
     assert modes == ["sfx"] * 3
+
+
+def test_takes_are_ranked_by_clap_without_librosa():
+    """diffusers ranks AudioLDM2 takes only when librosa is installed, and the
+    app runtime has none; the bound scorer resamples with torchaudio instead."""
+    import types
+
+    sfx = _sfx()
+    seen = {}
+
+    class Inputs(dict):
+        def to(self, _device):
+            return self
+
+    class FeatureExtractor:
+        sampling_rate = 48000
+
+        def __call__(self, audios, return_tensors, sampling_rate):
+            seen["lengths"] = [len(a) for a in audios]
+            return types.SimpleNamespace(input_features=torch.zeros(len(audios), 1))
+
+    pipe = types.SimpleNamespace(
+        tokenizer=lambda text, **_: Inputs(text=text),
+        feature_extractor=FeatureExtractor(),
+        vocoder=types.SimpleNamespace(config=types.SimpleNamespace(sampling_rate=16000)),
+        # CLAP's similarity of the prompt to takes 0, 1, 2: take 2 matches best.
+        text_encoder=lambda **_: types.SimpleNamespace(logits_per_text=torch.tensor([[0.1, 0.3, 0.9]])),
+    )
+    audio = torch.stack([torch.full((16000,), float(i)) for i in range(3)])
+    ranked = sfx._score_waveforms(pipe, "rain", audio, 3, "cpu", torch.float32)
+    assert [int(clip[0]) for clip in ranked] == [2, 1, 0]
+    assert seen["lengths"] == [48000] * 3, "resampled to CLAP's 48 kHz"

@@ -1450,8 +1450,7 @@ async def commercial_use_blocked_handler(request: Request, exc: CommercialUseBlo
     """
     return JSONResponse(
         status_code=403,
-        content={"detail": {"code": "commercial_use_blocked", "message": str(exc), "target": exc.target,
-                            "status": exc.info.status, "weights": exc.info.weights, "source": exc.info.source}},
+        content={"detail": exc.detail()},
         headers=_cors_headers_for(request),
     )
 

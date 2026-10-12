@@ -479,9 +479,13 @@ async def ws_tts(websocket: WebSocket):
 
             except Exception as e:
                 from core.failure import licence_required_detail
+                from services.license_guard import CommercialUseBlocked
 
                 licence = licence_required_detail(e)
-                if licence is None:
+                blocked = e.detail() if isinstance(e, CommercialUseBlocked) else None
+                if blocked is not None:
+                    logger.info("TTS stream refused: Commercial-safe mode")
+                elif licence is None:
                     logger.exception("TTS streaming failed: %s", e)
                 else:
                     logger.info("TTS stream refused: model licence not accepted")
@@ -491,6 +495,8 @@ async def ws_tts(websocket: WebSocket):
                         "detail": str(e),
                         # code + models let the client open the acceptance dialog.
                         **({"code": licence["code"], "models": licence["models"]} if licence else {}),
+                        # code + licence fields: the same refusal the HTTP routes send as a 403.
+                        **({k: v for k, v in blocked.items() if k != "message"} if blocked else {}),
                     })
                 except Exception:
                     break

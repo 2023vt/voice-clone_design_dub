@@ -22,13 +22,13 @@ metadata and the backend fallback mirror it.
 - `/v1/audio/speech` turns `[pause 500ms]` markers into real silence and lowers ElevenLabs-style cues like `[laughs]` for the engine instead of passing them to it as text, as `/generate` does (#2743)
 - Sound more human copies a clone's own room and breathing: pauses get the reference clip's noise spectrum at its distance under the voice, and inhales are the speaker's own, cut from the clip (#2743)
 - A take cloned from a sample in another script than the take's language (an English sample for a Hindi take) comes back with a warning that it will carry the sample's accent (#2743)
-- Hindi also reads crores (5,00,00,000), spoken fractions before units and percentages (डेढ़ घंटे, ढाई करोड़, साढ़े तीन किलोमीटर, ढाई प्रतिशत), ₹ and $ amounts with लाख/करोड़/मिलियन, DD/MM/YYYY dates, Indian mobile numbers digit by digit, 05:30-style times, and English acronyms inside Hindi (CEO ने → सीईओ ने, ISRO → इसरो) (#2743)
+- Hindi reads crores, spoken fractions (डेढ़, ढाई, साढ़े), ₹ and $ amounts, dates, mobile numbers, times and English acronyms the way a Hindi speaker says them (#2743)
 - VoxCPM2 takes that keep talking past their line (invented syllables after the last word) are rendered again with another seed, up to twice; normal takes are unchanged (#2743)
 - Convert to native script: the Script box rewrites Roman Hindi (kya haal hai) and other romanized text in the language's own script with your LLM, keeping tags and line breaks, with Undo (#2743)
 - `scripts/eval_hindi.py` scores Hindi takes from a running backend: per-category character error rate from a local Whisper transcript, digital-silence and pause-floor checks, WAVs kept for listening (#2743)
-- Hindi scripts read numbers the way a Hindi speaker says them: cardinals up to लाख, the spoken सौ form for 1100–1999 (उन्नीस सौ चौरासी), rupees (₹, Rs., 1,50,000), clock times (साढ़े दस, पौने ग्यारह, दस बजकर बीस मिनट), digit ordinals (5वीं), percent, decimals, Devanagari digits and डॉ./Dr. titles — see docs/hindi.md (#2743)
-- Sound more human (opt-in, Audio quality popover): breaths before sentences, a quiet room tone under pauses instead of digital silence, punctuation-sized jittered gaps and a touch of tempo drift between chunks; same on every engine and platform, repeatable with a pinned seed, `humanize=true` on `/generate` (#2743)
-- Commercial-safe mode (opt-in): every engine and tool reports its weights' licence, and when the mode is on, non-commercial or unreviewed weights (OmniVoice, audio.cpp, MusicGen, AudioLDM2) are refused on every generation path with a clear 403 — see docs/commercial-safe-mode.md (#2743)
+- Hindi scripts read numbers as spoken Hindi: cardinals, years (उन्नीस सौ चौरासी), rupees, clock times, ordinals, percent and Devanagari digits — see docs/hindi.md (#2743)
+- Sound more human (opt-in, Audio quality popover): breaths, a quiet room tone under pauses and natural pacing between sentences, on every engine (#2743)
+- Commercial-safe mode (opt-in) refuses engines and tools whose weights are not cleared for commercial use, with a clear 403 — see docs/commercial-safe-mode.md (#2743)
 
 ### Changed
 

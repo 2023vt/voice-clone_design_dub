@@ -170,6 +170,7 @@ def _load_pipeline():
             local_files_only=True,
         )
         pipe.generate_language_model = types.MethodType(_generate_language_model, pipe)
+        pipe.score_waveforms = types.MethodType(_score_waveforms, pipe)
         return pipe.to("cuda" if cuda else "cpu")
 
 
@@ -206,6 +207,31 @@ def _generate_language_model(self, inputs_embeds=None, max_new_tokens=8, **model
                 [attention_mask, attention_mask.new_ones((attention_mask.shape[0], 1))], dim=1
             )
     return inputs_embeds[:, -max_new_tokens:, :]
+
+
+def _score_waveforms(self, text, audio, num_waveforms_per_prompt, device, dtype):
+    """AudioLDM2's CLAP ranking of the takes, best match first, without librosa.
+
+    diffusers resamples the takes to CLAP's rate with librosa and, when it is
+    missing (it is not in the app runtime, and diffusers is installed with
+    ``--no-deps``), returns them unranked. torchaudio, which the runtime
+    ships, does the same resample; the scoring is diffusers' own.
+    """
+    import torch
+    import torchaudio
+
+    inputs = self.tokenizer(text, return_tensors="pt", padding=True)
+    target_sr = self.feature_extractor.sampling_rate
+    resampled = torchaudio.functional.resample(
+        torch.as_tensor(audio, dtype=torch.float32), self.vocoder.config.sampling_rate, target_sr,
+    )
+    inputs["input_features"] = self.feature_extractor(
+        list(resampled.numpy()), return_tensors="pt", sampling_rate=target_sr,
+    ).input_features.type(dtype)
+    inputs = inputs.to(device)
+    logits_per_text = self.text_encoder(**inputs).logits_per_text
+    indices = torch.argsort(logits_per_text, dim=1, descending=True)[:, :num_waveforms_per_prompt]
+    return torch.index_select(audio, 0, indices.reshape(-1).cpu())
 
 
 def clamp_seconds(seconds: float) -> float:

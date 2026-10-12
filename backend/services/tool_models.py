@@ -22,6 +22,13 @@ logger = logging.getLogger("omnivoice.tool_models")
 
 _REGISTRY: dict[str, "ResidentModel"] = {}
 
+#: One tool render at a time. Held across load and render, so the model a
+#: render needs is loaded only after every other tool model is gone: the
+#: route's eviction cannot free a model that is mid-render, but this can wait
+#: for it. Torch's global RNG is seeded per render, which this also keeps
+#: from being reseeded by the other tool in between.
+_RENDER_LOCK = threading.Lock()
+
 
 class ResidentModel:
     def __init__(self, tool_id: str, loader: Callable[[], Any]):
@@ -45,14 +52,20 @@ class ResidentModel:
 
     @contextmanager
     def use(self) -> Iterator[Any]:
-        """The loaded model, kept resident until the block ends."""
-        with self._use_lock:
-            self._in_use += 1
-        try:
-            yield self.get()
-        finally:
+        """The loaded model, kept resident until the block ends.
+
+        Waits for any other tool's render, and frees the other tool models
+        before loading this one."""
+        with _RENDER_LOCK:
             with self._use_lock:
-                self._in_use -= 1
+                self._in_use += 1
+            try:
+                if not self.loaded:
+                    unload_all(keep=self.tool_id)
+                yield self.get()
+            finally:
+                with self._use_lock:
+                    self._in_use -= 1
 
     def unload(self) -> bool:
         """Drop the model unless a render holds it; True when memory was freed."""

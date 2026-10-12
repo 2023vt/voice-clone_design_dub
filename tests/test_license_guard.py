@@ -122,3 +122,16 @@ def test_blocked_error_becomes_a_403_with_a_code(guard):
     detail = body.json()["detail"]
     assert detail["code"] == "commercial_use_blocked" and detail["target"] == "omnivoice"
     assert detail["status"] == "non_commercial" and "CC-BY-NC" in detail["weights"]
+
+
+def test_websocket_stream_refusal_carries_the_code(guard):
+    """/ws/tts sends the same refusal fields as the HTTP 403, so a stream client can tell it apart."""
+    from fastapi.testclient import TestClient
+    from main import app
+
+    guard.set_commercial_only(True)
+    with TestClient(app, client=("127.0.0.1", 50000)).websocket_connect("/ws/tts") as ws:
+        ws.send_json({"text": "hello", "engine": "omnivoice"})
+        frame = ws.receive_json()
+    assert frame["type"] == "error" and frame["code"] == "commercial_use_blocked"
+    assert frame["target"] == "omnivoice" and frame["status"] == "non_commercial"

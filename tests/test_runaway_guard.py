@@ -4,10 +4,21 @@ Thresholds are pinned to the measured Hindi eval run they came from: a slow
 but clean narrator take at 2.09x its expected length must pass untouched, a
 take at 2.56x (the shortest runaway seen) must be re-rendered.
 """
+import importlib
+
 import pytest
 import torch
 
-from services import runaway_guard as rg
+
+class _Guard:
+    """``services.runaway_guard`` looked up on every use, so a test that
+    reloads ``services`` cannot leave this file holding a stale module."""
+
+    def __getattr__(self, name):
+        return getattr(importlib.import_module("services.runaway_guard"), name)
+
+
+rg = _Guard()
 
 SR = 24000
 

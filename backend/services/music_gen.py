@@ -126,6 +126,9 @@ def _render(model, processor, prompt, seconds, variations, seed):
     count = max(1, min(MAX_VARIATIONS, int(variations)))
     inputs = processor(text=[prompt] * count, padding=True, return_tensors="pt").to(model.device)
     frame_rate = int(model.config.audio_encoder.frame_rate)
+    # MusicGen's sampler takes no generator, so the global RNG carries the seed.
+    # manual_seed seeds every device (CPU and CUDA); the tool render lock in
+    # services.tool_models keeps the other tool from reseeding it mid-render.
     torch.manual_seed(int(seed))
     with torch.inference_mode():
         audio = model.generate(

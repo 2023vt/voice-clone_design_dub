@@ -87,6 +87,11 @@ class CommercialUseBlocked(Exception):
         self.target = target
         self.info = info
 
+    def detail(self) -> dict:
+        """The refusal as the client reads it on every transport (HTTP 403 body, WebSocket error frame)."""
+        return {"code": "commercial_use_blocked", "message": str(self), "target": self.target,
+                "status": self.info.status, "weights": self.info.weights, "source": self.info.source}
+
 
 def _truthy(value) -> bool:
     if isinstance(value, bool):

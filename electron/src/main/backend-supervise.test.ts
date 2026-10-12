@@ -196,22 +196,30 @@ it('waits out an attached backend that accepts connections but is busy (#2601)',
   }
 });
 
-it('never declares an attached backend crashed from timeouts alone', async () => {
-  const health: Health = { mode: 'up' };
-  const supervisor = await attachedSupervisor(health);
-  try {
-    health.mode = 'busy';
-    // Long jobs run for hours; six hours of silence is still a live listener.
-    await vi.advanceTimersByTimeAsync(6 * 60 * 60_000);
-    expect(supervisor.status.stage).toBe('unresponsive');
+// Six simulated hours run thousands of probe rounds: about 0.1 s on a fast
+// machine, but past vitest's 5 s default on a loaded macOS Intel runner.
+const SIX_HOUR_SIMULATION_BUDGET_MS = 30_000;
 
-    health.mode = 'up';
-    await vi.advanceTimersByTimeAsync(3_000);
-    expect(supervisor.status.stage).toBe('ready');
-  } finally {
-    await supervisor.shutdown();
-  }
-});
+it(
+  'never declares an attached backend crashed from timeouts alone',
+  { timeout: SIX_HOUR_SIMULATION_BUDGET_MS },
+  async () => {
+    const health: Health = { mode: 'up' };
+    const supervisor = await attachedSupervisor(health);
+    try {
+      health.mode = 'busy';
+      // Long jobs run for hours; six hours of silence is still a live listener.
+      await vi.advanceTimersByTimeAsync(6 * 60 * 60_000);
+      expect(supervisor.status.stage).toBe('unresponsive');
+
+      health.mode = 'up';
+      await vi.advanceTimersByTimeAsync(3_000);
+      expect(supervisor.status.stage).toBe('ready');
+    } finally {
+      await supervisor.shutdown();
+    }
+  },
+);
 
 it('forgets a past refusal once the listener is back (classified from the latest probes)', async () => {
   const health: Health = { mode: 'up' };

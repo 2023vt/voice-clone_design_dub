@@ -164,11 +164,10 @@ Progress: **6/6 ✅** (both bets wired end-to-end; review banners + step-level r
 
 > *Do not build proactively. Trigger-based only.*
 
-Progress: **0/5 (0 %)**
+Progress: **0/4 (0 %)**
 
 | ID | Item | Trigger that starts it | Status |
 |----|------|------|:---:|
-| 5.1 | Multi-worker + Redis/Postgres job queue | First team asks to share a GPU across users | 🚫 |
 | 5.2 | OpenTelemetry tracing | First "why is this slow?" incident we can't diagnose | 🚫 |
 | 5.3 | Optional auth (magic-link / passkey) | First team-deployment request | 🚫 |
 | 5.4 | Signed installers + auto-update (Tauri) | Paid release or pre-order list forms | 🚫 |

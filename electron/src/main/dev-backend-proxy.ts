@@ -1,5 +1,6 @@
 import { createServer, request as httpRequest, type IncomingHttpHeaders } from 'node:http';
 import { request as httpsRequest } from 'node:https';
+import { DEFAULT_ELECTRON_PROXY_PORT } from '../../../config/app-config.mjs';
 
 const STRIP_HEADERS = new Set([
   'authorization',
@@ -70,7 +71,7 @@ export interface DevBackendProxy {
 export async function startDevBackendProxy(
   getBaseUrl: () => string,
   getTrustedHeaders: () => Record<string, string>,
-  port = 3903,
+  port = DEFAULT_ELECTRON_PROXY_PORT,
   allowedOrigins: readonly string[] = [],
 ): Promise<DevBackendProxy> {
   const server = createServer((incoming, response) => {

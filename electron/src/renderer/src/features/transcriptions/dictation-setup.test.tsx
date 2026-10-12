@@ -79,7 +79,7 @@ it('starts only the recommended model after an explicit click', async () => {
     expect(mock.api).toHaveBeenCalledWith(
       '/models/install',
       expect.objectContaining({
-        body: JSON.stringify({ repo_id: 'owner/recommended', target: 'local' }),
+        body: JSON.stringify({ repo_id: 'owner/recommended' }),
       }),
     ),
   );

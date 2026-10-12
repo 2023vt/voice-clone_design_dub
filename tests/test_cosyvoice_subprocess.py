@@ -237,12 +237,12 @@ def test_a_missing_model_override_is_an_error_not_a_silent_swap(monkeypatch, tmp
 
 
 # The first release of each package that fixes the advisories upstream's pins
-# fall under, per OSV and GitHub's advisory database (checked 2026-09-10;
+# fall under, per OSV and GitHub's advisory database (checked 2026-09-10, hydra-core 2026-10-12;
 # only GitHub listed the protobuf and transformers ones). Raising a pin is
 # fine; going below one of these reintroduces a known vulnerability.
 _ADVISORY_FLOORS = {
     "diffusers": "0.38.0",
-    "hydra-core": "1.3.4",
+    "hydra-core": "1.3.7",
     "lightning": "2.6.6",
     "modelscope": "1.27.0",
     "onnx": "1.21.0",
@@ -289,7 +289,7 @@ def test_managed_install_probes_late_imports_and_restores_dependencies():
     assert 'cosyvoice.dataset.processor' in spec.probe_code
     assert 'matcha.utils' in spec.probe_code
     assert '{checkout}/third_party/PyWorld' in spec.install_args
-    assert spec.install_revision == 'inference-imports-v2'
+    assert spec.install_revision == 'security-floors-v3'
     sources = {source.path: source for source in spec.extra_sources}
     assert sources['third_party/PyWorld'].revision == 'f31ad88d543fdaebbda2d0c9a5e4d4f991ae0b6c'
     assert sources['third_party/PyWorld/lib/World'].revision == 'd625e7608ca23a870018f01e7c562ac683d9847f'
@@ -363,3 +363,34 @@ def test_load_preserves_legacy_non_qwen_checkout(monkeypatch, tmp_path):
     monkeypatch.delattr(sys.modules['cosyvoice.llm.llm'], 'Qwen2Encoder')
     monkeypatch.setitem(sys.modules, 'transformers', types.ModuleType('transformers'))
     assert sidecar._load_model(io.BytesIO()) is not None
+
+
+# The requirements each managed install revision installs. A changed
+# requirements.txt needs a new revision, or existing installs keep their old
+# completion marker and never receive the change.
+_REQUIREMENTS_BY_REVISION = {
+    "security-floors-v3": "10d15c52b78ae41cfd040880f97a3b9b71c2fa2dab9893bceb982fc46b72d9dd",
+}
+
+
+def test_requirement_changes_bump_the_managed_install_revision():
+    import hashlib
+    from services import sidecar_install
+
+    spec = sidecar_install.SPECS["cosyvoice"]
+    digest = hashlib.sha256(_REQUIREMENTS.read_text(encoding="utf-8").encode()).hexdigest()
+    assert _REQUIREMENTS_BY_REVISION.get(spec.install_revision) == digest, (
+        "cosyvoice requirements.txt changed: bump install_revision in "
+        "services/sidecar_install.py and record the new digest here"
+    )
+
+
+def test_an_install_from_the_previous_revision_is_offered_a_repair(tmp_path):
+    from services import sidecar_install
+
+    spec = sidecar_install.SPECS["cosyvoice"]
+    marker = tmp_path / sidecar_install._INSTALL_COMPLETE_MARKER
+    marker.write_text(f"{spec.probe_module}\ninference-imports-v2\n", encoding="utf-8")
+    assert not sidecar_install._install_marker_valid(spec, tmp_path)
+    marker.write_text(f"{spec.probe_module}\n{spec.install_revision}\n", encoding="utf-8")
+    assert sidecar_install._install_marker_valid(spec, tmp_path)

@@ -18,7 +18,6 @@ import {
   AudioLines,
   Palette,
   Plug,
-  Cpu,
   Mic,
   SpellCheck,
   Languages,
@@ -282,32 +281,6 @@ export const GROUPS = [
           'bundled binaries',
         ],
         keywordKeys: ['settings.audio_tools', 'settings.ffmpeg', 'settings.audio_tools_ytdlp'],
-      },
-      {
-        id: 'workers',
-        labelKey: 'settings.workers_title',
-        defaultLabel: 'Remote workers',
-        icon: Cpu,
-        // Its own System entry rather than a section inside Sharing: this
-        // sends work OUT to machines you own, where everything under Sharing
-        // is about letting something else reach this one.
-        keywords: [
-          'remote workers',
-          'workers',
-          'gpu',
-          'second gpu',
-          'another machine',
-          'distributed',
-          'enrollment token',
-          'offload',
-          'join code',
-          'join',
-          'qr',
-          'lend gpu',
-          'share gpu',
-          'worker mode',
-        ],
-        keywordKeys: ['settings.workers_title', 'settings.workers_add'],
       },
       {
         id: 'sharing',

@@ -274,7 +274,7 @@ time, so in production **restart the backend** to apply a change. Default empty
 
 Admin routes — `/system/*` (including `set-env`, **RCE-class**),
 `/api/settings/*`, engine selection/install/uninstall, media tools, MCP
-bindings, pronunciation settings, and remote-worker management — sit on a
+bindings and pronunciation settings — sit on a
 stricter gate (`require_admin`, `backend/api/dependencies.py`) than consumption.
 On the desktop build they are **true-loopback-only**: no PIN, key, or trusted
 network reaches them from another machine.

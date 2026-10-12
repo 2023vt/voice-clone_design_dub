@@ -54,6 +54,7 @@ async function fixture() {
   const bundle = join(root, 'bundle');
   const project = join(root, 'runtime');
   await mkdir(join(bundle, 'backend'), { recursive: true });
+  await mkdir(join(bundle, 'config'), { recursive: true });
   await mkdir(join(bundle, 'frontend', 'dist'), { recursive: true });
   await mkdir(join(bundle, 'omnivoice'));
   for (const file of [
@@ -61,6 +62,7 @@ async function fixture() {
     'README.md',
     'LICENSE',
     'backend/main.py',
+    'config/app.json',
     'frontend/dist/index.html',
     'omnivoice/__init__.py',
   ]) {

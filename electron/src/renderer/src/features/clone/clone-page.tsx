@@ -12,13 +12,7 @@ import { TakeDetails } from './take-details';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useNavigate } from '@tanstack/react-router';
-import {
-  HistoryIcon,
-  AudioLinesIcon,
-  ChevronDownIcon,
-  PencilIcon,
-  SearchIcon,
-} from 'lucide-react';
+import { HistoryIcon, AudioLinesIcon, ChevronDownIcon, PencilIcon, SearchIcon } from 'lucide-react';
 import { isMac } from '@/components/bridge';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -34,6 +28,7 @@ import { ReferencePanel, SaveProfileForm } from './reference-panel';
 import { ScriptPanel } from './script-panel';
 import { useCloneDemo } from '@/hooks/use-clone-demo';
 import { runRendererTask } from '@/lib/global-error-recovery';
+import { SynthesisDock } from '@/components/synthesis-dock';
 
 const DEMO_PROFILE_ID = 'demo0001';
 const DEMO_PROMPTED_KEY = 'omnivoice.demoClonePrompted';
@@ -256,14 +251,13 @@ export function ClonePage() {
             )}
           </div>
           {((!choosingVoice && !savingUpload) || isGenerating) && (
-            <div className="z-10 mt-auto shrink-0 bg-background">
+            <SynthesisDock output={<OutputPanel />}>
               <div className="mx-auto w-full max-w-4xl px-6 pb-4">
                 <div className="glass-panel composer-surface rounded-xl border border-border/60 bg-muted/30 p-2.5 shadow-[0_2px_12px_rgb(0_0_0/4%)]">
                   <ActionBar />
                 </div>
               </div>
-              <OutputPanel />
-            </div>
+            </SynthesisDock>
           )}
         </section>
         {editingProfile && (

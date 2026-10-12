@@ -83,18 +83,36 @@ describe('model licence acceptance', () => {
     expect(modelLicenceRequirements('nope')).toBeNull();
   });
 
-  const pending = (repo: string, label = repo): AcceptableModel => ({
+  const pending = (repo: string, label = repo, category?: string): AcceptableModel => ({
     repo_id: repo,
     label,
     fingerprint: `v2:${repo.length.toString(16).padStart(64, '0')}`,
     required: true,
     accepted: false,
+    category,
   });
   const boxes = () => Array.from(document.querySelectorAll('input[type="checkbox"]')) as HTMLInputElement[];
 
   it('states VoiceStudio is not the licensor and needs a ticked box per model', async () => {
-    await render(<LicenceAcceptanceFooter models={[pending('a/one', 'One'), pending('b/two', 'Two')]} onClose={() => {}} />);
+    await render(
+      <LicenceAcceptanceFooter
+        models={[pending('a/one', 'One', 'commercial'), pending('b/two', 'Two', 'noncommercial')]}
+        onClose={() => {}}
+      />,
+    );
     expect(text()).toContain(en.modelLicense.acceptNotice);
+    expect(document.querySelector('[data-licence-acceptance]')).not.toBeNull();
+    expect(document.querySelectorAll('[data-license-category]')).toHaveLength(2);
+    expect(
+      Array.from(document.querySelectorAll('[data-license-category]')).map((element) =>
+        element.getAttribute('data-license-category'),
+      ),
+    ).toEqual(['commercial', 'noncommercial']);
+    expect(
+      Array.from(document.querySelectorAll('[data-model-label]')).map((element) =>
+        element.getAttribute('data-model-label'),
+      ),
+    ).toEqual(['One', 'Two']);
     expect(boxes().map((box) => box.closest('label')?.textContent)).toEqual([
       en.modelLicense.acceptCheckbox.replace('{{model}}', 'One'),
       en.modelLicense.acceptCheckbox.replace('{{model}}', 'Two'),
@@ -180,5 +198,29 @@ describe('model licence acceptance', () => {
     expect(text()).toContain(en.modelLicense.sectionAllows);
     expect(document.querySelector('a[href="https://example.invalid/test/tokenizer"]')).not.toBeNull();
     expect(boxes()).toHaveLength(2);
+  });
+
+  it('says the licences are accepted once they are, without assuming an action ran', async () => {
+    mock.api.mockImplementation(async (path: string) =>
+      path === '/models/licenses/accept'
+        ? { accepted: true }
+        : {
+            repo_id: gated.repo_id,
+            info: { license: gated.license, credit: 'Holder', license_category: gated.category },
+            acceptance: { ...gated, required: true, accepted: false, state: 'not_accepted' },
+            history: [],
+          },
+    );
+    await render(<ModelLicenceGate />);
+    await act(async () => {
+      window.dispatchEvent(new CustomEvent(MODEL_LICENCE_REQUIRED_EVENT, { detail: [gated] }));
+    });
+    await vi.waitFor(() => expect(boxes()).toHaveLength(1));
+    expect(text()).toContain(en.modelLicense.gateIntro);
+    await act(async () => boxes()[0].click());
+    await act(async () => button(en.modelLicense.accept)!.click());
+    await vi.waitFor(() => expect(text()).toContain(en.modelLicense.acceptedTitle));
+    expect(text()).not.toContain(en.modelLicense.requiredTitle);
+    expect(text()).toContain(en.modelLicense.retryHint);
   });
 });

@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import { onlineManager } from '@tanstack/react-query';
 import { isBackendReachable } from '@shared/utils/backendStage';
 import { noteBackendStage } from '@/lib/status-polling';
+import { DEFAULT_BACKEND_PORT } from '@shared/app-config';
 
 // Derived from the global `Window.voicestudio` declaration (src/preload/index.d.ts,
 // included by tsconfig.web.json) rather than imported by path: with
@@ -21,7 +22,7 @@ export { isBackendReachable, isBackendBusy } from '@shared/utils/backendStage';
 export const FALLBACK_BACKEND_STATUS: BackendStatus = {
   stage: 'ready',
   baseUrl: '',
-  port: 3900,
+  port: DEFAULT_BACKEND_PORT,
   managed: false,
   remote: false,
   elapsedMs: 0,

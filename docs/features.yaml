@@ -90,8 +90,6 @@ asr_engines:
 # Doc files that must exist (the install path users are sent to).
 docs:
   - docs/downloading-models.md
-  - docs/remote-workers.md
-  - docs/adr/inbound-node-mode.md
   - docs/branding.md
   - docs/install/macos.md
   - docs/install/windows.md

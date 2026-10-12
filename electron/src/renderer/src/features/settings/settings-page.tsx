@@ -12,7 +12,6 @@ import { LogSettings } from './log-settings';
 import { PronunciationSettings } from './pronunciation-settings';
 import { PermissionsSettings } from './permissions-settings';
 import { UsageSettings } from './usage-settings';
-import { WorkersSettings } from './workers-settings';
 import { OpenApiSettings } from './openapi-settings';
 import { DiagnosticsSettings } from './diagnostics-settings';
 import { ModelSettings } from './model-settings';
@@ -45,7 +44,6 @@ import {
   SpellCheckIcon,
   LockKeyholeIcon,
   BarChart3Icon,
-  ServerCogIcon,
   BracesIcon,
   StethoscopeIcon,
   HeartHandshakeIcon,
@@ -174,18 +172,6 @@ const extraSettings = [
       'settings.usage_takes',
       'settings.usage_audio',
       'settings.usage_by_language',
-    ],
-  },
-  {
-    to: '/settings/workers',
-    label: 'settings.workers_title',
-    Icon: ServerCogIcon,
-    Component: WorkersSettings,
-    fields: [
-      'settings.workers_title',
-      'settings.workers_add',
-      'settings.worker_join_title',
-      'settings.worker_join_code',
     ],
   },
   {

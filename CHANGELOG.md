@@ -9,10 +9,6 @@ metadata and the backend fallback mirror it.
 ## [Unreleased]
 
 **Highlights**
-- Add model-source notices and an optional exact-file review preview; ordinary downloads remain unchanged. (#2689)
-- Model cards show a coloured icon for each model's licence category: commercial, with conditions, personal/research only, or unknown. (#2689)
-- Models without a plainly commercial licence, including the default OmniVoice model, must have their licence accepted once before use; VoiceStudio is not the licensor and cannot grant model rights. (#2689)
-- The model licence dialog is clearer: a plain summary, what the licence allows, and collapsible details; acceptance records the date and exact terms, and changed terms ask again. (#2689)
 - Voice cloning on 8 GB unified-memory Macs frees the reference speech model before synthesis, so cloning no longer swaps until it times out (#2619)
 
 ### Fixed
@@ -21,7 +17,7 @@ metadata and the backend fallback mirror it.
 - Voice-clone references without a transcript are encoded once per engine process and logged without their spoken text (#2619)
 - Reference passages trim leading and trailing silence before selection, so clones no longer start or end mid-pause (#2619)
 
-## [0.5.7] — 2026-10-07
+## [0.5.7] — 2026-10-13
 
 **VoiceStudio now runs on PCs without a GPU and recovers instead of giving up.** Voice cloning uses the speech-to-text model you installed from Model Catalogue, GPU-less computers get the small CPU PyTorch build, and slow or busy backends are no longer reported as failed.
 
@@ -39,7 +35,8 @@ This release also adds a GPU acceleration panel with honest Radeon reporting, th
 
 **Upgrading:** Install over your existing Electron app; voices, projects and settings are kept. If setup asks, choose **Install local runtime** to refresh its dependencies.
 
-- Update remote workers to 0.5.7 too; the app refuses older workers with an upgrade message.
+- Remote compute devices, remote workers and GPU sharing moved to VoiceStudio Pro and are no longer in the open-source app; saved projects, voices and settings are unaffected (#2748)
+- Models without a plainly commercial licence, including the default OmniVoice model, ask you to accept their licence once in Model Catalogue; until then, API and MCP requests that use them return a licence error (#2689)
 - Docker, LAN or reverse-proxy access by a host name, without an API key or session, needs that name in `OMNIVOICE_ALLOWED_HOSTS`; IP addresses, `localhost`, `*.ts.net` and `host.docker.internal` work as before.
 - URL imports from servers on your own network need `OMNIVOICE_ALLOW_PRIVATE_URL_IMPORTS=1`.
 - [Where to set these variables](https://github.com/debpalash/VoiceStudio/blob/v0.5.7/docs/api-auth.md#requests-from-other-websites-and-host-names): a line in `~/.config/omnivoice/env` (macOS, Linux) or `%USERPROFILE%\.config\omnivoice\env` (Windows) for the desktop app, `-e` for Docker.
@@ -58,7 +55,12 @@ This release also adds a GPU acceleration panel with honest Radeon reporting, th
 
 ### Changed
 
-- The Pro page lists only what Pro adds; recipes, watch folders, remote compute and voice cloning stay free (#2587)
+- The Pro page lists only what Pro adds; recipes, watch folders and voice cloning stay free (#2587)
+- App identity and backend, browser and Electron development ports now come from one validated configuration file (#2759)
+- Keep synthesis controls anchored at the bottom when the latest take appears (#2759)
+- Using a Gallery design voice opens its workspace immediately and defers model loading until audio is requested (#2759)
+- Models without a plainly commercial licence, including the default OmniVoice model, must have their licence accepted once before use; VoiceStudio is not the licensor and cannot grant model rights (#2689)
+- The model licence dialog gives a plain summary, what the licence allows and collapsible details; acceptance records the date and exact terms, and changed terms ask again (#2689, #2755)
 - Pro, export and enterprise text, in all 21 languages, makes clear that the app licence doesn't grant rights to models or generated audio (#2587)
 - Desktop installers include the app's licence notices (#2587)
 - Home cards use feature-specific SVG icons with brief hover and keyboard-focus animations that respect reduced motion (#2407)
@@ -134,6 +136,12 @@ This release also adds a GPU acceleration panel with honest Radeon reporting, th
 - Footer shows Integrations, Become a Sponsor, and a VoiceStudio Pro shortcut (#2302)
 - Pro keeps core generation unlimited and presents ten production benefits with $99/user yearly, $299/user lifetime, and Enterprise contact options, including quantity totals, commercial work, remote devices, workers, and GPU sharing (#2302)
 - MCP speech files and URLs can deliver Ogg/Opus instead of WAV; Ogg saves preserve int16 audio levels (#2321) — thanks @tracyndoan!
+- Model cards show model-source notices, a coloured icon for each licence category (commercial, with conditions, personal/research only, or unknown) and an optional exact-file review preview; ordinary downloads are unchanged (#2689)
+
+### Removed
+
+- Remote compute devices, remote workers and GPU sharing moved to VoiceStudio Pro; legacy worker database records are kept and ignored (#2748)
+- Licence activation is no longer part of the open-source Pro page (#2762)
 
 ### Docs
 
@@ -155,6 +163,10 @@ This release also adds a GPU acceleration panel with honest Radeon reporting, th
 
 ### Fixed
 
+- A fresh install no longer logs settings errors before its database is created (#2776)
+- The model licence dialog says when licences are accepted and no longer assumes an action is waiting (#2776)
+- First-run model packs name each model, so two dictation engines no longer both read Dictation (#2776)
+- Bundled hydra-core, Mako, multidict and rustls are updated past published security advisories; installed CosyVoice asks for one repair and keeps its downloaded model (#2772)
 - On Windows, updating the app no longer stops at "EPERM: operation not permitted, rename" when antivirus briefly holds the new runtime files (#2669) — thanks @javalovelinux-cmd!
 - MCP speech tools wait through model loading and progress-extended CPU renders instead of timing out before the backend (#2609) — thanks @JopsTaku!
 - On Windows, the GPU report finds your graphics card again, and CPU-only hosts with integrated graphics are no longer told to fix an NVIDIA driver (#2620) — thanks @creatorliao!
@@ -268,8 +280,6 @@ This release also adds a GPU acceleration panel with honest Radeon reporting, th
 - Gallery, dubbing, voice-profile and batch uploads accept audio and video files only and refuse playlists named like media, and ffmpeg reads only local files
 - Model downloads keep every file inside the model cache, mirrors never receive your Hugging Face token (gated models install from Hugging Face even when Auto picked a mirror), mirror URLs must use HTTPS, and voice bundle imports and GGUF checksum checks are stricter
 - The local API refuses requests sent by other websites or addressed by unrecognized host names; `host.docker.internal` and requests carrying a valid API key or session still work, `OMNIVOICE_ALLOWED_HOSTS` adds other names, and a UI on an allowed origin still loads video previews and downloads
-- Remote workers open only the files a task sends as inputs, never a path named in its parameters
-- Remote worker registration signs a fresh single-use challenge from the app, so a recorded registration cannot be reused
 - The desktop app attaches only to a local backend that identifies itself as VoiceStudio, not to any service on its port
 - Dubbing and batch jobs accept only plain language codes when naming their output files
 - Saved voice, gallery and call-recording files are read only from inside their data folders, and uploads need a plain file extension
@@ -296,7 +306,7 @@ This release also adds a GPU acceleration panel with honest Radeon reporting, th
 - MLX-Audio OuteTTS generates again with a reference clip or its default voice (#2419)
 - MLX Qwen3-TTS receives the selected language correctly; MeloTTS explains missing text resources without downloading during generation (#2419)
 - The language picker offers only the languages each MLX-Audio model supports (Kokoro, CSM, Qwen3-TTS, Dia, Chatterbox, MeloTTS, OuteTTS), per their model cards, instead of every language (#977) — thanks @scprdytj2s-beep!
-- The Enter that confirms Korean, Japanese or Chinese input no longer also submits project renames, language search, pronunciation, worker or MCP fields (#2419) — thanks @HEOJUNFO!
+- The Enter that confirms Korean, Japanese or Chinese input no longer also submits project renames, language search, pronunciation or MCP fields (#2419) — thanks @HEOJUNFO!
 - English text normalization speaks a dollar amount followed by a period or comma ("It costs $5.") instead of leaving the digits (#2419) — thanks @kevin9327!
 - Voice Design sends descriptions unchanged to free-text engines and restores the original design when reopening a take (#2419) — thanks @CauaMatheus and @dominikj-cf!
 - Voice Design keeps a detail you pick when you edit the description, unless the new text says otherwise, and reopening a take restores the description and picks it was made with (#2389) — thanks @dominikj-cf!

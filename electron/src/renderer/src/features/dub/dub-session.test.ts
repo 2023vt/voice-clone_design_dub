@@ -816,7 +816,6 @@ it.each([
   'validates only requested dub regeneration languages: $regenOnly',
   async ({ regenOnly, allowed, silent }) => {
     const { queryClient } = await import('@/lib/query');
-    queryClient.setQueryData(['workers', 'target', 'dub'], { active: { remote: false } });
     queryClient.setQueryData(['engines'], {
       tts: { active: 'test', backends: [{ id: 'test', supported_language_names: ['English'] }] },
     });
@@ -862,7 +861,6 @@ it.each([
         expect(apiJson).not.toHaveBeenCalled();
       }
     } finally {
-      queryClient.removeQueries({ queryKey: ['workers', 'target', 'dub'], exact: true });
       queryClient.removeQueries({ queryKey: ['engines'], exact: true });
       resetDubSession();
     }

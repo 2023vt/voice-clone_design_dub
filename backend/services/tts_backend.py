@@ -1789,7 +1789,7 @@ class OmniVoiceBackend(TTSBackend):
         Delegates to ``model_manager.unload_shared_model`` rather than clearing
         the singleton here: this path used to free the device caches *before*
         dropping the shared reference, which frees nothing, and it is the path
-        the idle sweep on a headless worker node runs (#1495)."""
+        used by the idle engine sweep (#1495)."""
         self._model = None
         clear_clone_prompt_cache()  # #427: drop cached prompts so VRAM is freed
         try:
@@ -4396,11 +4396,8 @@ def _built_for_other_model(cls, inst) -> bool:
 def get_engine_instance_for(engine_id: str, *, now: Optional[float] = None):
     """Cached instance of the TTS engine registered under ``engine_id``.
 
-    Deliberately NOT :func:`get_active_tts_backend`: that resolves
-    ``active_backend_id()``, i.e. *this machine's* Settings preference. On a
-    remote worker that would run whatever the worker's owner happens to prefer
-    while the control plane's slots, breaker history and result metadata are
-    keyed to the engine it believes ran — wrong audio, silently.
+    Deliberately NOT :func:`get_active_tts_backend`: callers provide the exact
+    engine identity instead of resolving the current Settings preference.
     """
     return get_engine_instance(get_backend_class(engine_id), now=now)
 

@@ -36,17 +36,13 @@ it('does not infer support for regional variants, missing lists or a different m
   expect(languageSupported('de', ['german'])).toBe(true);
 });
 
-it('blocks persisted incompatible local selections without guessing worker support', async () => {
+it('blocks persisted incompatible local selections while metadata is current', async () => {
   const client = new QueryClient();
-  client.setQueryData(['workers', 'target', 'clone'], { active: { remote: false } });
   client.setQueryData(['engines'], {
     tts: { active: 'kitten', backends: [{ id: 'kitten', supported_language_names: ['english'] }] },
   });
   expect(cachedTtsLanguagesSupported(client, 'clone', ['Japanese'])).toBe(false);
   expect(cachedTtsLanguagesSupported(client, 'clone', ['Auto'])).toBe(true);
-  client.setQueryData(['workers', 'target', 'clone'], { active: { remote: true } });
-  expect(cachedTtsLanguagesSupported(client, 'clone', ['Japanese'])).toBe(true);
-  client.setQueryData(['workers', 'target', 'clone'], { active: { remote: false } });
   await client.invalidateQueries({ queryKey: ['engines'] });
   expect(cachedTtsLanguagesSupported(client, 'clone', ['Japanese'])).toBe(true);
 });

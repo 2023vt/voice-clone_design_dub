@@ -166,27 +166,25 @@ def _probe_stream_omnivoice_override(cls, tb, ma, monkeypatch):
     return _outcome(run, ma)
 
 
-def _remote_gateway(monkeypatch):
-    gw = _mod("services.gpu_gateway")
-    calls = []
-
-    async def preflight(*args, **kwargs):
-        calls.append(args)
-
-    monkeypatch.setattr(gw, "decide", lambda op, **k: types.SimpleNamespace(remote=True, label="w"))
-    monkeypatch.setattr(gw, "preflight", preflight)
-    return calls
-
-
 def _probe_dub_execution(cls, tb, ma, monkeypatch):
     dub = _mod("api.routers.dub_generate")
-    _remote_gateway(monkeypatch)
+
+    async def resolve(**_kwargs):
+        tb.ensure_engine_licence(cls)
+        return cls()
+
+    monkeypatch.setattr(dub, "resolve_generation_backend", resolve)
     return _outcome(lambda: asyncio.run(dub._resolve_dub_execution()), ma)
 
 
 def _probe_batch_execution(cls, tb, ma, monkeypatch):
     batch = _mod("api.routers.batch")
-    _remote_gateway(monkeypatch)
+
+    async def resolve(**_kwargs):
+        tb.ensure_engine_licence(cls)
+        return cls()
+
+    monkeypatch.setattr(batch, "resolve_generation_backend", resolve)
     return _outcome(
         lambda: asyncio.run(batch._resolve_batch_execution({"requires_cloning": False})), ma)
 
@@ -265,17 +263,6 @@ def test_revocation_applies_to_already_built_engines(name, store, engine, tb, ma
     assert PROBES[name](cls, tb, ma, monkeypatch) is True
     ma.revoke(GATED_REPO)
     assert PROBES[name](cls, tb, ma, monkeypatch) is False
-
-
-def test_remote_dub_and_batch_are_refused_before_the_worker_is_contacted(store, engine, tb, ma, monkeypatch):
-    engine(GATED_ENGINE)
-    calls = _remote_gateway(monkeypatch)
-    dub, batch = _mod("api.routers.dub_generate"), _mod("api.routers.batch")
-    with pytest.raises(ma.ModelLicenceNotAccepted):
-        asyncio.run(dub._resolve_dub_execution())
-    with pytest.raises(ma.ModelLicenceNotAccepted):
-        asyncio.run(batch._resolve_batch_execution({"requires_cloning": False}))
-    assert calls == []
 
 
 # ── Dictation: live WebSocket preflight ─────────────────────────────────────

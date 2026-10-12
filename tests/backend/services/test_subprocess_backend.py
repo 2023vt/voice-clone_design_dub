@@ -294,7 +294,7 @@ def test_op_allowlist_drops_unknown(monkeypatch):
 def test_op_allowlist_constant_shape():
     """PARENT_INBOUND_OPS must contain exactly the documented set."""
     assert PARENT_INBOUND_OPS == frozenset({
-        "ready", "pong", "audio", "segments", "progress", "error",
+        "ready", "pong", "audio", "segments", "progress", "warm", "error",
         "gpu_acquire", "gpu_release",
     })
     # Sentinel — common typo / accidental addition would fail this test.

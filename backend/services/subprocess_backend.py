@@ -86,13 +86,13 @@ MAX_FRAME_BYTES = 64 * 1024 * 1024
 #: set is logged and discarded — prevents a compromised sidecar from
 #: invoking unintended parent code paths. See T-02-04.
 PARENT_INBOUND_OPS = frozenset({
-    "ready", "pong", "audio", "segments", "progress", "error",
+    "ready", "pong", "audio", "segments", "progress", "warm", "error",
     "gpu_acquire", "gpu_release",
 })
 
 #: Reference list of ops the sidecar accepts (informational — enforced on
 #: the sidecar side, not in this module).
-SIDECAR_INBOUND_OPS = frozenset({"ping", "synthesize", "transcribe", "shutdown"})
+SIDECAR_INBOUND_OPS = frozenset({"ping", "synthesize", "transcribe", "warmup", "shutdown"})
 
 #: Timeout for the initial ready handshake. Some engines (IndexTTS, large
 #: torch.compile graphs) take 20–25 s to import their dependencies before
@@ -857,26 +857,7 @@ class SubprocessBackend(TTSBackend):
                 # cold download is healthy, and without this the outer 300s
                 # generate budget expired mid-download and blamed the hardware.
                 while reply is not None and reply.get("op") == "progress":
-                    try:
-                        from services.model_manager import (
-                            report_model_load_activity, running_on_gpu_pool,
-                        )
-                        # Pool jobs only: an off-pool caller (the diagnostic
-                        # probe) never runs _job(), so its thread ident would
-                        # never be cleared — and a pool worker later reusing
-                        # that ident would inherit up to a grace period of
-                        # unearned extension (CodeRabbit on #1379).
-                        #
-                        # Only COLD-LOAD frames are load evidence. A sidecar may
-                        # also heartbeat while it generates (so a slow CPU render
-                        # is not mistaken for a hang by the recv watchdog), but a
-                        # timer thread proves nothing about synthesis progress:
-                        # crediting it would let a stalled native generate hold
-                        # its GPU worker past the execution budget (#2435).
-                        if running_on_gpu_pool() and reply.get("stage") != "generating":
-                            report_model_load_activity()
-                    except Exception:
-                        pass  # the heartbeat is best-effort; never fail a synth over it
+                    self._credit_load_progress(reply)
                     try:
                         reply = self._recv_with_timeout(deadline_s)
                     except (RuntimeError, OSError):
@@ -927,6 +908,66 @@ class SubprocessBackend(TTSBackend):
             # whole synthesis even though this thread isn't the pool worker.
             if _held is not None:
                 _held.set()
+
+    # Engines whose sidecar implements the ``warmup`` op (model load without a
+    # synthesis). Others keep their first-use cold start.
+    supports_warmup: bool = False
+
+    def _credit_load_progress(self, reply: dict) -> None:
+        """Report a sidecar progress frame to the GPU pool's execution clock."""
+        try:
+            from services.model_manager import (
+                report_model_load_activity, running_on_gpu_pool,
+            )
+            # Pool jobs only: an off-pool caller (the diagnostic
+            # probe) never runs _job(), so its thread ident would
+            # never be cleared — and a pool worker later reusing
+            # that ident would inherit up to a grace period of
+            # unearned extension (CodeRabbit on #1379).
+            #
+            # Only COLD-LOAD frames are load evidence. A sidecar may
+            # also heartbeat while it generates (so a slow CPU render
+            # is not mistaken for a hang by the recv watchdog), but a
+            # timer thread proves nothing about synthesis progress:
+            # crediting it would let a stalled native generate hold
+            # its GPU worker past the execution budget (#2435).
+            if running_on_gpu_pool() and reply.get("stage") != "generating":
+                report_model_load_activity()
+        except Exception:
+            pass  # the heartbeat is best-effort; never fail a synth over it
+
+
+    def warmup(self) -> bool:
+        """Spawn the sidecar and load its model without synthesizing.
+
+        Takes the same lock as ``generate``, so a request arriving mid-warm-up
+        waits for this load and then finds the model resident instead of
+        starting a second one. Returns False when the engine has no warm-up.
+        """
+        if not self.supports_warmup:
+            return False
+        with self._lock:
+            self._validate_generate_authorization()
+            self._spawn()
+            proc = getattr(self, "_proc", None)
+            deadline_s = float(self.recv_timeout_s)
+            try:
+                self._send({"op": "warmup"})
+                reply = self._recv_with_timeout(deadline_s)
+                while reply is not None and reply.get("op") == "progress":
+                    self._credit_load_progress(reply)
+                    reply = self._recv_with_timeout(deadline_s)
+            except (RuntimeError, OSError):
+                self._reap_unusable_process(proc)
+                raise
+            if not reply:
+                self._reap_unusable_process(proc)
+                raise RuntimeError(f"{self.id} sidecar closed during warm-up")
+        if reply.get("op") == "error":
+            raise RuntimeError(
+                f"{self.id} sidecar warm-up error: {reply.get('message') or 'unknown'}"
+            )
+        return reply.get("op") == "warm"
 
     # ── wire protocol ──────────────────────────────────────────────────────
 

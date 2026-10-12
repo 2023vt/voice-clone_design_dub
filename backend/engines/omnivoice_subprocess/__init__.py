@@ -46,6 +46,7 @@ class OmniVoiceSubprocessBackend(SubprocessBackend):
     """The resident OmniVoice model in a killable sidecar process."""
     supports_float_transport = True
     supports_native_omnivoice_controls = True
+    supports_warmup = True
 
     id = "omnivoice-subprocess"
     display_name = "OmniVoice (subprocess-isolated, killable on timeout)"

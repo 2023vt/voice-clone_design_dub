@@ -261,6 +261,12 @@ def _handle_synthesize(msg: dict, stdout) -> None:
     })
 
 
+def _handle_warmup(stdout) -> None:
+    """Load the model now, so the first synthesize pays no cold start."""
+    _load_model(stdout)
+    _send(stdout, {"op": "warm"})
+
+
 # ── main loop ─────────────────────────────────────────────────────────────
 
 
@@ -310,6 +316,8 @@ def main() -> int:
         try:
             if op == "ping":
                 _send(stdout, {"op": "pong", "vram_mb": _measure_vram_mb()})
+            elif op == "warmup":
+                _handle_warmup(stdout)
             elif op == "synthesize":
                 _handle_synthesize(msg, stdout)
             elif op == "shutdown":

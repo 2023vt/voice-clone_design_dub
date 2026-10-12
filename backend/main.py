@@ -1013,6 +1013,9 @@ async def _phase_b(app: FastAPI) -> None:
     async def _preload_after_reconcile():
         await _await_profile_reconcile(app)
         await preload_model()
+        from services.model_manager import prewarm_isolated_tts
+
+        await prewarm_isolated_tts()
 
     app.state.preload_task = asyncio.create_task(_preload_after_reconcile())
     # Dictation v2: capture ASR warms in the background BY DEFAULT (~30s

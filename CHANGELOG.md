@@ -17,6 +17,7 @@ metadata and the backend fallback mirror it.
 
 ### Changed
 
+- On Apple Silicon the first Synthesize no longer waits 35–45 s: the isolated OmniVoice engine now loads in the background after launch (installed models only, never downloads; set `OMNIVOICE_PRELOAD_ISOLATED_TTS=0` to disable).
 - Startup no longer waits on engine inventory checks: the app is usable in seconds instead of 35–45 s, and saved speed/quality selections are reapplied in the background.
 - Source (`bun dev`) launches skip the repeated dependency import check until the lockfile, project metadata or installed packages change.
 - App identity and backend, browser and Electron development ports now come from one validated configuration file. (#2759)

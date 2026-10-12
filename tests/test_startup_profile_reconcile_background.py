@@ -2,11 +2,14 @@
 8-54 s to import), so it must not hold /health at 503 during startup."""
 import asyncio
 import inspect
+import os
 import threading
 from types import SimpleNamespace
 
 import main
 from services import performance_profiles
+
+_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 def test_phase_b_does_not_reconcile_inline():
@@ -61,3 +64,31 @@ def test_reconcile_failure_is_non_fatal_and_does_not_block_warmups(monkeypatch):
 
 def test_await_without_a_task_returns_immediately():
     asyncio.run(main._await_profile_reconcile(SimpleNamespace(state=SimpleNamespace())))
+
+
+def test_inventory_probe_does_not_import_engine_runtimes():
+    """argostranslate takes 8-54 s to import; the inventory only needs to know
+    whether it is installed."""
+    import subprocess
+    import sys
+
+    code = (
+        "import sys; sys.path.insert(0, 'backend');"
+        "from services import translation_engines as t;"
+        "t.is_ready('argos', import_check=False);"
+        "sys.exit(1 if 'argostranslate.translate' in sys.modules else 0)"
+    )
+    assert subprocess.run([sys.executable, "-c", code], cwd=_REPO).returncode == 0
+
+
+def test_import_check_default_still_imports(monkeypatch):
+    seen = []
+    monkeypatch.setattr(
+        "importlib.import_module", lambda name: seen.append(name) or object(),
+    )
+    from services import translation_engines as t
+
+    entry = {"id": "x", "probe_module": "somepkg.sub"}
+    assert t._probe(entry) == (True, None)
+    assert seen == ["somepkg.sub"]
+    assert t._probe({"id": "x", "probe_module": "definitely_not_installed_pkg"}, import_check=False)[0] is False

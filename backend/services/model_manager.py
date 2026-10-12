@@ -3465,6 +3465,57 @@ async def preload_model():
         # not in the state machine (#1695).
         _set_loading("error", detail, error=detail)
 
+async def prewarm_isolated_tts(min_free_bytes: int = 4 * 1024**3) -> None:
+    """Load the crash-isolated TTS sidecar's model in the background.
+
+    ``preload_model`` skips the in-process warm-up on MPS (a fatal allocator
+    exit must not reach the API process), which left the first Synthesize
+    paying the whole cold start: sidecar spawn, imports and weight loading
+    (~30-45 s). The sidecar is killable, so it can be warmed here. Same
+    contract as ``preload_model``: local-cache only, never downloads, never
+    fails startup, and skipped when the licence is not yet accepted.
+    """
+    if os.environ.get("OMNIVOICE_PRELOAD_ISOLATED_TTS", "1").strip().lower() in {
+        "0", "false", "no", "off",
+    }:
+        logger.info("Isolated TTS warm-up disabled; the sidecar loads on first use.")
+        return
+    try:
+        from services.model_acceptance import ModelLicenceNotAccepted
+        from services import tts_backend
+
+        backend_id = tts_backend.active_backend_id()
+        backend_cls = tts_backend.get_backend_class(backend_id)
+        if not getattr(backend_cls, "supports_warmup", False):
+            return
+        try:
+            _ensure_omnivoice_licence()
+        except ModelLicenceNotAccepted:
+            logger.info("Isolated TTS warm-up skipped: model licence not accepted yet.")
+            return
+        if not _checkpoint_in_local_cache(resolve_omnivoice_checkpoint()):
+            logger.info("Isolated TTS warm-up skipped: model not installed locally.")
+            return
+        try:
+            import psutil
+
+            if psutil.virtual_memory().available < min_free_bytes:
+                logger.info("Isolated TTS warm-up skipped: <4GB free RAM.")
+                return
+        except ImportError:
+            pass
+        # The shared engine-instance cache is what /generate resolves, so the
+        # sidecar warmed here is the one the first request reuses.
+        backend = tts_backend.get_engine_instance(backend_cls)
+        logger.info("Warming isolated TTS sidecar in background…")
+        await run_on_gpu_pool_guarded(backend.warmup, what="TTS warm-up")
+        logger.info("Isolated TTS sidecar warm.")
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:  # noqa: BLE001 — a warm-up must never fail startup
+        logger.warning("Isolated TTS warm-up failed (non-fatal): %s", exc)
+
+
 def get_model_status():
     is_loaded = model is not None
     # asyncio.Lock exposes .locked() on all supported Python versions; wrap in try for safety.

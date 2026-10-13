@@ -11,10 +11,15 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
+- Later jobs continue after one job cancels
 
 ### Removed
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
+
+### Fixed
+
+- A cancelled child operation no longer stops the shared job worker or strands later queued work — thanks @rudycelekli!
 
 ## [0.5.7] — 2026-10-13
 

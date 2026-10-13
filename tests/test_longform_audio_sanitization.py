@@ -56,6 +56,7 @@ def test_chapter_and_segment_wavs_cache_sanitized_samples(tmp_path, monkeypatch,
     from services import watermark
 
     monkeypatch.setattr(watermark, "will_mark", lambda: False)
+    monkeypatch.setattr(watermark, "mark_synthetic", lambda audio, sr, **kwargs: audio)
     produced = _engine_tail(invalid)
     expected = torch.nan_to_num(produced, nan=0., posinf=0., neginf=0.)
     chapter = Chapter("C", [Span(None, "One sentence.", pause_ms_after=0)])

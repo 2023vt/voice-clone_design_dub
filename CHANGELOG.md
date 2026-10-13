@@ -11,7 +11,7 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
-- Karaoke exports recover from invalid persisted word timings.
+- Karaoke exports recover from invalid persisted word timings. (#2809) — thanks @rudycelekli!
 
 ### Removed
 
@@ -19,7 +19,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- Use even word spacing when ASR or fitted word timings are non-finite.
+- Use even word spacing when ASR or fitted word timings are non-finite. (#2809) — thanks @rudycelekli!
 
 ## [0.5.7] — 2026-10-13
 

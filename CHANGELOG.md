@@ -11,10 +11,15 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
+- Damaged licence records can be accepted again
 
 ### Removed
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
+
+### Fixed
+
+- Malformed model licence records no longer crash the licence dialog or count an unknown action as acceptance — thanks @rudycelekli!
 
 ## [0.5.7] — 2026-10-13
 

@@ -11,6 +11,7 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
+- Saved environment changes replace duplicate and hand-written assignments so the chosen setting, including Unicode line separators in folder names, survives restart. (#2711) — thanks @rudycelekli!
 
 ### Removed
 

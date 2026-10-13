@@ -157,3 +157,18 @@ def test_unset_removes_all_assignment_forms_without_other_keys(tmp_path):
     user_env.unset_user_env("KEY", path=str(path))
     assert "KEY" not in dotenv_values(path)
     assert path.read_text() == "OTHER=keep\n"
+
+
+def test_unicode_line_separators_survive_env_updates_and_restart(tmp_path, monkeypatch):
+    for separator in ("\u2028", "\u2029"):
+        path = tmp_path / ("env-" + hex(ord(separator)))
+        value = str(tmp_path / ("models" + separator + "saved"))
+        user_env.set_user_env("OMNIVOICE_TEST_PATH", value, path=str(path))
+        assert user_env.get_user_env("OMNIVOICE_TEST_PATH", path=str(path)) == value
+        user_env.set_user_env("UNRELATED", "kept", path=str(path))
+        assert user_env.get_user_env("OMNIVOICE_TEST_PATH", path=str(path)) == value
+        user_env.unset_user_env("UNRELATED", path=str(path))
+        assert user_env.get_user_env("OMNIVOICE_TEST_PATH", path=str(path)) == value
+        monkeypatch.delenv("OMNIVOICE_TEST_PATH", raising=False)
+        assert user_env.load_into_environ(str(path))
+        assert os.environ["OMNIVOICE_TEST_PATH"] == value

@@ -30,7 +30,7 @@ DESKTOP_ENV_FILE_HINT = (
 def _read_lines(path: str) -> list[str]:
     try:
         with open(path, "r", encoding="utf-8") as f:
-            return f.read().splitlines()
+            return f.read().split("\n")
     except FileNotFoundError:
         return []
     # Any *other* OSError (permission, I/O error) propagates: collapsing it to
@@ -112,7 +112,7 @@ def set_user_env(key: str, value: str, path: Optional[str] = None) -> None:
         if parts and not parts[-1].endswith("\n"):
             parts.append("\n")
         parts.append(f"{key}={encoded}\n")
-    _write_lines(path, "".join(parts).splitlines())
+    _write_lines(path, ["".join(parts)])
 
 
 def unset_user_env(key: str, path: Optional[str] = None) -> None:
@@ -122,7 +122,7 @@ def unset_user_env(key: str, path: Optional[str] = None) -> None:
         binding.original.string for binding in _read_bindings(path)
         if binding.key != key
     )
-    _write_lines(path, body.splitlines())
+    _write_lines(path, [body])
 
 
 def load_into_environ(path: Optional[str] = None) -> bool:

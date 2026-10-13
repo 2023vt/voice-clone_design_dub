@@ -11,10 +11,15 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
+- Dictation releases its recorder after a failed native delivery or finish. (#2796) — thanks @rudycelekli!
 
 ### Removed
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
+
+### Fixed
+
+- Dictation releases its recorder after a failed native delivery or finish. (#2796) — thanks @rudycelekli!
 
 ## [0.5.7] — 2026-10-13
 

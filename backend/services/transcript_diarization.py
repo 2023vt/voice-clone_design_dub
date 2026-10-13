@@ -54,7 +54,19 @@ def diarize_segments(
 
         # Sortformer detects up to four speakers and rejects an exact count.
         hint = None if isinstance(pipeline, NativeSortformer) else num_speakers
-        diarization = pipeline(audio_path, num_speakers=hint) if hint else pipeline(audio_path)
+        if isinstance(pipeline, NativeSortformer):
+            # Its child process is the only part that can be stopped. When the
+            # request is abandoned (timeout or client gone) the guard sets this
+            # scope's cancellation; passing it through lets the child exit
+            # instead of holding the GPU pool until its own deadline.
+            from services.inference_cancellation import current_cancellation
+
+            scope = current_cancellation()
+            diarization = pipeline(
+                audio_path, cancel_check=scope.cancelled.is_set if scope else None
+            )
+        else:
+            diarization = pipeline(audio_path, num_speakers=hint) if hint else pipeline(audio_path)
         assigned = assign_speakers_from_diarization([d for _, d in timed], diarization)
         for (index, _), item in zip(timed, assigned):
             labels[index] = item.get("speaker_id")

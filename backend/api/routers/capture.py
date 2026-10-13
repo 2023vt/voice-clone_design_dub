@@ -103,6 +103,15 @@ async def transcribe_audio(
     # Save upload to a temp file (all backends need a file path)
     ext = upload_suffix(audio.filename, ".wav") or ".wav"
     tmp = tempfile.NamedTemporaryFile(delete=False, suffix=ext)
+
+    def _cleanup_tmp() -> None:
+        try:
+            os.unlink(tmp.name)
+        except OSError:
+            pass
+
+    # Set while a worker that reads the upload may outlive this request.
+    defer_tmp_cleanup = False
     try:
         content = await audio.read()
         tmp.write(content)
@@ -344,10 +353,17 @@ async def transcribe_audio(
                     _gpu_pool,
                     lambda: diarize_segments(tmp.name, out_segments, parse_speaker_hint(num_speakers)),
                     what="Speaker identification",
+                    # A timed-out or cancelled worker may still be reading the
+                    # upload: the guard deletes it once the worker has exited.
+                    on_abandon=_cleanup_tmp,
                 )
             except ASRTimeoutError as exc:
+                defer_tmp_cleanup = True
                 logger.warning("Speaker identification timed out: %s", exc)
                 labels, diarization_error = [None] * len(out_segments), "DIARIZATION_TIMEOUT"
+            except asyncio.CancelledError:
+                defer_tmp_cleanup = True
+                raise
             for segment, label in zip(out_segments, labels):
                 if label:
                     segment["speaker"] = label
@@ -372,7 +388,5 @@ async def transcribe_audio(
             response["model_silent"] = recovered_from
         return response
     finally:
-        try:
-            os.unlink(tmp.name)
-        except OSError:
-            pass
+        if not defer_tmp_cleanup:
+            _cleanup_tmp()

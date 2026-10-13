@@ -5,7 +5,10 @@ did — so the transcription UI could not label speakers at all.
 """
 from __future__ import annotations
 
+import os
 import sys
+import threading
+import time
 import types
 
 import pytest
@@ -147,3 +150,57 @@ def test_diarization_failure_still_returns_the_transcript(transcript, monkeypatc
     assert r.json()["text"].lower().startswith("hi hello")
     assert r.json()["diarization_error"] == "MODEL_MISSING"
     assert "speakers" not in r.json()
+
+
+def test_sortformer_receives_the_request_cancellation(fakes):
+    """An abandoned request must be able to stop Sortformer's child process."""
+    from services.inference_cancellation import InferenceCancellation
+
+    seen = {}
+
+    class Recording(_Sortformer):
+        def __call__(self, path, *, cancel_check=None, **_kw):
+            seen["check"] = cancel_check
+            return "result"
+
+    fakes["pipeline"] = Recording()
+    td.diarize_segments("a.wav", SEGMENTS)
+    assert seen["check"] is None  # no active request scope, nothing to wire
+
+    cancellation = InferenceCancellation()
+    with cancellation.activate():
+        td.diarize_segments("a.wav", SEGMENTS)
+    assert seen["check"]() is False
+    cancellation.cancel()
+    assert seen["check"]() is True
+
+
+def test_timed_out_diarization_keeps_the_upload_until_the_worker_exits(transcript, asr, monkeypatch):
+    """The abandoned worker is still reading the file, so it is deleted only once
+    the worker exits, not when the request returns."""
+    real = asr.run_transcribe_guarded
+
+    async def short_diarization_timeout(executor, fn, **kw):
+        if kw.get("what") == "Speaker identification":
+            kw["timeout"] = 0.2
+        return await real(executor, fn, **kw)
+
+    monkeypatch.setattr(asr, "run_transcribe_guarded", short_diarization_timeout)
+    release, seen = threading.Event(), {}
+
+    def stuck(path, *_a, **_k):
+        seen["path"] = path
+        release.wait(10)
+        return [None, None], None
+
+    monkeypatch.setattr(td, "diarize_segments", stuck)
+    r = _post(_client("api.routers.capture"), diarize="true")
+
+    assert r.status_code == 200
+    assert r.json()["diarization_error"] == "DIARIZATION_TIMEOUT"
+    assert os.path.exists(seen["path"])  # worker still running: file must remain
+    release.set()
+    deadline = time.monotonic() + 5
+    while os.path.exists(seen["path"]) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not os.path.exists(seen["path"])  # and is cleaned up afterwards

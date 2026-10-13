@@ -167,3 +167,35 @@ describe('replaceFile', () => {
     expect((await lstat(link)).isSymbolicLink()).toBe(true);
   });
 });
+
+describe.skipIf(process.platform === 'win32')('exports through dangling symlinks', () => {
+  it('creates the intended file while retaining a relative destination symlink', async () => {
+    const target = join(directory, 'future.wav');
+    const link = join(directory, 'export.wav');
+    await symlink('future.wav', link);
+    await replaceFile(link, 'new export');
+    expect((await lstat(link)).isSymbolicLink()).toBe(true);
+    expect(await readFile(target, 'utf8')).toBe('new export');
+    expect(await readdir(directory)).toEqual(['export.wav', 'future.wav']);
+  });
+
+  it('preserves a chain of links to a missing export', async () => {
+    const target = join(directory, 'future.wav');
+    const intermediate = join(directory, 'middle.wav');
+    const link = join(directory, 'export.wav');
+    await symlink(target, intermediate);
+    await symlink(intermediate, link);
+    await replaceFile(link, new Uint8Array([1, 2, 3]));
+    expect((await lstat(link)).isSymbolicLink()).toBe(true);
+    expect((await lstat(intermediate)).isSymbolicLink()).toBe(true);
+    expect([...(await readFile(target))]).toEqual([1, 2, 3]);
+  });
+
+  it('refuses a cyclic symlink without overwriting the link', async () => {
+    const link = join(directory, 'export.wav');
+    await symlink(link, link);
+    await expect(replaceFile(link, 'new export')).rejects.toMatchObject({ code: 'ELOOP' });
+    expect((await lstat(link)).isSymbolicLink()).toBe(true);
+    expect(await readdir(directory)).toEqual(['export.wav']);
+  });
+});

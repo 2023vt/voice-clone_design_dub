@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
-import { open, realpath, rename, rm, stat } from 'node:fs/promises';
-import { basename, dirname, join } from 'node:path';
+import { lstat, open, readlink, realpath, rename, rm, stat } from 'node:fs/promises';
+import { basename, dirname, join, resolve } from 'node:path';
 import { FILE_RENAME, renameWithRetry } from './rename-retry';
 
 /** Filesystem calls `replaceFile` makes; injectable so tests can simulate disk failures. */
@@ -21,7 +21,17 @@ export interface ReplaceFileOptions {
 async function resolveDestination(path: string): Promise<string> {
   try {
     return await realpath(path);
-  } catch {
+  } catch (error) {
+    // A missing target still belongs to its symlink. Replacing the link would
+    // silently detach an export location from the user's intended destination.
+    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+    try {
+      if ((await lstat(path)).isSymbolicLink()) {
+        return resolveDestination(resolve(dirname(path), await readlink(path)));
+      }
+    } catch (linkError) {
+      if ((linkError as NodeJS.ErrnoException).code !== 'ENOENT') throw linkError;
+    }
     return path;
   }
 }

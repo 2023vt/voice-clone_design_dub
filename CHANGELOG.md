@@ -19,7 +19,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- Model installs sharing a dependency no longer overwrite each other’s temporary revision markers or leave staging files after publication fails — thanks @rudycelekli!
+- Model installs sharing a dependency no longer overwrite each other’s temporary revision markers or leave staging files after publication fails (#2804) — thanks @rudycelekli!
 
 ## [0.5.7] — 2026-10-13
 

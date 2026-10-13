@@ -11,7 +11,7 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
-- EPUB imports skip hidden text and keep visible chapter headings.
+- EPUB imports skip hidden text and keep visible chapter headings. (#2805) — thanks @rudycelekli!
 
 ### Removed
 
@@ -19,7 +19,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- EPUB narration excludes nested and inline hidden XHTML content.
+- EPUB narration excludes nested and inline hidden XHTML content. (#2805) — thanks @rudycelekli!
 
 ## [0.5.7] — 2026-10-13
 

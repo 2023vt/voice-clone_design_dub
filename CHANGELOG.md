@@ -19,7 +19,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- Malformed model licence records no longer crash the licence dialog or count an unknown action as acceptance — thanks @rudycelekli!
+- Malformed model licence records no longer crash the licence dialog or count an unknown action as acceptance (#2802) — thanks @rudycelekli!
 
 ## [0.5.7] — 2026-10-13
 

@@ -104,5 +104,7 @@ function splitCharacters(text) {
 
 /** Space out a run for [spell]: "USA" → "U S A". */
 export function spellOut(word) {
-  return (word || '').split(/\s+/).flatMap(splitCharacters).join(' ');
+  // Match Python str.split(): Unicode whitespace plus the four C0 separators.
+  // ECMAScript \s instead drops BOMs and omits NEL and those separators.
+  return (word || '').split(/[\p{White_Space}\u001C-\u001F]+/u).flatMap(splitCharacters).join(' ');
 }

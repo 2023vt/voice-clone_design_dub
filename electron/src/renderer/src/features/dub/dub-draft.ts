@@ -177,6 +177,7 @@ export function restoreDubDraft(raw: string | null, defaults: DubSession): DubSe
           : undefined,
       exportOptions: restoreExportPreferences(value.exportOptions),
       translationFallback: value.translationFallback === true,
+      dialectIgnored: value.dialectIgnored === true,
       quality: ['fast', 'autofit', 'cinematic', 'agent'].includes(value.quality)
         ? value.quality
         : defaults.quality,

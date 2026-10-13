@@ -8,6 +8,14 @@ metadata and the backend fallback mirror it.
 
 ## [Unreleased]
 
+**Highlights**
+
+- Picking a regional dialect the translation engine cannot honour now says so instead of quietly returning the other variant (#2752)
+
+### Fixed
+
+- Dubbing says when the chosen engine could not apply a regional dialect, instead of silently returning the default variant — selecting Portuguese (Portugal) on NLLB produced Brazilian Portuguese with no explanation (#2752) — thanks @shivsin25!
+
 ## [0.5.7] — 2026-10-13
 
 **VoiceStudio now runs on PCs without a GPU and recovers instead of giving up.** Voice cloning uses the speech-to-text model you installed from Model Catalogue, GPU-less computers get the small CPU PyTorch build, and slow or busy backends are no longer reported as failed.

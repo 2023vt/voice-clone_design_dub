@@ -17,6 +17,7 @@ import { tr } from '@/lib/i18n-text';
 import { describeDubTranslationError } from './translation-error';
 import { beginAppActivity } from '@/lib/app-activity';
 import { recordActionBreadcrumb } from '@/lib/report-breadcrumb';
+import { dialectWasIgnored } from '@shared/api/dialects';
 import { consumeTaskStream, type TaskEvent } from '@/lib/api/event-stream';
 import { publicFailureFromEvent, type PublicFailure } from '@/lib/api/failure';
 import {
@@ -134,6 +135,8 @@ export interface DubSession {
   fingerprintsByLang?: Record<string, Record<string, string>>;
   project?: DubProject;
   translationFallback?: boolean;
+  /** The dialect was requested but the engine could not honour it (#2752). */
+  dialectIgnored?: boolean;
   subtitleImport?: { file: string; stats: Record<string, number> };
   recovery: 'preparing' | 'generating' | 'transcribing' | null;
   target: string;
@@ -1176,6 +1179,7 @@ export async function translateDubWithAgent(
         quality: 'agent',
         agentCli: agent,
         translationFallback: false,
+        dialectIgnored: false,
         segments: snapshot.segments.map((segment) => {
           const text = rows.get(segment.id);
           if (!text) return segment;
@@ -1320,12 +1324,14 @@ export async function translateDub(
         }),
       });
       const fallback = translated.cinematic_skipped === 'no-llm-configured';
+      const dialectIgnored = dialectWasIgnored(translated);
       agentFallback = fallback && snapshot.quality === 'agent';
       const rows = new Map(translated.translated.map((row) => [String(row.id), row]));
       clearDubEditHistory();
       patch({
         quality: fallback && !agentFallback ? 'fast' : snapshot.quality,
         translationFallback: fallback,
+        dialectIgnored,
         segments: snapshot.segments.map((segment) => {
           const row = rows.get(segment.id);
           if (!row) return segment;

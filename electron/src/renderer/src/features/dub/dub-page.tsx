@@ -1523,6 +1523,16 @@ export function DubPage() {
                 </Link>
               </div>
             )}
+            {/* #2752: the engine could not honour the chosen dialect. Without
+                this the pick looked applied and the output looked simply wrong. */}
+            {session.dialectIgnored && (
+              <div role="status" className="space-y-2 text-xs text-muted-foreground">
+                <p>{t('dub_workflow.dialect_not_applied')}</p>
+                <Link to="/settings/models/$family" params={{ family: 'llm' }}>
+                  {t('engineSidebar.llm')}
+                </Link>
+              </div>
+            )}
             <Link
               to="/settings/models/$family"
               params={{ family: 'translation' }}

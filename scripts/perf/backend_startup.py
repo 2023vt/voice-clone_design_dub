@@ -21,6 +21,11 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+# Routes go live before the background startup work is done: reconcile finished
+# up to about 10 s after ready in the slowest runs measured, and the optional
+# model warm-ups fire 30-35 s after boot. Idle memory is only meaningful after
+# all of that, so settle this long before sampling. Raise it on slower hosts.
+SETTLE_S = 30
 
 
 def _free_port() -> int:
@@ -72,9 +77,10 @@ def boot(data_dir: str) -> dict:
                 break
             time.sleep(0.5)
         assert progress and progress["status"] == "ready", f"boot did not finish: {progress}"
+        time.sleep(SETTLE_S)
         # Resident memory moves in 50-100 MB steps as macOS compresses and
         # releases pages, so a single reading is unreliable. Take the median of
-        # samples across the 20 s after ready.
+        # ten samples across the following 20 s.
         samples = []
         for _ in range(10):
             time.sleep(2)
@@ -100,4 +106,4 @@ if __name__ == "__main__":
     for step in steps:
         print(f"| {step} | " + " | ".join(f"{r['steps'][step]:.1f} s" for r in runs.values()) + " |")
     print("| **Routes live** | " + " | ".join(f"**{r['total']:.1f} s**" for r in runs.values()) + " |")
-    print("| Idle RSS (median of 10 samples, 20 s after ready) | " + " | ".join(f"{r['rss']:.0f} MB" for r in runs.values()) + " |")
+    print("| Idle RSS (median of 10 samples, 30-50 s after ready) | " + " | ".join(f"{r['rss']:.0f} MB" for r in runs.values()) + " |")

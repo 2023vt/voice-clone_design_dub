@@ -35,7 +35,7 @@ Other findings:
 ## Backend (measured, macOS arm64 only)
 
 Reproduce: `.venv/bin/python scripts/perf/backend_startup.py` after `uv sync`
-(boots twice on a throwaway data dir). Measured on an M-series Mac, 32 GB,
+(boots twice on a throwaway data dir). The script settles 30 s after routes go live, so background startup work has finished, then reports the median of ten memory samples; the table below was taken earlier, with one reading 20 s after ready. Measured on an M-series Mac, 32 GB,
 Python 3.11, no models installed.
 
 | Step | first launch | relaunch |

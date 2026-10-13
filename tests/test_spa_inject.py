@@ -122,11 +122,13 @@ def test_rejected_runtime_api_url_warning_does_not_disclose_credentials(caplog):
 
     source = Path(__file__).parents[1] / "backend" / "main.py"
     tree = ast.parse(source.read_text(encoding="utf-8"))
-    guard = next(
-        node for node in ast.walk(tree)
-        if isinstance(node, ast.If)
-        and ast.unparse(node.test) == "_public_api_base and (not is_valid_public_api_base(_public_api_base))"
-    )
+    finalize = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                    and node.name == "_phase_a_finalize")
+    guards = [node for node in ast.walk(finalize) if isinstance(node, ast.If)
+              and any(isinstance(part, ast.Name) and part.id == "is_valid_public_api_base"
+                      for part in ast.walk(node.test))]
+    assert len(guards) == 1
+    guard = guards[0]
     code = compile(ast.Module(body=[guard], type_ignores=[]), str(source), "exec")
     scope = {
         "logging": logging,

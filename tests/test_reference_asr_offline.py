@@ -448,6 +448,42 @@ def test_reference_pass_reuses_one_recognizer_across_windows(monkeypatch):
     built[0].unload.assert_called_once()
 
 
+def test_overlapping_clones_do_not_release_each_others_recognizer(monkeypatch, tmp_path):
+    """Request B must never find the recognizer gone mid-transcription because
+    request A finished first and released the one it had loaded."""
+    import threading
+
+    model = _model()
+    monkeypatch.setattr("huggingface_hub.snapshot_download", Mock(return_value=_asr_snapshot(tmp_path)))
+    model.load_asr_model = Mock(side_effect=lambda **_: setattr(model, "_asr_pipe", object()))
+    in_a, go_a, go_b = threading.Event(), threading.Event(), threading.Event()
+    seen = []
+
+    def transcribe(_audio):
+        seen.append(model._asr_pipe is not None)
+        if len(seen) == 1:  # request A, mid-transcription
+            in_a.set()
+            go_a.wait(5)
+        else:  # request B must read after A has finished and released
+            go_b.wait(5)
+        return "Words from the reference."
+
+    model.transcribe = transcribe
+    audio = (torch.full((1, 5 * 24_000), 0.1), 24_000)
+    a = threading.Thread(target=lambda: model.create_voice_clone_prompt(audio, preprocess_prompt=False))
+    b = threading.Thread(target=lambda: model.create_voice_clone_prompt(audio, preprocess_prompt=False))
+    a.start()
+    assert in_a.wait(5)
+    b.start()
+    go_a.set()
+    a.join(5)
+    go_b.set()
+    b.join(5)
+    assert not a.is_alive() and not b.is_alive()
+    assert seen == [True, True]
+    assert model._asr_pipe is None
+
+
 def test_diag_never_raises(monkeypatch):
     from omnivoice.models import omnivoice as ov
 

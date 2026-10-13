@@ -32,6 +32,7 @@ import json
 import logging
 import math
 import os
+import threading
 import re
 import sys
 from dataclasses import dataclass, fields
@@ -309,6 +310,8 @@ def _resolve_snapshot_dir(checkpoint) -> str:
 
 
 _DEFAULT_ASR_MODEL = "openai/whisper-large-v3-turbo"
+# Guards the lazy creation of each model's reference-ASR lock (see _reference_asr_lock).
+_ASR_LOCK_GUARD = threading.Lock()
 
 
 DIAG_ENV = "OMNIVOICE_DIAG"
@@ -965,12 +968,23 @@ class OmniVoice(PreTrainedModel):
         Returns:
             A :class:`VoiceClonePrompt` that can be passed to :meth:`generate`.
         """
-        implicit_asr = getattr(self, "_asr_pipe", None) is None
-        try:
-            return self._create_voice_clone_prompt(ref_audio, ref_text, preprocess_prompt)
-        finally:
-            if implicit_asr:
-                self._release_implicit_asr()
+        # Overlapping in-process clones must not release each other's recognizer:
+        # whether to release is decided from the state at entry, so the whole
+        # load -> use -> release sequence runs under one per-model lock.
+        with self._reference_asr_lock():
+            implicit_asr = getattr(self, "_asr_pipe", None) is None
+            try:
+                return self._create_voice_clone_prompt(ref_audio, ref_text, preprocess_prompt)
+            finally:
+                if implicit_asr:
+                    self._release_implicit_asr()
+
+    def _reference_asr_lock(self) -> "threading.RLock":
+        lock = self.__dict__.get("_reference_asr_rlock")
+        if lock is None:
+            with _ASR_LOCK_GUARD:
+                lock = self.__dict__.setdefault("_reference_asr_rlock", threading.RLock())
+        return lock
 
     def _create_voice_clone_prompt(
         self,

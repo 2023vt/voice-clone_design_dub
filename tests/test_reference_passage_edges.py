@@ -60,6 +60,56 @@ def test_mostly_silent_passage_is_untouched():
     assert trim_passage_to_pauses(wav, SR) is wav
 
 
+def _window_file(tmp_path, wav):
+    import soundfile as sf
+
+    path = tmp_path / "window.wav"
+    sf.write(str(path), wav.squeeze(0).numpy(), SR)
+    return str(path)
+
+
+def test_backend_selected_window_is_trimmed_and_reread(monkeypatch, tmp_path):
+    """A window the backend picks arrives WITH a transcript, so the model never
+    trims it: the backend must, and re-read exactly the audio it will encode."""
+    import os
+    import soundfile as sf
+    from services import asr_backend, tts_backend
+
+    path = _window_file(tmp_path, _silence(_speech(15.0), 14.0, 14.3))
+    reads = []
+    monkeypatch.setattr(asr_backend, "transcribe_reference", lambda p, **_k: reads.append(p) or "Trimmed words.")
+
+    out, text, owned = tts_backend._trim_selected_passage(path, "Words cut mid-wor")
+    try:
+        assert owned == out != path
+        assert text == "Trimmed words." and reads == [out]
+        assert sf.info(out).duration < sf.info(path).duration
+    finally:
+        os.remove(owned)
+
+
+def test_backend_window_without_pauses_is_left_alone(monkeypatch, tmp_path):
+    from services import asr_backend, tts_backend
+
+    def must_not_run(*_a, **_k):
+        raise AssertionError("a window with nothing to trim must not be re-read")
+
+    path = _window_file(tmp_path, _speech(15.0))
+    monkeypatch.setattr(asr_backend, "transcribe_reference", must_not_run)
+    assert tts_backend._trim_selected_passage(path, "Whole window.") == (path, "Whole window.", None)
+
+
+def test_backend_window_keeps_original_when_the_trimmed_copy_has_no_words(monkeypatch, tmp_path):
+    import os
+    from services import asr_backend, tts_backend
+
+    path = _window_file(tmp_path, _silence(_speech(15.0), 14.0, 14.3))
+    tried = []
+    monkeypatch.setattr(asr_backend, "transcribe_reference", lambda p, **_k: tried.append(p) or "")
+    assert tts_backend._trim_selected_passage(path, "Original.") == (path, "Original.", None)
+    assert tried and not os.path.exists(tried[0])  # the temp copy was cleaned up
+
+
 def test_trim_never_lengthens_and_keeps_order():
     wav = _silence(_silence(_speech(15.0), 0.5, 0.8), 14.2, 14.5)
     out = trim_passage_to_pauses(wav, SR)

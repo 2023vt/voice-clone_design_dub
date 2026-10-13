@@ -1264,6 +1264,46 @@ def _speech_score(text: str) -> int:
     return len(re.sub(r"[^\w]+", "", text or "", flags=re.UNICODE))
 
 
+def _trim_selected_passage(path: str, text: str) -> tuple[str, str, Optional[str]]:
+    """Pull a backend-selected long-reference window's edges into pauses.
+
+    The model trims and re-reads a passage only when it picks one itself
+    (``ref_text is None``). A window chosen here arrives with its transcript, so
+    without this a window cut mid-word would carry that fragment into the
+    generated speech. Returns ``(path, text, owned_path)``: the trimmed copy and
+    its re-read transcript (``owned_path`` is the temp file the caller deletes),
+    or the original window and transcript when nothing needed trimming, the
+    trimmed copy has no words, or any step fails.
+    """
+    out = None
+    try:
+        import soundfile as sf
+        import tempfile
+        import torch
+        from omnivoice.utils.audio import trim_passage_to_pauses
+        from services.asr_backend import transcribe_reference
+
+        data, sr = sf.read(path, dtype="float32", always_2d=True)
+        wav = torch.from_numpy(data.T.copy())
+        trimmed = trim_passage_to_pauses(wav, sr)
+        if trimmed.size(-1) == wav.size(-1):
+            return path, text, None
+        fd, out = tempfile.mkstemp(suffix=".wav")
+        os.close(fd)
+        sf.write(out, trimmed.T.numpy(), sr)
+        new_text = (transcribe_reference(out) or "").strip()
+        if _speech_score(new_text) > 0:
+            return out, new_text, out
+    except Exception:  # noqa: BLE001 — the untrimmed window is still valid
+        logger.debug("selected-window trim failed; keeping the untrimmed window")
+    if out is not None:
+        try:
+            os.remove(out)
+        except OSError:
+            pass
+    return path, text, None
+
+
 def _unresolved_prompt_is_current(key: tuple) -> bool:
     """True when the cached transcript-free prompt under ``key`` was built under
     the recognizer chain that is selected now.
@@ -1332,6 +1372,7 @@ def _get_clone_prompt(
 
     duration = reference_duration_s(ref_audio)
     passage_file = None
+    trimmed_file = None
     passage_context = None
     recalled_index = None
     cacheable = True
@@ -1414,6 +1455,11 @@ def _get_clone_prompt(
         encode_text = ref_text
         if passage_file is not None:
             encode_audio = passage_file
+            if prompt is None:
+                # Only when a prompt is actually built (a cache hit needs none).
+                encode_audio, encode_text, trimmed_file = _trim_selected_passage(
+                    passage_file, ref_text
+                )
         if prompt is None:
             try:
                 # Encode outside the lock (slow). Mirrors exactly what generate()
@@ -1480,6 +1526,11 @@ def _get_clone_prompt(
                 _unresolved_prompt_recognizers.pop(evicted, None)
         return prompt
     finally:
+        if trimmed_file is not None:
+            try:
+                os.remove(trimmed_file)
+            except OSError:
+                logger.debug("failed to remove trimmed reference window")
         if passage_file is not None:
             try:
                 os.remove(passage_file)

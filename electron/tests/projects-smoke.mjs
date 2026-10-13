@@ -9,16 +9,20 @@ const browser = await chromium.launch({
 try {
   const page = await browser.newPage();
   await page.addInitScript(() => localStorage.setItem('voicestudio.setup.complete.v1', '1'));
-  await page.route((url) => url.pathname.startsWith('/api/'), (route) => {
-    const path = new URL(route.request().url()).pathname;
-    const fixtures = {
-      '/api/health': { status: 'ok' },
-      '/api/setup/status': { ready: true },
-      '/api/models/install/status': { jobs: [] },
-      '/api/workers/target': { target: 'local', op: 'tts', active: { remote: false, label: 'Local', reason: '' }, targets: [], remote_operations: [] },
-    };
-    return path in fixtures ? route.fulfill({ json: fixtures[path] }) : route.fulfill({ status: 404, json: { detail: 'Not mocked' } });
-  });
+  await page.route(
+    (url) => url.pathname.startsWith('/api/'),
+    (route) => {
+      const path = new URL(route.request().url()).pathname;
+      const fixtures = {
+        '/api/health': { status: 'ok' },
+        '/api/setup/status': { ready: true },
+        '/api/models/install/status': { jobs: [] },
+      };
+      return path in fixtures
+        ? route.fulfill({ json: fixtures[path] })
+        : route.fulfill({ status: 404, json: { detail: 'Not mocked' } });
+    },
+  );
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const stored = {
@@ -150,7 +154,8 @@ try {
   await dialog.waitFor();
   const bounds = await dialog.boundingBox();
   assert(bounds && bounds.y >= 0 && bounds.y + bounds.height <= page.viewportSize().height);
-  if (process.env.VOICESTUDIO_SCREENSHOT) await page.screenshot({ path: process.env.VOICESTUDIO_SCREENSHOT });
+  if (process.env.VOICESTUDIO_SCREENSHOT)
+    await page.screenshot({ path: process.env.VOICESTUDIO_SCREENSHOT });
   await page.getByRole('dialog').getByRole('button', { name: 'Delete', exact: true }).click();
   await page
     .getByRole('button', { name: 'Library renamed', exact: true })

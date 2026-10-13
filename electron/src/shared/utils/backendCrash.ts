@@ -1,4 +1,5 @@
 import { abortableDelay } from './abortableDelay.ts';
+import { DEFAULT_BACKEND_PORT } from '../app-config.ts';
 import { deploymentMode, type DeploymentMode } from './deploymentMode.ts';
 import { isNativeFaultExit } from './nativeExit.ts';
 /**
@@ -368,7 +369,7 @@ export function crashCauseHint(
   if (marker.exit_code === 78) {
     return i18next.t('errors.crash_port_in_use', {
       defaultValue:
-        'The backend could not start because port 3900 is already in use — another copy of ' +
+        `The backend could not start because port ${DEFAULT_BACKEND_PORT} is already in use — another copy of ` +
         'VoiceStudio (or an app that claimed that port) is holding it. Quit the other instance ' +
         'and relaunch; if nothing is visibly running, an orphaned backend from a previous ' +
         'session is still holding the port.',

@@ -14,6 +14,8 @@ from services import transcript_diarization as td
 
 from .test_asr_request_path_degrades import _client, _tiny_wav, asr  # noqa: F401
 
+pytestmark = pytest.mark.usefixtures("asr_model_installed")
+
 
 class _Sortformer:
     """Stands in for NativeSortformer: rejects an exact speaker count."""
@@ -142,6 +144,6 @@ def test_diarization_failure_still_returns_the_transcript(transcript, monkeypatc
     monkeypatch.setattr(td, "diarize_segments", lambda *a, **k: ([None, None], "MODEL_MISSING"))
     r = _post(_client("api.routers.capture"), diarize="true")
     assert r.status_code == 200
-    assert r.json()["text"].startswith("hi")
+    assert r.json()["text"].lower().startswith("hi hello")
     assert r.json()["diarization_error"] == "MODEL_MISSING"
     assert "speakers" not in r.json()

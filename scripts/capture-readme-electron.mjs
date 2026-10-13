@@ -3,9 +3,11 @@
  * CHROMIUM_PATH can select an installed Chromium binary.
  */
 import { chromium } from 'playwright';
+import { DEFAULT_ELECTRON_DEV_PORT } from '../config/app-config.mjs';
 import { mkdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
-const base = process.env.VOICESTUDIO_CAPTURE_URL || 'http://localhost:3902';
+const base =
+  process.env.VOICESTUDIO_CAPTURE_URL || `http://localhost:${DEFAULT_ELECTRON_DEV_PORT}`;
 const output = resolve('docs/media/electron');
 await mkdir(output, { recursive: true });
 const browser = await chromium.launch({ headless: true, ...(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : {}) });

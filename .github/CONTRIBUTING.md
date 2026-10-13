@@ -79,6 +79,10 @@ bun run dev:web     # maintained Electron renderer in a browser + backend
 | **Backend** | `localhost:3900` | FastAPI server — TTS, ASR, diarization, dubbing pipeline |
 | **Frontend** | `localhost:3901` | Electron renderer served by Vite in a browser |
 
+Product builds read the app name, application ID, and the backend/web/Electron
+development ports from `config/app.json`. Change that manifest instead of
+copying new defaults into launchers or runtime modules.
+
 The backend runs through `scripts/dev-backend.mjs` (the `dev:api` script): the
 uvicorn command is unchanged, but if the backend **dies** (OOM kill, hard
 crash), the wrapper prints a boxed exit banner with the exit code/signal and

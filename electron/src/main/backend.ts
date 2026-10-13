@@ -10,6 +10,7 @@ import {
   type RuntimeRegion,
 } from './runtime-project';
 import { asciiSafePthFiles } from './pth-ascii';
+import { devProbeStamped, writeDevProbeStamp } from './dev-probe-stamp';
 import { CrashJournal } from './crash-journal';
 import { nativeFaultSummary } from '../shared/utils/crashReport';
 import { availableBackendPort } from './backend-port';
@@ -47,8 +48,8 @@ import {
 import { toolSearchDirs } from './tool-path';
 import { SetupProgressTracker, cleanProcessLine } from './setup-progress';
 import { scrubText } from '../shared/utils/scrub';
+import { DEFAULT_BACKEND_PORT } from '../../../config/app-config.mjs';
 
-const DEFAULT_PORT = 3900;
 const DEFAULT_BUDGET_S = 300;
 const READY_POLL_MS = 500;
 /** Allow another VoiceStudio shell to take ownership without showing a false crash. */
@@ -123,7 +124,7 @@ export type StatusListener = (status: BackendStatus) => void;
 
 export function resolvePort(): number {
   const raw = Number(process.env.OMNIVOICE_PORT);
-  return Number.isInteger(raw) && raw > 0 && raw < 65536 ? raw : DEFAULT_PORT;
+  return Number.isInteger(raw) && raw > 0 && raw < 65536 ? raw : DEFAULT_BACKEND_PORT;
 }
 
 /** Hosts at or below this are "low-spec": a cold backend import is disk/CPU-bound. */
@@ -402,7 +403,11 @@ export async function resolveSpawnPlan(
   // Name the import that failed (#2555): "incomplete" alone cannot tell a
   // setup that never ran from one that finished but cannot load a module.
   let failure = '';
+  if (devProbeStamped(root, python)) {
+    return { argv: [python, '-m', ...UVICORN_ARGS, ...portArg], cwd: root };
+  }
   if (await runtimeDependenciesReady(root, (detail) => (failure = detail))) {
+    writeDevProbeStamp(root, python);
     return { argv: [python, '-m', ...UVICORN_ARGS, ...portArg], cwd: root };
   }
   return {

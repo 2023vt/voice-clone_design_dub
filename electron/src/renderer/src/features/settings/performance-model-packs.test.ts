@@ -51,7 +51,7 @@ describe('performance model packs', () => {
     expect(pack.downloadGb).toBeCloseTo(6.074);
   });
 
-  it('omits models unsupported by the selected compute target', () => {
+  it('omits models unsupported by this device', () => {
     const pack = resolvePerformanceModelPack(
       [
         model('k2-fsa/OmniVoice', 2.4, true),
@@ -61,8 +61,6 @@ describe('performance model packs', () => {
       'fast',
     );
 
-    expect(pack.models.map((item) => item.repo_id)).not.toContain(
-      'Systran/faster-whisper-base',
-    );
+    expect(pack.models.map((item) => item.repo_id)).not.toContain('Systran/faster-whisper-base');
   });
 });

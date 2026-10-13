@@ -413,8 +413,8 @@ def test_recorded_download_rejects_non_audio_bytes(tmp_path):
 
 
 # ── Materialization ───────────────────────────────────────────────────────────
-def test_community_use_is_idempotent_design_profile(
-    client, tmp_path, monkeypatch, symlinks_supported,
+def test_community_use_is_idempotent_design_profile_and_defers_render(
+    client, monkeypatch,
 ):
     from core import event_bus
     from core.db import db_conn, init_db
@@ -427,12 +427,10 @@ def test_community_use_is_idempotent_design_profile(
     monkeypatch.setattr(
         community, "_load", lambda _refresh: (["test/source"], [item], [], False),
     )
-    calls = []
     emitted = []
-    async def render(_item, path):
-        calls.append(path)
-        _write_wav(Path(path))
-    monkeypatch.setattr(arch_router, "_render_archetype_wav", render)
+    async def unexpected_render(*_args, **_kwargs):
+        raise AssertionError("Use voice must not load or run the synthesis model")
+    monkeypatch.setattr(arch_router, "_render_archetype_wav", unexpected_render)
     monkeypatch.setattr(
         event_bus, "emit", lambda topic, payload: emitted.append((topic, payload)),
     )
@@ -446,7 +444,6 @@ def test_community_use_is_idempotent_design_profile(
     second = client.post("/community/items/p1/use")
     assert first.status_code == second.status_code == 200
     assert second.json()["profile_id"] == first.json()["profile_id"]
-    assert len(calls) == 1
     with db_conn() as conn:
         row = conn.execute(
             "SELECT * FROM voice_profiles WHERE id=?", (first.json()["profile_id"],),
@@ -455,118 +452,10 @@ def test_community_use_is_idempotent_design_profile(
     assert row["personality"] == personality
     assert json.loads(row["vd_states"])["Gender"] == "female"
     assert row["instruct"] == item["instruct"]
+    assert row["ref_audio_path"] is None
     assert emitted[-1] == (
         "profiles", {"action": "updated", "id": first.json()["profile_id"]},
     )
-
-    profile_audio = community._stored_profile_audio(row["ref_audio_path"])
-    assert profile_audio is not None
-    profile_audio.unlink()
-    repaired = client.post("/community/items/p1/use")
-    assert repaired.status_code == 200
-    assert repaired.json()["profile_id"] == first.json()["profile_id"]
-    assert profile_audio.read_bytes() == _wav_bytes()
-    # The current preset preview cache repairs the profile without another
-    # model render.
-    assert len(calls) == 1
-
-    profile_audio.write_bytes(b"not a WAV")
-    repaired_corrupt = client.post("/community/items/p1/use")
-    assert repaired_corrupt.status_code == 200
-    assert profile_audio.read_bytes() == _wav_bytes()
-
-    if symlinks_supported:  # Windows needs Developer Mode to create symlinks
-        outside = tmp_path / "outside.wav"
-        outside_bytes = _write_wav(outside)
-        profile_audio.unlink()
-        profile_audio.symlink_to(outside)
-        repaired_symlink = client.post("/community/items/p1/use")
-        assert repaired_symlink.status_code == 200
-        assert not profile_audio.is_symlink()
-        assert outside.read_bytes() == outside_bytes
-
-
-def test_community_staged_repair_preserves_concurrently_edited_profile(
-    client, monkeypatch,
-):
-    """A staged community repair must not reclaim a row edited mid-copy."""
-    from core.config import VOICES_DIR
-    from core.db import db_conn, init_db
-
-    init_db()
-    item = community.validate_item(_FIXTURE["items"][0])
-    item["_source_repo"] = "test/source"
-    personality = community._community_personality(item)
-    edited_personality = f"user-edited:{personality}"
-    monkeypatch.setattr(
-        community, "_load", lambda _refresh: (["test/source"], [item], [], False),
-    )
-    with db_conn() as conn:
-        conn.execute(
-            "DELETE FROM voice_profiles WHERE personality IN (?, ?, ?)",
-            (item["id"], personality, edited_personality),
-        )
-    _write_wav(community._preset_preview_path(item))
-
-    original_id = {"value": None}
-    mutation_seen = {"value": False}
-    real_copy_atomic = community._copy_atomic
-
-    def racing_copy(source, destination):
-        destination = Path(destination)
-        if destination.name.endswith(".staged.wav"):
-            assert original_id["value"] is not None
-            with db_conn() as conn:
-                conn.execute(
-                    "UPDATE voice_profiles SET name='User edit', personality=? WHERE id=?",
-                    (edited_personality, original_id["value"]),
-                )
-            mutation_seen["value"] = True
-        real_copy_atomic(Path(source), destination)
-
-    monkeypatch.setattr(community, "_copy_atomic", racing_copy)
-    first = client.post(f"/community/items/{item['id']}/use")
-    assert first.status_code == 200
-    original_id["value"] = first.json()["profile_id"]
-
-    with db_conn() as conn:
-        original = conn.execute(
-            "SELECT ref_audio_path FROM voice_profiles WHERE id=?",
-            (original_id["value"],),
-        ).fetchone()
-    original_audio = community._stored_profile_audio(original["ref_audio_path"])
-    assert original_audio is not None
-    corrupt_bytes = b"corrupt user-owned sample"
-    original_audio.write_bytes(corrupt_bytes)
-
-    repaired = client.post(f"/community/items/{item['id']}/use")
-    assert repaired.status_code == 200
-    repaired_id = repaired.json()["profile_id"]
-    assert mutation_seen["value"]
-    assert repaired_id != original_id["value"]
-
-    with db_conn() as conn:
-        edited = conn.execute(
-            "SELECT * FROM voice_profiles WHERE id=?", (original_id["value"],),
-        ).fetchone()
-        canonical = conn.execute(
-            "SELECT * FROM voice_profiles WHERE id=?", (repaired_id,),
-        ).fetchone()
-        canonical_count = conn.execute(
-            "SELECT count(*) FROM voice_profiles WHERE personality=?", (personality,),
-        ).fetchone()[0]
-    assert edited["name"] == "User edit"
-    assert edited["personality"] == edited_personality
-    assert edited["instruct"] == item["instruct"]
-    assert original_audio.read_bytes() == corrupt_bytes
-    assert canonical["personality"] == personality
-    assert canonical["ref_audio_path"] == community._community_profile_audio_filename(
-        repaired_id, item,
-    )
-    assert canonical_count == 1
-    assert (Path(VOICES_DIR) / canonical["ref_audio_path"]).read_bytes() == _wav_bytes()
-    assert not list(Path(VOICES_DIR).glob(f".{original_id['value']}-*.staged.wav"))
-
 
 def test_recorded_community_use_is_idempotent_clone_profile(client, tmp_path, monkeypatch):
     from core.db import db_conn, init_db
@@ -780,7 +669,7 @@ def test_noncolliding_legacy_community_profile_is_adopted(client, monkeypatch):
     response = client.post(f"/community/items/{item['id']}/use")
     assert response.status_code == 200
     assert response.json()["profile_id"] == legacy_id
-    assert len(rendered) == 1
+    assert rendered == []
     with db_conn() as conn:
         adopted = conn.execute(
             "SELECT personality, kind, ref_audio_path FROM voice_profiles WHERE id=?",
@@ -788,5 +677,5 @@ def test_noncolliding_legacy_community_profile_is_adopted(client, monkeypatch):
         ).fetchone()
     assert adopted["personality"] == personality
     assert adopted["kind"] == "design"
-    adopted_audio = community._stored_profile_audio(adopted["ref_audio_path"])
-    assert adopted_audio is not None and adopted_audio.is_file()
+    assert adopted["ref_audio_path"] == f"{legacy_id}.wav"
+    assert (Path(VOICES_DIR) / adopted["ref_audio_path"]).is_file()

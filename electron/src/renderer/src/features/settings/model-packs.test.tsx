@@ -25,7 +25,6 @@ it('previews every pack without active engines and installs only the chosen tier
   mock.api.mockImplementation(async (path: string) => {
     if (path === '/models')
       return {
-        target: 'local',
         disk_free_gb: 100,
         models: [
           ['k2-fsa/OmniVoice', 'OmniVoice'],
@@ -75,6 +74,6 @@ it('previews every pack without active engines and installs only the chosen tier
   );
   expect(mock.api).toHaveBeenCalledWith('/models/install', {
     method: 'POST',
-    body: JSON.stringify({ repo_id: 'Systran/faster-whisper-base', target: 'local' }),
+    body: JSON.stringify({ repo_id: 'Systran/faster-whisper-base' }),
   });
 });

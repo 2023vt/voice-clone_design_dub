@@ -220,7 +220,6 @@ def test_install_honors_catalog_allow_patterns(models_mod, monkeypatch, tmp_path
 def test_catalogue_reports_the_headroom_the_install_guard_enforces(models_mod, monkeypatch):
     # The UI warns with the same rule as disk_space_error and names the
     # headroom, instead of "needs 4.8 GB but only 10.2 GB is free" (#2597).
-    monkeypatch.setattr(models_mod, "_target_repo_inventory", lambda: None)
     models_mod.invalidate_cache()
     try:
         out = models_mod.list_models()

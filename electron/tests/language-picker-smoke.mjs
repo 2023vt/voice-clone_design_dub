@@ -75,16 +75,6 @@ try {
     await page.route('**/api/setup/status', (route) =>
       route.fulfill({ json: { models_ready: true, missing: [] } }),
     );
-    await page.route('**/api/workers/target**', (route) =>
-      route.fulfill({
-        json: {
-          target: 'local',
-          active: { remote: false, label: 'Local device' },
-          targets: [],
-          remote_operations: [],
-        },
-      }),
-    );
     await page.route('**/api/profiles', (route) =>
       route.fulfill({
         json: [

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { EnginesResponse } from '@/lib/api/types';
 import { engineFamilyState } from '@/hooks/use-engines';
-import { resolveRemoteRuntime, resolveRuntimeHealth, sidebarToolState } from './status-runtime';
+import { resolveRuntimeHealth, sidebarToolState } from './status-runtime';
 
 describe('plain-language tool status', () => {
   it('never reports cached readiness when the backend is offline', () => {
@@ -75,59 +75,5 @@ describe('sidebar runtime health', () => {
         undefined,
       ),
     ).toBe('unavailable');
-  });
-
-  it("uses the selected remote worker's actual model readiness", () => {
-    const runtime = {
-      target: 'worker-1',
-      remote: true,
-      label: 'Studio GPU',
-      reason: 'chosen',
-      models: [
-        {
-          engine: 'omnivoice',
-          model_id: 'omnivoice:default',
-          supported: true,
-          installed: true,
-          downloaded: true,
-          resident: false,
-        },
-      ],
-    };
-
-    expect(resolveRemoteRuntime(runtime, false, false, false).state).toBe('idle');
-    expect(
-      resolveRemoteRuntime(
-        { ...runtime, models: [{ ...runtime.models[0], resident: true }] },
-        false,
-        false,
-        false,
-      ).state,
-    ).toBe('ready');
-    expect(resolveRemoteRuntime(runtime, false, false, true).state).toBe('working');
-  });
-
-  it('never calls an absent or undownloaded remote model ready', () => {
-    const runtime = {
-      target: 'worker-1',
-      remote: true,
-      label: 'Studio GPU',
-      reason: 'chosen',
-      models: [
-        {
-          engine: 'omnivoice',
-          model_id: 'omnivoice:default',
-          supported: true,
-          installed: true,
-          downloaded: false,
-          resident: true,
-        },
-      ],
-    };
-
-    expect(resolveRemoteRuntime(runtime, false, false, false).state).toBe('unavailable');
-    expect(resolveRemoteRuntime({ ...runtime, models: [] }, false, false, false).state).toBe(
-      'unavailable',
-    );
   });
 });

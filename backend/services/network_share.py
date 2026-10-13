@@ -17,7 +17,8 @@ from typing import Optional
 import psutil
 import uvicorn
 
-_DEFAULT_BACKEND_PORT = 3900  # must match backend/main.py uvicorn.run(port=...)
+from core.app_config import DEFAULT_BACKEND_PORT, DEFAULT_WEB_PORT
+
 logger = logging.getLogger("omnivoice.network_share")
 
 
@@ -32,11 +33,11 @@ def backend_port() -> int:
     """
     raw = os.environ.get("OMNIVOICE_PORT")
     if raw is None:
-        return _DEFAULT_BACKEND_PORT
+        return DEFAULT_BACKEND_PORT
     try:
         return int(raw)
     except (TypeError, ValueError):
-        return _DEFAULT_BACKEND_PORT
+        return DEFAULT_BACKEND_PORT
 
 
 def backend_self_url() -> str:
@@ -105,11 +106,11 @@ def share_port_base() -> int:
     """
     raw = os.environ.get("OMNIVOICE_SHARE_PORT")
     if raw is None:
-        return backend_port() + 1
+        return DEFAULT_WEB_PORT if backend_port() == DEFAULT_BACKEND_PORT else backend_port() + 1
     try:
         return int(raw)
     except (TypeError, ValueError):
-        return backend_port() + 1
+        return DEFAULT_WEB_PORT if backend_port() == DEFAULT_BACKEND_PORT else backend_port() + 1
 
 
 @dataclass

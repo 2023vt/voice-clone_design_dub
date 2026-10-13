@@ -51,9 +51,8 @@ the existing provenance watermark setting remain in effect. An engine that
 performs its own mastering continues to skip the app's mastering pre-stage.
 
 The final playback response uses the saved WAV itself. Streaming previews still
-use PCM16; their completed take uses the selected precision. Updated remote
-workers honor the requested precision before returning audio. Older workers or
-engines that only deliver PCM16 cannot recover extra detail through a larger export.
+use PCM16; their completed take uses the selected precision. Engines that only
+deliver PCM16 cannot recover extra detail through a larger export.
 OmniVoice and VoxCPM2 subprocesses negotiate float32 transport; legacy PCM16
 responses remain supported without reinstalling engines. Float-capable responses
 have a bounded 128 MiB frame allowance, preserving the old PCM16 duration limit;
@@ -92,8 +91,8 @@ On the seeded VoxCPM2 clone trial, 16/32/64 steps took approximately 9.7/14.1/27
 seconds; increasing sampling effort has a measurable time cost.
 
 Model-free regression tests cover export precision, identical final playback/save
-bytes, streamed final samples, stereo/rate preservation, remote-worker encoding,
-float sidecar round trips, legacy frames, seed forwarding, warning bounds, path
+bytes, streamed final samples, stereo/rate preservation, float sidecar round
+trips, legacy frames, seed forwarding, warning bounds, path
 confinement, keyboard sliders and locale parity. Precision tests fail against the
 original PR implementation, which writes PCM16 regardless of the requested bits.
 The same implementation is used on macOS, Windows and Linux; real synthesis on

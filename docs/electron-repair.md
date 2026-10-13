@@ -48,7 +48,7 @@ checkout-free action while preserving the selected media, editable transcript an
 
 For checkout-free app operations, the agent discovers supported actions from the bridge OpenAPI
 document, chooses ordinary model and engine settings from current hardware and recommendations, and
-verifies the final state. A setup request sent in Autopilot authorizes its required model downloads and engine selection. Licenses, credentials, privacy or telemetry consent, data deletion and remote-device
+verifies the final state. A setup request sent in Autopilot authorizes its required model downloads and engine selection. Licenses, credentials, privacy or telemetry consent, data deletion and remote-backend
 connections remain explicit user decisions; the agent stops at that one decision instead of filling
 it in silently.
 

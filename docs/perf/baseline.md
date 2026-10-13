@@ -60,14 +60,18 @@ Findings:
 
 ### After: import-free availability probe
 
-`OmniVoiceSubprocessBackend.is_available()` now checks `find_spec` instead of importing the model. A/B on the same environment:
+`OmniVoiceSubprocessBackend.is_available()` now checks `find_spec` instead of importing the model. A/B on the same environment, measured twice before upstream moved reconcile into the background (`9e8b0b3e`) and again after:
 
-| | Routes live (relaunch) | Routes live (first) | `services_start` (relaunch) | Idle RSS |
-|---|---|---|---|---|
-| Before | 14.1 s | 16.0 s | 9.6 s | 653 MB |
-| After | 6.0 s | 9.3 s | 2.6 s | 440 MB |
+| | Routes live (relaunch) | `services_start` (relaunch) | Idle RSS |
+|---|---|---|---|
+| Before, startup blocked on reconcile | 14.1 s | 9.6 s | 653 MB |
+| After, startup blocked on reconcile | 6.0 s | 2.6 s | 440 MB |
+| Upstream background reconcile, upstream probe | 3.9 s | — | 568 MB |
+| Upstream background reconcile, this change | 3.9 s | — | 359 MB |
 
-What the remaining ~2.6 s of `services_start` is (boot import trace after the change):
+With reconcile in the background, "routes live" is the same either way. The change still shortens the work that gates the model warm-ups: reconcile finishes at about 6.3 s instead of 12.5 s, and the API process idles about 209 MB lighter.
+
+What the remaining reconcile time is (boot import trace after the change, measured when it still ran inside `services_start`):
 
 | Import at boot | Cost | Pulled in by |
 |---|---|---|

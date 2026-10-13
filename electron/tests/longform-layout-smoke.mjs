@@ -17,13 +17,6 @@ try {
         '/api/health': { status: 'ok' },
         '/api/setup/status': { ready: true },
         '/api/models/install/status': { jobs: [] },
-        '/api/workers/target': {
-          target: 'local',
-          op: 'tts',
-          active: { remote: false, label: 'Local', reason: '' },
-          targets: [],
-          remote_operations: [],
-        },
         '/api/profiles': [],
       };
       return path in fixtures

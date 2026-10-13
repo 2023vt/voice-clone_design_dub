@@ -11,13 +11,16 @@ PYTHON_FLOORS = {
     "aiohttp": "3.14.3",
     "cryptography": "50.0.0",
     "gradio": "6.15.1",
+    # Hydra instantiate and logging-config callable resolution, fixed in 1.3.7.
+    "hydra-core": "1.3.7",
     # GHSA-qqmf-gpg7-g8gw: checkpoint _instantiator code execution, fixed in
     # 2.6.6. The advisory range is malformed (< 2022.6.15), so Dependabot
     # still flags fixed releases; this floor is the real guard.
     "lightning": "2.6.6",
-    "mako": "1.3.12",
+    "mako": "1.4.2",
     "mcp": "1.28.1",
     "msgpack": "1.2.1",
+    "multidict": "6.9.1",
     "nltk": "3.10.0",
     "pillow": "12.3.0",
     "protobuf": "5.29.6",

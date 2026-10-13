@@ -8,9 +8,11 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { packageNativeHelper } from './native-helper-build.mjs';
+import { APP_ID, PRODUCT_NAME } from '../config/app-config.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const { version } = JSON.parse(readFileSync(resolve(here, '../package.json'), 'utf-8'));
+const artifactPrefix = `${PRODUCT_NAME.replace(/[^A-Za-z0-9]+/g, '-')}-Electron`;
 // Stable is the only Electron update feed: there is no `preview` release to
 // point at. Packaging rehearsals from main are stamped stable too; they are
 // review artifacts and are never published.
@@ -52,11 +54,11 @@ const notarizeMac = Boolean(
 
 /** @type {import('electron-builder').Configuration} */
 export default {
-  appId: 'com.voicestudio.desktop',
-  productName: 'VoiceStudio',
-  extraMetadata: { version },
+  appId: APP_ID,
+  productName: PRODUCT_NAME,
+  extraMetadata: { version, productName: PRODUCT_NAME, desktopName: PRODUCT_NAME },
   directories: { output: 'release', buildResources: 'build' },
-  artifactName: 'VoiceStudio-Electron-${version}-${os}-${arch}.${ext}',
+  artifactName: `${artifactPrefix}-\${version}-\${os}-\${arch}.\${ext}`,
   // The default FUSE2 runtime cannot start on distros without libfuse.so.2.
   // v26's pinned static runtime keeps AppImage mounting independent of FUSE2.
   toolsets: { appimage: '1.0.3' },
@@ -91,6 +93,7 @@ export default {
     { from: '../README.md', to: 'README.md' },
     { from: '../LICENSE', to: 'LICENSE' },
     { from: '../LICENSE-NOTICE.md', to: 'LICENSE-NOTICE.md' },
+    { from: '../config/app.json', to: 'config/app.json' },
     { from: 'T3CODE-LICENSE.txt', to: 'electron/T3CODE-LICENSE.txt' },
     ...bundledUvResources,
   ],
@@ -118,9 +121,9 @@ export default {
     hardenedRuntime: notarizeMac,
     notarize: notarizeMac,
     extendInfo: {
-      NSMicrophoneUsageDescription: readFileSync(resolve(here, 'build/Info.plist'), 'utf8').match(
-        /<key>NSMicrophoneUsageDescription<\/key>\s*<string>([^<]+)<\/string>/,
-      )[1],
+      NSMicrophoneUsageDescription: readFileSync(resolve(here, 'build/Info.plist'), 'utf8')
+        .match(/<key>NSMicrophoneUsageDescription<\/key>\s*<string>([^<]+)<\/string>/)[1]
+        .replaceAll('__APP_PRODUCT_NAME__', PRODUCT_NAME),
     },
     // The CLI matrix selects one architecture per runner and updater feed.
     target: ['dmg', 'zip'],
@@ -128,7 +131,7 @@ export default {
   },
   linux: {
     // Linux targets rewrite ${arch} to x86_64/amd64; feeds use Node's x64.
-    artifactName: 'VoiceStudio-Electron-${version}-linux-x64.${ext}',
+    artifactName: `${artifactPrefix}-\${version}-linux-x64.\${ext}`,
     icon: 'build/icons/icon.png',
     syncDesktopName: true,
     target: ['AppImage', 'deb'],

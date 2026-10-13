@@ -46,6 +46,8 @@ async def _resolve_stream_backend(engine_id: str | None):
 
     selected_id = engine_id or tts_backend.active_backend_id()
     cls = tts_backend.get_backend_class(selected_id)
+    # Every branch below can hand back an already-built instance; refuse first.
+    tts_backend.ensure_engine_licence(cls)
     if cls is tts_backend.OmniVoiceBackend:
         if engine_id:
             # Preserve the explicit core override path; the shared model is
@@ -280,11 +282,6 @@ async def ws_tts(websocket: WebSocket):
     await websocket.accept()
     logger.info("TTS streaming WebSocket connected")
 
-    # Said once per socket, not once per utterance: a conversational client
-    # sends many requests down one connection and a repeated notice would be
-    # noise. See `_announce_local_only`.
-    announced_local_only = False
-
     try:
         while True:
             # Wait for a text request from the client
@@ -305,43 +302,6 @@ async def ws_tts(websocket: WebSocket):
 
             t0 = _perf_counter()
             text = data["text"]
-
-            # Remote GPU: this socket stays on this machine, and says so.
-            #
-            # /generate's port trades progressive playback for the remote
-            # render — the classic path was always a single wait, so spending
-            # it on a faster GPU is a straight win. This route is the opposite
-            # shape: it exists to put audio in the user's ear before the
-            # sentence has finished synthesizing, and sending each utterance to
-            # a worker would pay queue admission, a round trip and cold-load
-            # risk per utterance, for the one surface where latency IS the
-            # feature.
-            #
-            # Silence would be worse than the limitation: the header badge
-            # would read "gpu2" while this machine does 100% of the work, the
-            # same class of lie the op-aware picker exists to stop. Said once
-            # per socket — a conversational client sends many requests down one
-            # connection — and BEFORE engine resolution, so an engine that
-            # cannot load still tells the user where it would have run.
-            if not announced_local_only:
-                announced_local_only = True
-                try:
-                    from worker import routing as worker_routing
-
-                    target = worker_routing.decide(op="tts")
-                except Exception:  # noqa: BLE001 — advisory; never break audio
-                    target = None
-                if target is not None and target.remote:
-                    from core.scrub import scrub_text as _scrub
-
-                    await websocket.send_json({
-                        "type": "routing",
-                        "status": "local_stream",
-                        "reason": _scrub(
-                            f"{target.label} is your GPU target, but live "
-                            f"streaming runs on this machine"
-                        ),
-                    })
 
             # Close on every exit: normal completion, routing rejection,
             # disconnect, generation failure or task cancellation.
@@ -515,11 +475,19 @@ async def ws_tts(websocket: WebSocket):
                 )
 
             except Exception as e:
-                logger.exception("TTS streaming failed: %s", e)
+                from core.failure import licence_required_detail
+
+                licence = licence_required_detail(e)
+                if licence is None:
+                    logger.exception("TTS streaming failed: %s", e)
+                else:
+                    logger.info("TTS stream refused: model licence not accepted")
                 try:
                     await websocket.send_json({
                         "type": "error",
                         "detail": str(e),
+                        # code + models let the client open the acceptance dialog.
+                        **({"code": licence["code"], "models": licence["models"]} if licence else {}),
                     })
                 except Exception:
                     break

@@ -24,6 +24,7 @@ import {
 import { backendLifecycleStage, type BackendLifecycle } from '../utils/backendLifecycle.ts';
 import { scrubText } from '../utils/scrub.js';
 import { deploymentMode } from '../utils/deploymentMode.ts';
+import { DEFAULT_BACKEND_PORT } from '../app-config.ts';
 import {
   lastBackendContact,
   misroutedBackendMessage,
@@ -50,7 +51,7 @@ export const LS_API_KEY = LEGACY_API_KEY_STORAGE_KEY;
 // Pure + exported for unit testing — takes env + window so tests don't need to
 // re-import the module or stub import.meta.env.
 export function _resolveApiBase(env: any, win: any): string {
-  const port = env?.VITE_API_PORT || '3900';
+  const port = env?.VITE_API_PORT || String(DEFAULT_BACKEND_PORT);
   // Explicit override, in precedence order:
   //   1. localStorage ov_backend_url — the user's explicit "Remote backend"
   //      setting (Wave 2.3). Beats everything: it's the one override a

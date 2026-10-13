@@ -14,8 +14,8 @@ Design / safety
   validated against the engine's taxonomy and *dropped* if invalid (so a bad
   community entry can't reproduce issue #89). Audio URLs are restricted to an
   allow-list of hosts (jsDelivr / GitHub) — no arbitrary SSRF target.
-* **Reuse.** "Use a preset" renders through the same path as archetypes
-  (one TTS code path).
+* **Deferred synthesis.** "Use a preset" stores its validated recipe without
+  loading a model; preview and generation keep the single TTS code path.
 """
 from __future__ import annotations
 
@@ -752,7 +752,9 @@ def _is_materialized_community_row(row, item: dict) -> bool:
     return bool(
         row["kind"] == "design"
         and row["seed"] == 42
-        and row["ref_audio_path"] == _community_profile_audio_filename(row["id"], item)
+        and row["ref_audio_path"] in (
+            None, "", _community_profile_audio_filename(row["id"], item),
+        )
         and row["instruct"] == item["instruct"]
         and row["language"] == item.get("language", "Auto")
         and row["ref_text"] == (item.get("sample_script") or "")
@@ -799,7 +801,8 @@ def _existing_community_profile(conn, item: dict, personality: str):
 
 
 def _heal_existing_profile(
-    conn, row, item: dict, ref_text: str, personality: str, audio_filename: str,
+    conn, row, item: dict, ref_text: str, personality: str,
+    audio_filename: Optional[str],
 ) -> None:
     kind, instruct, vd_states, seed = _profile_fields(item)
     conn.execute(
@@ -812,13 +815,58 @@ def _heal_existing_profile(
     )
 
 
+def _save_community_preset(item: dict, name: Optional[str]) -> dict:
+    """Persist a design recipe without loading the synthesis model."""
+    from core import event_bus
+    from core.db import db_conn
+
+    personality = _community_personality(item)
+    ref_text = item.get("sample_script") or ""
+    profile_name = (name or item["name"]).strip() or item["name"]
+    with db_conn() as conn:
+        conn.execute("BEGIN IMMEDIATE")
+        existing = _existing_community_profile(conn, item, personality)
+        if existing is not None:
+            legacy_audio_is_current = (
+                existing["ref_audio_path"] == f"{existing['id']}.wav"
+                and is_playable_wav(_stored_profile_audio(existing["ref_audio_path"]))
+            )
+            audio_filename = (
+                existing["ref_audio_path"]
+                if _community_audio_is_current(existing, item, ref_text)
+                or legacy_audio_is_current
+                else None
+            )
+            _heal_existing_profile(
+                conn, existing, item, ref_text, personality, audio_filename,
+            )
+            result = {"profile_id": existing["id"], "name": existing["name"]}
+            action = "updated"
+        else:
+            profile_id = str(uuid.uuid4())[:8]
+            kind, instruct, vd_states, seed = _profile_fields(item)
+            conn.execute(
+                "INSERT INTO voice_profiles "
+                "(id, name, ref_audio_path, ref_text, instruct, language, seed, personality, "
+                "created_at, kind, vd_states) VALUES (?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (
+                    profile_id, profile_name, ref_text, instruct,
+                    item.get("language", "Auto"), seed, personality,
+                    time.time(), kind, vd_states,
+                ),
+            )
+            result = {"profile_id": profile_id, "name": profile_name}
+            action = "created"
+    event_bus.emit("profiles", {"action": action, "id": result["profile_id"]})
+    return result
+
+
 @router.post("/community/items/{item_id}/use")
 async def community_use(item_id: str, name: Optional[str] = Query(None)):
     """Materialize a community item into a reusable voice profile.
 
-    Preset → render through the archetype engine. Voice → download the
-    (host-allow-listed, SHA-256-verified) reference clip. Both create a
-    ``voice_profiles`` row usable everywhere voices are picked.
+    Preset → save its recipe without synthesis. Voice → download the
+    (host-allow-listed, SHA-256-verified) reference clip.
     """
     _, items, _, _ = await asyncio.to_thread(_load, False)
     item = _find_item(items, item_id)
@@ -826,7 +874,9 @@ async def community_use(item_id: str, name: Optional[str] = Query(None)):
     canonical = _canonical_archetype(item)
     if canonical is not None:
         from api.routers.archetypes import use_archetype
-        return await use_archetype(canonical["id"], name)
+        return await asyncio.to_thread(use_archetype, canonical["id"], name)
+    if item["type"] == "preset":
+        return await asyncio.to_thread(_save_community_preset, item, name)
 
     from core import event_bus
     from core.db import db_conn

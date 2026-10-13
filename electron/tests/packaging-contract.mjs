@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
 import { verifyLinuxLibraries } from '../native-linux-libraries.mjs';
+import { APP_ID, PRODUCT_NAME } from '../../config/app-config.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 if (process.platform === 'linux') {
   const librariesTest = spawnSync(
@@ -30,8 +31,14 @@ const artifactCandidates =
       : ['release/win-unpacked']
     : process.platform === 'darwin'
       ? artifactArch === 'arm64'
-        ? ['release/mac-arm64/VoiceStudio.app/Contents', 'release/mac/VoiceStudio.app/Contents']
-        : ['release/mac/VoiceStudio.app/Contents', 'release/mac-x64/VoiceStudio.app/Contents']
+        ? [
+            `release/mac-arm64/${PRODUCT_NAME}.app/Contents`,
+            `release/mac/${PRODUCT_NAME}.app/Contents`,
+          ]
+        : [
+            `release/mac/${PRODUCT_NAME}.app/Contents`,
+            `release/mac-x64/${PRODUCT_NAME}.app/Contents`,
+          ]
       : artifactArch === 'arm64'
         ? ['release/linux-arm64-unpacked', 'release/linux-unpacked']
         : ['release/linux-unpacked'];
@@ -47,20 +54,26 @@ const artifactResources = resolve(
 const artifactExecutable = resolve(
   artifactRoot,
   process.platform === 'win32'
-    ? 'VoiceStudio.exe'
+    ? `${PRODUCT_NAME}.exe`
     : process.platform === 'darwin'
-      ? 'MacOS/VoiceStudio'
+      ? `MacOS/${PRODUCT_NAME}`
       : 'voicestudio-electron',
 );
 const electronPackage = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
 assert.match(electronPackage.author?.email ?? '', /@/, 'Linux package declares a maintainer email');
-assert.equal(electronPackage.desktopName, 'VoiceStudio', 'Linux desktop identity stays branded');
+assert.equal(config.productName, PRODUCT_NAME, 'Builder uses the central product name');
+assert.equal(config.appId, APP_ID, 'Builder uses the central application ID');
+assert.equal(
+  config.extraMetadata.desktopName,
+  PRODUCT_NAME,
+  'Linux desktop identity stays branded',
+);
 assert.equal(
   config.linux.syncDesktopName,
   true,
   'Linux window and desktop entry share one identity',
 );
-assert(config.mac.extendInfo.NSMicrophoneUsageDescription.includes('VoiceStudio'));
+assert(config.mac.extendInfo.NSMicrophoneUsageDescription.includes(PRODUCT_NAME));
 for (const entitlementFile of [config.mac.entitlements, config.mac.entitlementsInherit]) {
   const entitlements = readFileSync(resolve(root, entitlementFile), 'utf8');
   assert.match(entitlements, /<key>com\.apple\.security\.device\.audio-input<\/key>\s*<true\s*\/>/);
@@ -69,7 +82,17 @@ for (const entitlementFile of [config.mac.entitlements, config.mac.entitlementsI
 const project = readFileSync(resolve(root, '../pyproject.toml'), 'utf8');
 const readme = project.match(/^readme\s*=\s*"([^"]+)"/m)?.[1];
 assert(readme, 'Python project declares a README');
-for (const resource of [readme, 'LICENSE', 'LICENSE-NOTICE.md', 'electron/T3CODE-LICENSE.txt', 'pyproject.toml', 'uv.lock', 'backend', 'omnivoice']) {
+for (const resource of [
+  readme,
+  'LICENSE',
+  'LICENSE-NOTICE.md',
+  'electron/T3CODE-LICENSE.txt',
+  'pyproject.toml',
+  'uv.lock',
+  'backend',
+  'omnivoice',
+  'config/app.json',
+]) {
   const entry = config.extraResources.find((item) => item.to === resource);
   assert(entry && existsSync(resolve(root, entry.from)), 'Required resource: ' + resource);
   if (artifactRequested)

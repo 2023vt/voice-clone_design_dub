@@ -102,12 +102,12 @@ def profile_plan(choice: str, overrides: dict, selections: dict) -> dict:
         ]
 
     translator = selections["translation"]["engine"]
-    if translator == "nllb" and translation_engines.is_ready(translator):
+    if translator == "nllb" and translation_engines.is_ready(translator, import_check=False):
         # A device-wide preset has no source/target language pair to validate.
         # Argos' installed status cannot prove it replaces NLLB's coverage.
         if "translation" in current:
             fixed["translation"] = current["translation"]
-    elif translator not in {"argos", "nllb"} and translation_engines.is_ready(translator):
+    elif translator not in {"argos", "nllb"} and translation_engines.is_ready(translator, import_check=False):
         if "translation" in current:
             fixed["translation"] = Candidate(translator, current["translation"].model, 1, 0)
     else:
@@ -116,7 +116,7 @@ def profile_plan(choice: str, overrides: dict, selections: dict) -> dict:
             for engine, repo, rank, ram, vram in [
                 ("argos", "argos", 1, 1, 0),
                 ("nllb", "facebook/nllb-200-distilled-600M", 4, 3, 3),
-            ] if translation_engines.is_ready(engine)
+            ] if translation_engines.is_ready(engine, import_check=False)
         ]
     if os.environ.get("OMNIVOICE_DIARIZATION_BACKEND"):
         if "diarisation" in current:

@@ -8,6 +8,11 @@ metadata and the backend fallback mirror it.
 
 ## [Unreleased]
 
+**Highlights**
+
+- Dub quality checks compare canonically equivalent Unicode spellings consistently. (#2693) — thanks @Liuchenbing-2026!
+
+
 ## [0.5.7] — 2026-10-13
 
 **VoiceStudio now runs on PCs without a GPU and recovers instead of giving up.** Voice cloning uses the speech-to-text model you installed from Model Catalogue, GPU-less computers get the small CPU PyTorch build, and slow or busy backends are no longer reported as failed.

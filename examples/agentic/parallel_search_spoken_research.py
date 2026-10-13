@@ -23,11 +23,17 @@ import re
 import sys
 import urllib.error
 import urllib.request
+from urllib.parse import urlsplit
 import uuid
 from pathlib import Path
 
 PARALLEL_MCP_URL = "https://search.parallel.ai/mcp"
 URL_RE = re.compile(r"https?://[^\s<>\"'`]+", re.IGNORECASE)
+
+
+def tool_result_is_error(result: object) -> bool:
+    """Handle the snake_case field from MCP v2 and legacy camelCase results."""
+    return bool(getattr(result, "is_error", False) or getattr(result, "isError", False))
 
 
 def result_text(result: object) -> str:
@@ -75,6 +81,30 @@ def choose_urls(urls: list[str]) -> list[str]:
     return [urls[index - 1] for index in indices]
 
 
+def _url_origin(url: str) -> tuple[str, str, int | None]:
+    parts = urlsplit(url)
+    scheme = parts.scheme.lower()
+    port = parts.port
+    if port is None:
+        port = 443 if scheme == "https" else 80 if scheme == "http" else None
+    return scheme, (parts.hostname or "").lower(), port
+
+
+class SameOriginRedirectHandler(urllib.request.HTTPRedirectHandler):
+    """Prevent the speech API key from following redirects to another origin."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        if _url_origin(req.full_url) != _url_origin(newurl):
+            raise urllib.error.HTTPError(
+                newurl,
+                code,
+                "Refusing to forward credentials across an origin redirect.",
+                headers,
+                fp,
+            )
+        return super().redirect_request(req, fp, code, msg, headers, newurl)
+
+
 def synthesize(text: str, output: Path) -> None:
     service_root = os.environ.get("OMNIVOICE_API_URL", "http://localhost:3900").rstrip("/")
     api_root = service_root if service_root.endswith("/v1") else f"{service_root}/v1"
@@ -94,7 +124,8 @@ def synthesize(text: str, output: Path) -> None:
         method="POST",
     )
     try:
-        with urllib.request.urlopen(request, timeout=600) as response:
+        opener = urllib.request.build_opener(SameOriginRedirectHandler())
+        with opener.open(request, timeout=600) as response:
             audio = response.read()
     except urllib.error.HTTPError as exc:
         detail = exc.read(2048).decode("utf-8", errors="replace")
@@ -103,6 +134,7 @@ def synthesize(text: str, output: Path) -> None:
         raise RuntimeError("Could not reach VoiceStudio. Start its backend first.") from exc
     if not audio.startswith(b"RIFF") or audio[8:12] != b"WAVE":
         raise RuntimeError("VoiceStudio returned data that is not a WAV file.")
+    output.parent.mkdir(parents=True, exist_ok=True)
     output.write_bytes(audio)
 
 
@@ -130,7 +162,7 @@ async def run(query: str, output: Path) -> int:
                 "web_search",
                 {"objective": query, "search_queries": [query], "session_id": session_id},
             )
-            if getattr(search, "isError", False):
+            if tool_result_is_error(search):
                 print(result_text(search), file=sys.stderr)
                 return 1
             text = result_text(search)
@@ -155,7 +187,7 @@ async def run(query: str, output: Path) -> int:
                     "full_content": False,
                 },
             )
-            if getattr(fetched, "isError", False):
+            if tool_result_is_error(fetched):
                 print(result_text(fetched), file=sys.stderr)
                 return 1
             excerpts = result_text(fetched)
@@ -185,10 +217,35 @@ async def run(query: str, output: Path) -> int:
     return 0
 
 
+def default_output_path() -> Path:
+    if os.name == "nt":
+        local_app_data = os.environ.get("LOCALAPPDATA")
+        data_dir = (
+            Path(local_app_data)
+            if local_app_data
+            else Path.home() / "AppData" / "Local"
+        )
+    elif sys.platform == "darwin":
+        data_dir = Path.home() / "Library" / "Application Support"
+    else:
+        xdg_data_home = os.environ.get("XDG_DATA_HOME")
+        data_dir = (
+            Path(xdg_data_home)
+            if xdg_data_home
+            else Path.home() / ".local" / "share"
+        )
+    return data_dir / "VoiceStudio" / "spoken-research.wav"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("query", help="Short search query, ideally 3–6 words")
-    parser.add_argument("--output", type=Path, default=Path("spoken-research.wav"))
+    parser.add_argument(
+        "--output",
+        type=Path,
+        default=default_output_path(),
+        help="WAV destination (defaults to the OS user data directory)",
+    )
     args = parser.parse_args()
     try:
         return asyncio.run(run(args.query, args.output))

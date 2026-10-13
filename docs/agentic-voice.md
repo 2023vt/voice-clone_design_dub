@@ -83,7 +83,8 @@ endpoint. It uses Parallel's anonymous Search MCP endpoint by default, which
 does not require an API key. The query and selected URLs go to Parallel; the
 fetched excerpts go to VoiceStudio (loopback by default). Set
 `OMNIVOICE_API_URL`, `OMNIVOICE_API_KEY`, and `OMNIVOICE_VOICE` to target a
-different backend or voice. The output defaults to `spoken-research.wav`.
+different backend or voice. The WAV defaults to the OS user data directory under
+VoiceStudio/spoken-research.wav; pass --output to choose another destination.
 
 ## pipecat (recommended)
 

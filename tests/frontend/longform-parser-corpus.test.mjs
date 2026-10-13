@@ -16,3 +16,17 @@ for (const item of cases) {
     }), item.expected);
   });
 }
+
+const storyUrl = new URL('../../electron/src/shared/utils/storyTokens.js', import.meta.url);
+const longformDataUrl = `data:text/javascript;base64,${Buffer.from(source).toString('base64')}`;
+const storySource = readFileSync(storyUrl, 'utf8').replace("'./longformParser'", JSON.stringify(longformDataUrl));
+const { parseStoryText } = await import(`data:text/javascript;base64,${Buffer.from(storySource).toString('base64')}`);
+for (const length of [308, 400]) for (const unit of ['', 'ms', 's']) {
+  test(`Stories preview and render clamp ${length}-digit pause in ${unit || 'bare milliseconds'}`, () => {
+    const text = `Before [pause ${'9'.repeat(length)}${unit}] after`;
+    const preview = parseStoryText(text).filter(event => event.type === 'pause');
+    const rendered = parseScriptToSpans(text).flatMap(chapter => chapter.spans).filter(span => span.pause_ms_after > 0);
+    assert.deepEqual(preview.map(event => event.seconds), [10]);
+    assert.deepEqual(rendered.map(span => span.pause_ms_after), [10000]);
+  });
+}

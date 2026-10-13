@@ -11,7 +11,7 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
-- Audio checks distinguish corrupt samples from silence and volume changes.
+- Audio checks distinguish corrupt samples from silence and volume changes. (#2808) — thanks @rudycelekli!
 
 ### Removed
 
@@ -19,7 +19,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- Exclude invalid sample windows from silence and relative-volume warnings.
+- Exclude invalid sample windows from silence and relative-volume warnings. (#2808) — thanks @rudycelekli!
 
 ## [0.5.7] — 2026-10-13
 

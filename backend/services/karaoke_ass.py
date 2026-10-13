@@ -22,6 +22,7 @@ must fall back to the line (SRT) burn when the dual layout is requested.
 
 from __future__ import annotations
 
+import math
 import re
 from typing import Optional, Sequence
 
@@ -113,23 +114,30 @@ def scale_words(
     ``None`` when either span is degenerate (caller should drop the words so
     export falls back to an even split over the new span).
     """
-    orig_span = float(orig_end) - float(orig_start)
-    new_span = float(new_end) - float(new_start)
-    if orig_span <= 0 or new_span <= 0:
+    try:
+        o0, o1, n0, n1 = map(float, (orig_start, orig_end, new_start, new_end))
+    except (TypeError, ValueError, OverflowError):
+        return None
+    orig_span, new_span = o1 - o0, n1 - n0
+    if (not all(math.isfinite(t) for t in (o0, o1, n0, n1, orig_span, new_span))
+            or orig_span <= 0 or new_span <= 0):
         return None
     ratio = new_span / orig_span
+    if not math.isfinite(ratio):
+        return None
     out: list[dict] = []
     for w in words:
         try:
             ws = float(w["start"])
             we = float(w["end"])
-        except (KeyError, TypeError, ValueError):
+        except (KeyError, TypeError, ValueError, OverflowError):
             return None
-        out.append({
-            **w,
-            "start": round(float(new_start) + (ws - float(orig_start)) * ratio, 3),
-            "end": round(float(new_start) + (we - float(orig_start)) * ratio, 3),
-        })
+        if not math.isfinite(ws) or not math.isfinite(we):
+            return None
+        start, end = n0 + (ws - o0) * ratio, n0 + (we - o0) * ratio
+        if not math.isfinite(start) or not math.isfinite(end):
+            return None
+        out.append({**w, "start": round(start, 3), "end": round(end, 3)})
     return out
 
 
@@ -146,7 +154,9 @@ def _usable_words(cue: dict, text: str) -> Optional[list[tuple[str, float, float
         try:
             ws = float(w["start"])
             we = float(w["end"])
-        except (KeyError, TypeError, ValueError):
+        except (KeyError, TypeError, ValueError, OverflowError):
+            return None
+        if not math.isfinite(ws) or not math.isfinite(we):
             return None
         if wtext:
             clean.append((wtext, ws, we))

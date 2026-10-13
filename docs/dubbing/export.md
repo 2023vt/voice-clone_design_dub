@@ -23,3 +23,9 @@ filters; POSIX filenames keep literal backslashes. Two caption styles are availa
 Smart Fit exports burn captions after the video retime, so both styles follow
 the fitted timeline. The karaoke script can also be downloaded on its own from
 `GET /dub/ass/{job_id}` as an `.ass` sidecar.
+
+Persisted word timings containing non-finite or unrepresentable values fall
+back to even word spacing over the cue, preserving its display text. Smart Fit
+drops word timings if the source/fitted spans or derived word positions are
+non-finite, so invalid ASR timing cannot corrupt the karaoke script. Valid word
+timing, cue positions and source records remain unchanged.

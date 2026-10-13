@@ -411,7 +411,8 @@ class SentenceChunker:
 
         A buffer qualifies when **all** of these hold:
 
-        1. Last non-whitespace char is a sentence terminator.
+        1. Last non-whitespace char is a sentence terminator other than the
+           Arabic semicolon, which can introduce a continuing clause.
         2. Word count is at least ``min_words_for_short_flush`` (default 1 —
            single-word replies like ``"Yes."`` flush immediately).
         3. The buffer contains exactly one terminator (the trailing one).
@@ -434,7 +435,7 @@ class SentenceChunker:
         TTS TTFB.
         """
         stripped = self._buffer.rstrip()
-        terminators = _SENTENCE_TERMINATORS + _UNAMBIGUOUS_NON_LATIN_TERMINATORS
+        terminators = _SENTENCE_TERMINATORS + _UNAMBIGUOUS_NON_LATIN_TERMINATORS.replace("؛", "")
         if not stripped or stripped[-1] not in terminators:
             return []
 

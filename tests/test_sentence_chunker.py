@@ -104,3 +104,26 @@ def test_short_full_width_decimals_wait_for_fractional_digits(tokens):
     for token in tokens:
         assert chunker.push(token) == []
     assert chunker.flush() == [''.join(tokens)]
+
+
+@pytest.mark.parametrize("language", ["en", "ar"])
+@pytest.mark.parametrize("aggressive_first_flush", [False, True])
+@pytest.mark.parametrize("tokens", [["نعم؛", " ثم"], ["نعم", "؛ ", "ثم"]])
+def test_short_arabic_semicolon_keeps_continuing_clause_buffered(
+    language: str, aggressive_first_flush: bool, tokens: list[str]
+) -> None:
+    chunker = SentenceChunker(
+        language=language, aggressive_first_flush=aggressive_first_flush
+    )
+    for token in tokens:
+        assert chunker.push(token) == []
+    assert chunker.push(" نتابع؟") == ["نعم؛ ثم نتابع؟"]
+    assert chunker.flush() == []
+
+
+@pytest.mark.parametrize("terminator", list("।॥؟۔؏։፧።។៕။༎༏"))
+def test_short_non_latin_endings_still_flush_immediately(terminator: str) -> None:
+    chunker = SentenceChunker()
+    assert chunker.push("Ready 2") == []
+    assert chunker.push(terminator) == ["Ready 2" + terminator]
+    assert chunker.flush() == []

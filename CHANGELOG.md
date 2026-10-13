@@ -11,6 +11,7 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
+- Short streaming speech replies emit at unambiguous sentence endings, including numeric replies and supported non-Latin punctuation, while keeping Arabic semicolon clauses buffered. (#2720) — thanks @rudycelekli!
 
 ### Removed
 

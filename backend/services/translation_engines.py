@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import asyncio
 import importlib
+import importlib.util
 import logging
 import functools
 import re
@@ -147,9 +148,30 @@ def is_frozen() -> bool:
     return bool(getattr(sys, "frozen", False) or os.environ.get("OMNIVOICE_FROZEN"))
 
 
-def _probe(entry: dict) -> tuple[bool, str | None]:
+def _nllb_weights_probe() -> tuple[bool, str | None]:
+    # Transformers being importable only proves the runtime exists.
+    # The weights are a separate explicit model install; do not report
+    # NLLB ready and let from_pretrained download 2.4 GB silently.
+    from api.routers.setup.models import cache_is_complete, is_cached
+
+    model = {"repo_id": _NLLB_REPO_ID}
+    if not is_cached(_NLLB_REPO_ID) or not cache_is_complete(model):
+        return False, "NLLB model weights are not installed"
+    return True, None
+
+
+def _probe(entry: dict, *, import_check: bool = True) -> tuple[bool, str | None]:
     mod = entry.get("probe_module")
     if not mod:
+        return True, None
+    if not import_check:
+        # Inventory-only answer: is the package installed? Importing it is the
+        # expensive part (argostranslate is 8-54 s cold), and the real
+        # translate path still imports - and fails loudly - on first use.
+        if importlib.util.find_spec(mod.split(".")[0]) is None:
+            return False, f"{mod!r} is not installed"
+        if entry.get("id") == "nllb":
+            return _nllb_weights_probe()
         return True, None
     if mod.startswith("argostranslate"):
         # Repair CTranslate2's exec-stack request before the import that would
@@ -166,14 +188,7 @@ def _probe(entry: dict) -> tuple[bool, str | None]:
     try:
         importlib.import_module(mod)
         if entry.get("id") == "nllb":
-            # Transformers being importable only proves the runtime exists.
-            # The weights are a separate explicit model install; do not report
-            # NLLB ready and let from_pretrained download 2.4 GB silently.
-            from api.routers.setup.models import cache_is_complete, is_cached
-
-            model = {"repo_id": _NLLB_REPO_ID}
-            if not is_cached(_NLLB_REPO_ID) or not cache_is_complete(model):
-                return False, "NLLB model weights are not installed"
+            return _nllb_weights_probe()
         # availability_reason is failure-only metadata. Returning a success
         # label here made every healthy provider look unavailable after the
         # public diagnostic scrubber intentionally replaced non-null details.
@@ -337,12 +352,16 @@ def is_installed(engine_id: str) -> bool:
     return ok
 
 
-def is_ready(engine_id: str) -> bool:
-    """True only when both runtime/model and required configuration exist."""
+def is_ready(engine_id: str, *, import_check: bool = True) -> bool:
+    """True only when both runtime/model and required configuration exist.
+
+    ``import_check=False`` answers from the installed packages alone, for
+    inventory scans that must not import every engine runtime.
+    """
     entry = REGISTRY.get(engine_id)
     if not entry:
         return False
-    installed, _ = _probe(entry)
+    installed, _ = _probe(entry, import_check=import_check)
     configured, _ = _configured(entry)
     return installed and configured
 

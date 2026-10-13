@@ -10,6 +10,7 @@ import {
   type RuntimeRegion,
 } from './runtime-project';
 import { asciiSafePthFiles } from './pth-ascii';
+import { devProbeStamped, writeDevProbeStamp } from './dev-probe-stamp';
 import { CrashJournal } from './crash-journal';
 import { nativeFaultSummary } from '../shared/utils/crashReport';
 import { availableBackendPort } from './backend-port';
@@ -402,7 +403,11 @@ export async function resolveSpawnPlan(
   // Name the import that failed (#2555): "incomplete" alone cannot tell a
   // setup that never ran from one that finished but cannot load a module.
   let failure = '';
+  if (devProbeStamped(root, python)) {
+    return { argv: [python, '-m', ...UVICORN_ARGS, ...portArg], cwd: root };
+  }
   if (await runtimeDependenciesReady(root, (detail) => (failure = detail))) {
+    writeDevProbeStamp(root, python);
     return { argv: [python, '-m', ...UVICORN_ARGS, ...portArg], cwd: root };
   }
   return {

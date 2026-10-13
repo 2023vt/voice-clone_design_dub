@@ -113,3 +113,30 @@ def test_idna_unrepresentable_host_is_rejected_before_injection():
     from core.spa_inject import is_valid_public_api_base
 
     assert not is_valid_public_api_base("https://\u200d.test/api")
+
+
+def test_rejected_runtime_api_url_warning_does_not_disclose_credentials(caplog):
+    import ast
+    import logging
+    from pathlib import Path
+
+    source = Path(__file__).parents[1] / "backend" / "main.py"
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    guard = next(
+        node for node in ast.walk(tree)
+        if isinstance(node, ast.If)
+        and ast.unparse(node.test) == "_public_api_base and (not is_valid_public_api_base(_public_api_base))"
+    )
+    code = compile(ast.Module(body=[guard], type_ignores=[]), str(source), "exec")
+    scope = {
+        "logging": logging,
+        "is_valid_public_api_base": is_valid_public_api_base,
+        "_public_api_base": "https://fixture-user:synthetic-fixture-password@api.example.com",
+    }
+    with caplog.at_level(logging.WARNING, logger="omnivoice.api"):
+        exec(code, scope)
+    assert scope["_public_api_base"] == ""
+    assert "OMNIVOICE_PUBLIC_API_BASE" in caplog.text
+    assert "fixture-user" not in caplog.text
+    assert "synthetic-fixture-password" not in caplog.text
+    assert "api.example.com" not in caplog.text

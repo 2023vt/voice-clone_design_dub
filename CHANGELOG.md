@@ -11,6 +11,7 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
+- Public API URLs are validated without logging rejected credentials, and international hostnames work with the served web interface. (#2704) — thanks @rudycelekli!
 
 ### Removed
 

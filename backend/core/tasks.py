@@ -84,8 +84,9 @@ class TaskManager:
         await self.queue.put((task_id, func, args, kwargs))
 
     def cancel_task(self, task_id):
-        if task_id in self.active_tasks:
-            self.active_tasks[task_id]["cancelled"] = True
+        task = self.active_tasks.get(task_id)
+        if task is not None and task["status"] in {"pending", "running"}:
+            task["cancelled"] = True
             return True
         return False
 
@@ -135,6 +136,21 @@ class TaskManager:
             t = self.active_tasks.get(task_id)
             if not t:
                 self.queue.task_done()
+                continue
+
+            if t.get("cancelled"):
+                # Do not even call the function: opening an async generator or
+                # awaiting its first update can already start costly work.
+                t["status"] = "cancelled"
+                try:
+                    job_store.mark_cancelled(task_id)
+                except Exception:
+                    logger.exception("job_store.mark_cancelled failed")
+                try:
+                    await self._push_event(task_id, f"data: {json.dumps({'type': 'cancelled'})}\n\n")
+                    await self._push_event(task_id, None)
+                finally:
+                    self.queue.task_done()
                 continue
 
             t["status"] = "running"

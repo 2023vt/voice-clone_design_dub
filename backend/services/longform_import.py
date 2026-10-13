@@ -151,7 +151,7 @@ class _TextExtractor(HTMLParser):
         super().__init__(convert_charrefs=True)
         self._parts: list[str] = []
         self._skip_depth = 0
-        self._pagebreak_stack: list[str] = []
+        self._excluded_stack: list[str] = []
         self._in_title = False
         #: The element whose text is the title, and that text as it arrives: a
         #: heading such as ``<h1>Chapter <em>One</em></h1>`` reaches
@@ -194,16 +194,18 @@ class _TextExtractor(HTMLParser):
             self._elements.append((tag, namespaces))
         if tag in self._SKIP:
             self._skip_depth += 1
+        if self._excluded_stack:
+            if tag not in self._VOID:
+                self._excluded_stack.append(tag)
+            return
+        # HTML's hidden attribute is boolean: even hidden="false" hides the
+        # subtree. Suppress it before heading capture or paragraph breaks.
+        if any(name == "hidden" for name, _value in attrs) or self._is_pagebreak(attrs, types):
+            if tag not in self._VOID:
+                self._excluded_stack.append(tag)
+            return
         if tag in ("body", "main", "section", "article", "div"):
             self.epub_types.update(types)
-        if self._pagebreak_stack:
-            if tag not in self._VOID:
-                self._pagebreak_stack.append(tag)
-            return
-        if self._is_pagebreak(attrs, types):
-            if tag not in self._VOID:
-                self._pagebreak_stack.append(tag)
-            return
         if tag in ("h1", "h2", "title") and not self.title and not self._in_title:
             self._in_title = True
             self._title_tag = tag
@@ -223,10 +225,10 @@ class _TextExtractor(HTMLParser):
                 break
         if tag in self._SKIP and self._skip_depth:
             self._skip_depth -= 1
-        if self._pagebreak_stack:
-            for index in range(len(self._pagebreak_stack) - 1, -1, -1):
-                if self._pagebreak_stack[index] == tag:
-                    del self._pagebreak_stack[index:]
+        if self._excluded_stack:
+            for index in range(len(self._excluded_stack) - 1, -1, -1):
+                if self._excluded_stack[index] == tag:
+                    del self._excluded_stack[index:]
                     break
             return
         if self._in_title and tag == self._title_tag:
@@ -239,7 +241,7 @@ class _TextExtractor(HTMLParser):
                 self._parts.append("\n")
 
     def handle_data(self, data):
-        if self._skip_depth or self._pagebreak_stack:
+        if self._skip_depth or self._excluded_stack:
             return
         if self._in_title:
             # The first heading becomes the chapter's `# Title` (metadata, not

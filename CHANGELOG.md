@@ -11,10 +11,15 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
+- EPUB imports skip hidden text and keep visible chapter headings.
 
 ### Removed
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
+
+### Fixed
+
+- EPUB narration excludes nested and inline hidden XHTML content.
 
 ## [0.5.7] — 2026-10-13
 

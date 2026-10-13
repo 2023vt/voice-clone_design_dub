@@ -160,6 +160,7 @@ def test_unset_removes_all_assignment_forms_without_other_keys(tmp_path):
 
 
 def test_unicode_line_separators_survive_env_updates_and_restart(tmp_path, monkeypatch):
+    monkeypatch.setenv("OMNIVOICE_TEST_PATH", "fixture-baseline")
     for separator in ("\u2028", "\u2029"):
         path = tmp_path / ("env-" + hex(ord(separator)))
         value = str(tmp_path / ("models" + separator + "saved"))

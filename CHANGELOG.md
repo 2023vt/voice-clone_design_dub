@@ -11,10 +11,15 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
+- Dubbing audio fitting fails promptly on empty renders.
 
 ### Removed
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
+
+### Fixed
+
+- Reject invalid tempo ratios before constructing FFmpeg audio filters.
 
 ## [0.5.7] — 2026-10-13
 

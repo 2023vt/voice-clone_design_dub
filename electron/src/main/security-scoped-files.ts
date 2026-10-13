@@ -27,11 +27,22 @@ export async function withSecurityScopedBookmark<T>(
   startAccess = (value: string) => app.startAccessingSecurityScopedResource(value),
 ): Promise<T> {
   if (!enabled) return operation();
-  if (!bookmark) throw new Error('The selected file did not include sandbox authorization');
-  const stopAccess = startAccess(bookmark);
+  const stopAccess = startSecurityScopedAccess(bookmark, enabled, startAccess);
   try {
     return await operation();
   } finally {
     stopAccess();
   }
+}
+
+/** Hold access until a long-running operation such as folder watching stops. */
+export function startSecurityScopedAccess(
+  bookmark: string | undefined,
+  enabled = securityScopedFileAccessSupported(),
+  startAccess = (value: string) => app.startAccessingSecurityScopedResource(value),
+): () => void {
+  if (!enabled) return () => {};
+  if (!bookmark) throw new Error('The selected file did not include sandbox authorization');
+  const stopAccess = startAccess(bookmark);
+  return () => stopAccess();
 }

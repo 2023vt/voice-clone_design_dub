@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { backendRoot } from './backend';
 import { DictationOutputClient } from './dictation-output';
 import { isTrustedRenderer } from './trusted-renderer';
+import { securityScopedDialogOptions, startSecurityScopedAccess } from './security-scoped-files';
 import type { WatchSelection, WatchUpload } from '../preload/index.d';
 
 /** A separate helper owns each watch: stopping a large upload cannot interrupt dictation. */
@@ -11,12 +12,14 @@ export function installWatchFolders(
   baseUrl: () => string,
   requestHeaders: () => Record<string, string> = () => ({}),
 ): () => void {
-  let active: { client: DictationOutputClient; token: string } | null = null;
+  let active: { client: DictationOutputClient; token: string; releaseAccess: () => void } | null =
+    null;
   let picking = false;
   let revision = 0;
   const stop = () => {
     revision++;
     active?.client.close();
+    active?.releaseAccess();
     active = null;
   };
   const attached = new WeakSet<object>();
@@ -48,8 +51,14 @@ export function installWatchFolders(
     picking = true;
     const generation = revision;
     let client: DictationOutputClient | null = null;
+    let releaseAccess: (() => void) | null = null;
     try {
-      const picked = await dialog.showOpenDialog(window, { properties: ['openDirectory'] });
+      const picked = await dialog.showOpenDialog(
+        window,
+        securityScopedDialogOptions<Electron.OpenDialogOptions>({
+          properties: ['openDirectory'],
+        }),
+      );
       if (
         picked.canceled ||
         !picked.filePaths[0] ||
@@ -57,6 +66,7 @@ export function installWatchFolders(
         window.isDestroyed()
       )
         return null;
+      releaseAccess = startSecurityScopedAccess(picked.bookmarks?.[0]);
       const name = 'voicestudio-desktop-bridge' + (process.platform === 'win32' ? '.exe' : '');
       client = new DictationOutputClient(
         app.isPackaged
@@ -69,12 +79,15 @@ export function installWatchFolders(
       })) as WatchSelection;
       if (generation !== revision || window.isDestroyed()) {
         client.close();
+        releaseAccess();
         return null;
       }
-      active = { client, token: selected.token };
+      active = { client, token: selected.token, releaseAccess };
+      releaseAccess = null;
       return selected;
     } catch {
       client?.close();
+      releaseAccess?.();
       throw new Error('Watch folder could not start');
     } finally {
       picking = false;

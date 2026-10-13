@@ -40,3 +40,10 @@ def test_workflow_enforces_compliance_signing_and_provenance():
         "CSC_INSTALLER_LINK",
         "CSC_INSTALLER_KEY_PASSWORD",
     }
+
+
+def test_apple_silicon_package_builds_an_offline_runtime():
+    source = WORKFLOW.read_text()
+    assert "build_mac_app_store_runtime.mjs" in source
+    assert "VOICESTUDIO_BUNDLED_RUNTIME=" in source
+    assert "matrix.arch }}' = arm64" in source

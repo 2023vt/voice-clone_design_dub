@@ -1,12 +1,11 @@
 """Invalid stretch inputs must fail promptly instead of looping forever."""
+import importlib
 import os
 import subprocess
 import sys
 from pathlib import Path
 
 import pytest
-
-from services.ffmpeg_utils import _atempo_chain
 
 
 def _run_rejection(code):
@@ -44,6 +43,7 @@ else:
 
 @pytest.mark.parametrize("ratio", [.125, .5, 1, 2, 8])
 def test_valid_ratios_keep_bounded_stages_and_the_same_product(ratio):
+    from services.ffmpeg_utils import _atempo_chain
     values = [float(stage.partition("=")[2]) for stage in _atempo_chain(ratio).split(",")]
     assert all(.5 <= value <= 2 for value in values)
     import math
@@ -53,7 +53,7 @@ def test_valid_ratios_keep_bounded_stages_and_the_same_product(ratio):
 def test_empty_waveform_is_rejected_before_starting_ffmpeg(monkeypatch):
     import asyncio
     import torch
-    from services import ffmpeg_utils
+    ffmpeg_utils = importlib.import_module("services.ffmpeg_utils")
 
     async def unexpected_spawn(*args, **kwargs):
         pytest.fail("empty audio must not spawn ffmpeg")

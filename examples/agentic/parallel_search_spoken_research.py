@@ -49,7 +49,12 @@ def result_text(result: object) -> str:
 def search_urls(text: str) -> list[str]:
     urls: list[str] = []
     for match in URL_RE.findall(text):
-        url = match.rstrip(".,;:!?)]}")
+        # Drop sentence punctuation, then remove only unmatched closing
+        # delimiters that wrap URLs in prose. Balanced URL parentheses are valid.
+        url = match.rstrip(".,;:!?")
+        for opening, closing in (("(", ")"), ("[", "]"), ("{", "}")):
+            while url.endswith(closing) and url.count(closing) > url.count(opening):
+                url = url[:-1]
         if url not in urls:
             urls.append(url)
     return urls
@@ -159,9 +164,9 @@ async def run(query: str, output: Path) -> int:
     if not excerpts:
         print("The fetch returned no text to synthesize.")
         return 1
-    if len(excerpts) > 8_000:
-        print("Speech input is limited to the first 8,000 characters.")
-        excerpts = excerpts[:8_000]
+    if len(excerpts) > 4_096:
+        print("Speech input is limited to the first 4,096 characters.")
+        excerpts = excerpts[:4_096]
 
     service_root = os.environ.get("OMNIVOICE_API_URL", "http://localhost:3900").rstrip("/")
     print(

@@ -19,7 +19,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- A cancelled child operation no longer stops the shared job worker or strands later queued work — thanks @rudycelekli!
+- A cancelled child operation no longer stops the shared job worker or strands later queued work (#2801) — thanks @rudycelekli!
 
 ## [0.5.7] — 2026-10-13
 

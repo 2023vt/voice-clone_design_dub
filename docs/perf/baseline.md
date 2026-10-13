@@ -60,16 +60,18 @@ Findings:
 
 ### After: import-free availability probe
 
-`OmniVoiceSubprocessBackend.is_available()` now checks `find_spec` instead of importing the model. A/B on the same environment, measured twice before upstream moved reconcile into the background (`9e8b0b3e`) and again after:
+`OmniVoiceSubprocessBackend.is_available()` now checks `find_spec` instead of importing the model. Measured on the same environment, before and after upstream moved reconcile into the background (`9e8b0b3e`):
 
-| | Routes live (relaunch) | `services_start` (relaunch) | Idle RSS |
+| | Routes live (relaunch) | `services_start` (relaunch) | Reconcile finishes at |
 |---|---|---|---|
-| Before, startup blocked on reconcile | 14.1 s | 9.6 s | 653 MB |
-| After, startup blocked on reconcile | 6.0 s | 2.6 s | 440 MB |
-| Upstream background reconcile, upstream probe | 3.9 s | — | 568 MB |
-| Upstream background reconcile, this change | 3.9 s | — | 359 MB |
+| Before, startup blocked on reconcile | 14.1 s | 9.6 s | n/a |
+| After, startup blocked on reconcile | 6.0 s | 2.6 s | n/a |
+| Upstream background reconcile, upstream probe | 3.9 s | n/a | 12.1–13.3 s |
+| Upstream background reconcile, this change | 3.9 s | n/a | 6.1–6.3 s |
 
-With reconcile in the background, "routes live" is the same either way. The change still shortens the work that gates the model warm-ups: reconcile finishes at about 6.3 s instead of 12.5 s, and the API process idles about 209 MB lighter.
+With reconcile in the background, "routes live" is the same either way. The change still halves the time to finish reconcile, and reconcile gates the model warm-ups.
+
+Memory: the boot import trace shows the API process no longer loads `omnivoice.models.omnivoice`, `sklearn` or `boto3`. The resulting difference in resident memory is real but small next to the noise. Sampled every 3 s for 50 s, steady state was 365–416 MB with the change and 504–545 MB without. Single readings and median-of-10 runs varied from no difference to about 200 MB depending on when they were taken, so no figure is claimed.
 
 What the remaining reconcile time is (boot import trace after the change, measured when it still ran inside `services_start`):
 
@@ -120,7 +122,7 @@ Findings:
 
 ### With an ASR model installed (macOS arm64)
 
-Model `mlx-community/whisper-large-v3-turbo` (1.61 GB), no TTS requests. Backend booted with `OMNIVOICE_IDLE_TIMEOUT_S=45` so the idle release shows in a short run (the default is 900 s). Readings are `ps` RSS over the process tree. macOS excludes compressed memory from RSS, so single readings can dip (one run read 136 MB at ready + 20 s); trust the large steps, not the small ones.
+Model `mlx-community/whisper-large-v3-turbo` (1.61 GB), no TTS requests. Backend booted with `OMNIVOICE_IDLE_TIMEOUT_S=45` so the idle release shows in a short run (the default is 900 s). Readings are `ps` RSS over the process tree. macOS excludes compressed memory from RSS and releases pages in steps, so readings move by 50–100 MB between moments (one run read 136 MB at ready + 20 s); trust the large steps, not the small ones.
 
 | Moment | Tree RSS |
 |---|---|

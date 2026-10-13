@@ -12,6 +12,7 @@ from __future__ import annotations
 import json
 import os
 import socket
+import statistics
 import subprocess
 import sys
 import tempfile
@@ -42,7 +43,17 @@ def _rss_mb(pid: int) -> float:
 
 
 def boot(data_dir: str) -> dict:
-    env = {**os.environ, "OMNIVOICE_DATA_DIR": data_dir}
+    # The backend loads ~/.config/omnivoice/env over the process environment, and
+    # that file can redirect the data folder. Point it at a file that does not
+    # exist so the run stays inside data_dir and never touches the user's real
+    # database or jobs. HF_HOME is isolated too, so results do not depend on
+    # which models this machine happens to have installed.
+    env = {
+        **os.environ,
+        "OMNIVOICE_DATA_DIR": data_dir,
+        "OMNIVOICE_ENV_FILE": os.path.join(data_dir, "isolated.env"),
+        "HF_HOME": os.path.join(data_dir, "hf"),
+    }
     # A fresh port per boot, and a liveness check below, so a response can only
     # come from the backend this run launched, never from one already running.
     port = _free_port()
@@ -61,13 +72,19 @@ def boot(data_dir: str) -> dict:
                 break
             time.sleep(0.5)
         assert progress and progress["status"] == "ready", f"boot did not finish: {progress}"
-        time.sleep(20)  # settle before reading the idle footprint
-        if proc.poll() is not None:
-            raise RuntimeError(f"backend exited with code {proc.returncode} while idling")
+        # Resident memory moves in 50-100 MB steps as macOS compresses and
+        # releases pages, so a single reading is unreliable. Take the median of
+        # samples across the 20 s after ready.
+        samples = []
+        for _ in range(10):
+            time.sleep(2)
+            if proc.poll() is not None:
+                raise RuntimeError(f"backend exited with code {proc.returncode} while idling")
+            samples.append(_rss_mb(proc.pid))
         return {
             "total": progress["elapsed_s"],
             "steps": {s["id"]: s.get("t") for s in progress["steps"]},
-            "rss": _rss_mb(proc.pid),
+            "rss": statistics.median(samples),
         }
     finally:
         proc.terminate()
@@ -83,4 +100,4 @@ if __name__ == "__main__":
     for step in steps:
         print(f"| {step} | " + " | ".join(f"{r['steps'][step]:.1f} s" for r in runs.values()) + " |")
     print("| **Routes live** | " + " | ".join(f"**{r['total']:.1f} s**" for r in runs.values()) + " |")
-    print("| Idle RSS (20 s after ready) | " + " | ".join(f"{r['rss']:.0f} MB" for r in runs.values()) + " |")
+    print("| Idle RSS (median of 10 samples, 20 s after ready) | " + " | ".join(f"{r['rss']:.0f} MB" for r in runs.values()) + " |")

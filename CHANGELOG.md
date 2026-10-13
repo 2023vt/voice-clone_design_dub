@@ -20,6 +20,11 @@ metadata and the backend fallback mirror it.
 ### Fixed
 
 - File transcription no longer cancels when you leave the Transcribe page; the result is saved and a toast links back to it (#2691)
+- The open-source app no longer contains a licence-key client
+
+### Removed
+
+- The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
 
 ## [0.5.7] — 2026-10-13
 

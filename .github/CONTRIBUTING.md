@@ -382,8 +382,6 @@ hard rules from the first prompt.
     (`backend/core/analytics.py`, allowlisted content-free metadata).
   - The GitHub star count (no credentials or referrer, refreshed every 20
     minutes while shown).
-  - The Lemon Squeezy Pro licence check, only after the user enters a key
-    (`electron/src/main/pro-license.ts`).
 
   Adding to this list needs owner approval. Never log or persist secrets or
   absolute home paths.

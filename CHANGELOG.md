@@ -19,7 +19,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- Cancelled queued tasks skip execution and retain cancelled status in the task stream and job history — thanks @rudycelekli!
+- Cancelled queued tasks skip execution and retain cancelled status in the task stream and job history (#2800) — thanks @rudycelekli!
 
 ## [0.5.7] — 2026-10-13
 

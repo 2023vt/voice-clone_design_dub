@@ -3,12 +3,12 @@ import numpy as np
 import pytest
 import soundfile as sf
 
-from services.audio_quality import analyze_audio
 
 SR = 8000
 
 
 def _report(tmp_path, samples):
+    from services.audio_quality import analyze_audio
     path = tmp_path / "invalid.wav"
     sf.write(path, samples, SR, subtype="FLOAT")
     before = path.read_bytes()

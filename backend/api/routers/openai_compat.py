@@ -1317,15 +1317,22 @@ def list_voices():
                 "SELECT id, name, language FROM voice_profiles ORDER BY name"
             ).fetchall()
         name_counts = Counter(_voice_name_key(r["name"]) for r in rows)
+        # An exact id always wins in _resolve_voice_profile, so a profile
+        # named exactly like ANOTHER profile's id is not name-addressable
+        # (#2751). Self-ID names stay addressable; case/whitespace variants
+        # still resolve by name because the id lookup is exact.
+        profile_ids = {r["id"] for r in rows}
         for row in rows:
             key = _voice_name_key(row["name"])
+            collides_with_other_id = row["name"] in profile_ids and row["name"] != row["id"]
             voices.append({
                 "voice_id": row["id"],
                 "name": row["name"],
                 "type": "profile",
                 "language": row["language"],
                 "addressable_by_name": bool(key) and name_counts[key] == 1
-                and not _name_is_reserved(key),
+                and not _name_is_reserved(key)
+                and not collides_with_other_id,
             })
     except Exception:
         logger.warning("Voice profiles could not be loaded; returning built-in aliases only")

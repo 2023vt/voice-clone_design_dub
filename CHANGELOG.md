@@ -8,6 +8,14 @@ metadata and the backend fallback mirror it.
 
 ## [Unreleased]
 
+**Highlights**
+
+- The voice catalogue no longer marks a profile name usable when it resolves to another profile id (#2751)
+
+### Fixed
+
+- The voice catalogue no longer marks a profile name usable when it resolves to another profile id (#2751) — thanks @Bortlesboat!
+
 ## [0.5.7] — 2026-10-13
 
 **VoiceStudio now runs on PCs without a GPU and recovers instead of giving up.** Voice cloning uses the speech-to-text model you installed from Model Catalogue, GPU-less computers get the small CPU PyTorch build, and slow or busy backends are no longer reported as failed.

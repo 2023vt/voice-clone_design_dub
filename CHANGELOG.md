@@ -11,10 +11,15 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
+- Audio checks distinguish corrupt samples from silence and volume changes.
 
 ### Removed
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
+
+### Fixed
+
+- Exclude invalid sample windows from silence and relative-volume warnings.
 
 ## [0.5.7] — 2026-10-13
 

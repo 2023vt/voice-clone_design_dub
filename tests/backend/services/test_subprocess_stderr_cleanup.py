@@ -89,7 +89,7 @@ def test_force_kill_cleans_up_stderr_thread():
     backend._proc = mock_proc
 
     mock_thread = MagicMock()
-    mock_thread.is_alive.return_value = True
+    mock_thread.is_alive.side_effect = [True, False]
     backend._stderr_thread = mock_thread
 
     backend._force_kill()
@@ -111,7 +111,7 @@ def test_shutdown_cleans_up_stderr_thread():
     backend._proc = mock_proc
 
     mock_thread = MagicMock()
-    mock_thread.is_alive.return_value = True
+    mock_thread.is_alive.side_effect = [True, False]
     backend._stderr_thread = mock_thread
 
     backend.shutdown()
@@ -120,6 +120,25 @@ def test_shutdown_cleans_up_stderr_thread():
     assert backend._stderr_thread is None
     mock_stderr.close.assert_called_once()
     mock_thread.join.assert_called_once()
+
+
+def test_join_stderr_thread_retains_reference_on_timeout():
+    DummySidecar = _get_dummy_sidecar_class()
+    backend = DummySidecar()
+    mock_stderr = MagicMock()
+    mock_proc = MagicMock()
+    mock_proc.stderr = mock_stderr
+
+    mock_thread = MagicMock()
+    mock_thread.is_alive.return_value = True
+    backend._stderr_thread = mock_thread
+
+    backend._join_stderr_thread(mock_proc, timeout=0.1)
+
+    mock_stderr.close.assert_called_once()
+    mock_thread.join.assert_called_once_with(timeout=0.1)
+    # The reference is retained because the thread is still running
+    assert backend._stderr_thread is mock_thread
 
 
 def test_drain_stderr_closes_stderr_in_finally():

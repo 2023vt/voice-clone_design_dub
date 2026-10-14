@@ -500,7 +500,8 @@ class SubprocessBackend(TTSBackend):
         if thread is not None:
             if thread.is_alive():
                 thread.join(timeout=timeout)
-            self._stderr_thread = None
+            if not thread.is_alive():
+                self._stderr_thread = None
 
     def _spawn(self) -> None:
         """Launch the sidecar if not already running. Blocks on the ready
@@ -513,6 +514,10 @@ class SubprocessBackend(TTSBackend):
             return  # already up
 
         self._join_stderr_thread(self._proc)
+        if getattr(self, "_stderr_thread", None) is not None and self._stderr_thread.is_alive():
+            raise RuntimeError(
+                f"{self.id} sidecar stderr reader is still running; retry once it exits"
+            )
 
         # Env forwarding contract (Locked Decision D5):
         #   - Inherit the parent's full env via os.environ.copy().
@@ -1105,8 +1110,17 @@ class SubprocessBackend(TTSBackend):
             pending = tuple(self._timeout_quarantine)
         for proc in pending:
             self._timeout_kill(proc)
+        thread = getattr(self, "_stderr_thread", None)
+        if thread is not None:
+            if thread.is_alive():
+                thread.join(timeout=0.1)
+            if not thread.is_alive():
+                self._stderr_thread = None
         with self._timeout_quarantine_lock:
-            return not self._timeout_quarantine
+            return not self._timeout_quarantine and (
+                getattr(self, "_stderr_thread", None) is None
+                or not self._stderr_thread.is_alive()
+            )
 
     # ── stderr drain ───────────────────────────────────────────────────────
 

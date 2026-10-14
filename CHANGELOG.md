@@ -18,7 +18,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- CosyVoice's one-click install now resolves on Linux ARM64, with or without an NVIDIA GPU (#2830)
+- CosyVoice's one-click install now resolves on Linux ARM64, with or without an NVIDIA GPU — thanks @Jason69628723! (#2830)
 
 ## [0.5.7] — 2026-10-13
 

@@ -86,8 +86,8 @@ files. A qualifying plan binds its source, revisions, documents, artifact hashes
 and notice version to a local receipt. Verified files remain in a separate cache
 and are not activated for ordinary model use.
 
-Existing installation, repair, model packs, recommendations, first-use SDK
-downloads and remote workers remain unchanged. The legacy per-engine booleans
+Existing installation, repair, model packs, recommendations and first-use SDK
+downloads remain unchanged. The legacy per-engine booleans
 are not migrated into versioned receipts or treated as provider approval.
 Complete upstream evidence, selected-component closure, redistribution notices,
 provider-specific access handling and integration at all runtime boundaries

@@ -8,7 +8,7 @@ const mock = vi.hoisted(() => ({
   toast: vi.fn(),
   jobs: {
     data: {
-      jobs: [] as { repo_id: string; target?: string; state: string }[],
+      jobs: [] as { repo_id: string; state: string }[],
     },
   },
 }));
@@ -21,7 +21,6 @@ vi.mock('@/hooks/use-tts-readiness', () => ({
 }));
 vi.mock('@/hooks/use-model-install-sync', () => ({
   useModelInstallJobs: () => mock.jobs,
-  modelInstallJobTarget: (job: { target?: string }) => job.target || 'local',
   TERMINAL_MODEL_INSTALL_STATES: new Set(['done', 'failed', 'cancelled', 'install_cancelled']),
 }));
 vi.mock('@/lib/api/client', () => ({
@@ -61,7 +60,6 @@ afterEach(() => {
 it('installs the required TTS model without sending the user through Settings', async () => {
   mock.api
     .mockResolvedValueOnce({
-      target: 'local',
       models: [
         {
           repo_id: 'k2-fsa/OmniVoice',
@@ -79,7 +77,7 @@ it('installs the required TTS model without sending the user through Settings', 
   await waitFor(() =>
     expect(mock.api).toHaveBeenLastCalledWith('/models/install', {
       method: 'POST',
-      body: JSON.stringify({ repo_id: 'k2-fsa/OmniVoice', target: 'local' }),
+      body: JSON.stringify({ repo_id: 'k2-fsa/OmniVoice' }),
     }),
   );
   expect(mock.toast).toHaveBeenCalled();
@@ -88,7 +86,6 @@ it('installs the required TTS model without sending the user through Settings', 
 it('hands an unexplained readiness failure to the default repair agent', async () => {
   mock.api
     .mockResolvedValueOnce({
-      target: 'local',
       models: [
         {
           repo_id: 'k2-fsa/OmniVoice',
@@ -119,7 +116,6 @@ it('selects an installed compatible engine without opening Settings or an agent'
   mock.api.mockImplementation((path: string) => {
     if (path === '/setup/recommendations')
       return Promise.resolve({
-        target: 'local',
         models: [
           {
             repo_id: 'k2-fsa/OmniVoice',
@@ -158,12 +154,10 @@ it('joins an existing install instead of submitting the model twice', async () =
   mock.jobs.data.jobs = [
     {
       repo_id: 'k2-fsa/OmniVoice',
-      target: 'local',
       state: 'downloading',
     },
   ];
   mock.api.mockResolvedValue({
-    target: 'local',
     models: [
       {
         repo_id: 'k2-fsa/OmniVoice',
@@ -186,7 +180,6 @@ it('joins an existing install instead of submitting the model twice', async () =
 it('offers the same automatic recovery on compact synthesis surfaces', async () => {
   mock.api
     .mockResolvedValueOnce({
-      target: 'local',
       models: [
         {
           repo_id: 'k2-fsa/OmniVoice',
@@ -205,7 +198,7 @@ it('offers the same automatic recovery on compact synthesis surfaces', async () 
   await waitFor(() =>
     expect(mock.api).toHaveBeenCalledWith('/models/install', {
       method: 'POST',
-      body: JSON.stringify({ repo_id: 'k2-fsa/OmniVoice', target: 'local' }),
+      body: JSON.stringify({ repo_id: 'k2-fsa/OmniVoice' }),
     }),
   );
 });

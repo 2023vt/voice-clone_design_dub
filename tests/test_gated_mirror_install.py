@@ -153,7 +153,5 @@ def test_gated_install_on_chosen_mirror_names_the_mirror_setting(
 
 def test_mirror_gated_topic_is_registered():
     from core.failure import public_hint_for_topic
-    from worker import errors
 
     assert "Hugging Face (official)" in public_hint_for_topic("HF_MIRROR_GATED")
-    assert errors._TAXONOMY["HF_MIRROR_GATED"] is errors.ErrorClass.TERMINAL

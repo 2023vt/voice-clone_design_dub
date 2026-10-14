@@ -255,16 +255,6 @@ export function shouldFallbackToClassic(error: unknown): boolean {
   return error instanceof StreamingPreviewError && !error.retryable && !error.terminal;
 }
 
-export async function resolveRemoteTtsTarget(signal?: AbortSignal): Promise<boolean> {
-  try {
-    const response = await apiFetch('/workers/target?op=tts', { signal });
-    const payload = (await response.json()) as { active?: { remote?: boolean } };
-    return payload.active?.remote === true;
-  } catch {
-    return false;
-  }
-}
-
 interface StreamEvent {
   type: 'start' | 'chunk' | 'done' | 'warning' | 'progress' | 'error';
   sample_rate?: number;

@@ -22,7 +22,12 @@ from typing import Any
 from urllib import error, request
 from urllib.parse import urlsplit
 
-DEFAULT_ENGINE_URL = "http://127.0.0.1:3900"
+try:
+    from core.app_config import DEFAULT_BACKEND_PORT
+except ModuleNotFoundError:  # ``python -m backend.speech_client`` from the repo root
+    from backend.core.app_config import DEFAULT_BACKEND_PORT
+
+DEFAULT_ENGINE_URL = f"http://127.0.0.1:{DEFAULT_BACKEND_PORT}"
 
 
 def _default_engine_url() -> str:

@@ -79,6 +79,10 @@ bun run dev:web     # maintained Electron renderer in a browser + backend
 | **Backend** | `localhost:3900` | FastAPI server — TTS, ASR, diarization, dubbing pipeline |
 | **Frontend** | `localhost:3901` | Electron renderer served by Vite in a browser |
 
+Product builds read the app name, application ID, and the backend/web/Electron
+development ports from `config/app.json`. Change that manifest instead of
+copying new defaults into launchers or runtime modules.
+
 The backend runs through `scripts/dev-backend.mjs` (the `dev:api` script): the
 uvicorn command is unchanged, but if the backend **dies** (OOM kill, hard
 crash), the wrapper prints a boxed exit banner with the exit code/signal and
@@ -378,8 +382,6 @@ hard rules from the first prompt.
     (`backend/core/analytics.py`, allowlisted content-free metadata).
   - The GitHub star count (no credentials or referrer, refreshed every 20
     minutes while shown).
-  - The Lemon Squeezy Pro licence check, only after the user enters a key
-    (`electron/src/main/pro-license.ts`).
 
   Adding to this list needs owner approval. Never log or persist secrets or
   absolute home paths.

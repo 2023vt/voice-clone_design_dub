@@ -7,6 +7,8 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import assert from 'node:assert/strict';
 import { verifyLinuxLibraries } from '../native-linux-libraries.mjs';
+import { APP_ID, PRODUCT_NAME } from '../../config/app-config.mjs';
+import { DISTRIBUTION_PROFILE, DISTRIBUTION_TARGET } from '../../config/distributions.mjs';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 if (process.platform === 'linux') {
   const librariesTest = spawnSync(
@@ -29,9 +31,25 @@ const artifactCandidates =
       ? ['release/win-arm64-unpacked', 'release/win-unpacked']
       : ['release/win-unpacked']
     : process.platform === 'darwin'
-      ? artifactArch === 'arm64'
-        ? ['release/mac-arm64/VoiceStudio.app/Contents', 'release/mac/VoiceStudio.app/Contents']
-        : ['release/mac/VoiceStudio.app/Contents', 'release/mac-x64/VoiceStudio.app/Contents']
+      ? DISTRIBUTION_TARGET === 'mac-app-store'
+        ? artifactArch === 'arm64'
+          ? [
+              `release/mas-arm64/${PRODUCT_NAME}.app/Contents`,
+              `release/mas/${PRODUCT_NAME}.app/Contents`,
+            ]
+          : [
+              `release/mas/${PRODUCT_NAME}.app/Contents`,
+              `release/mas-x64/${PRODUCT_NAME}.app/Contents`,
+            ]
+        : artifactArch === 'arm64'
+          ? [
+              `release/mac-arm64/${PRODUCT_NAME}.app/Contents`,
+              `release/mac/${PRODUCT_NAME}.app/Contents`,
+            ]
+          : [
+              `release/mac/${PRODUCT_NAME}.app/Contents`,
+              `release/mac-x64/${PRODUCT_NAME}.app/Contents`,
+            ]
       : artifactArch === 'arm64'
         ? ['release/linux-arm64-unpacked', 'release/linux-unpacked']
         : ['release/linux-unpacked'];
@@ -47,29 +65,108 @@ const artifactResources = resolve(
 const artifactExecutable = resolve(
   artifactRoot,
   process.platform === 'win32'
-    ? 'VoiceStudio.exe'
+    ? `${PRODUCT_NAME}.exe`
     : process.platform === 'darwin'
-      ? 'MacOS/VoiceStudio'
-      : 'voicestudio-electron',
+      ? `MacOS/${PRODUCT_NAME}`
+      : (config.linux.executableName ?? 'voicestudio-electron'),
 );
 const electronPackage = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8'));
 assert.match(electronPackage.author?.email ?? '', /@/, 'Linux package declares a maintainer email');
-assert.equal(electronPackage.desktopName, 'VoiceStudio', 'Linux desktop identity stays branded');
+assert.equal(config.productName, PRODUCT_NAME, 'Builder uses the central product name');
+assert.equal(config.appId, APP_ID, 'Builder uses the central application ID');
+assert.equal(
+  config.artifactName,
+  `${PRODUCT_NAME}-${
+    {
+      'microsoft-store': 'MicrosoftStore',
+      'mac-app-store': 'MacAppStore',
+    }[DISTRIBUTION_TARGET] ?? 'Electron'
+  }-\${version}-\${os}-\${arch}.\${ext}`,
+  'Store packaging is distinct without renaming direct-download artifacts',
+);
+assert.equal(
+  config.extraMetadata.voicestudioDistribution,
+  DISTRIBUTION_TARGET,
+  'Package records its immutable distribution identity',
+);
+assert.equal(
+  config.extraMetadata.voicestudioUpdateOwner,
+  DISTRIBUTION_PROFILE.applicationUpdates,
+  'Package records who owns application updates',
+);
+if (DISTRIBUTION_TARGET === 'microsoft-store') {
+  assert.equal(
+    config.extraMetadata.author.name,
+    'Yupcha Softwares Private Limited',
+    'Microsoft Store uninstall metadata uses the legal publisher',
+  );
+} else {
+  assert.equal(
+    config.extraMetadata.author,
+    undefined,
+    'Direct package author metadata is unchanged',
+  );
+}
+assert.equal(
+  config.extraMetadata.desktopName,
+  PRODUCT_NAME,
+  'Linux desktop identity stays branded',
+);
 assert.equal(
   config.linux.syncDesktopName,
   true,
   'Linux window and desktop entry share one identity',
 );
-assert(config.mac.extendInfo.NSMicrophoneUsageDescription.includes('VoiceStudio'));
+assert(config.mac.extendInfo.NSMicrophoneUsageDescription.includes(PRODUCT_NAME));
 for (const entitlementFile of [config.mac.entitlements, config.mac.entitlementsInherit]) {
   const entitlements = readFileSync(resolve(root, entitlementFile), 'utf8');
   assert.match(entitlements, /<key>com\.apple\.security\.device\.audio-input<\/key>\s*<true\s*\/>/);
   assert.match(entitlements, /<key>com\.apple\.security\.cs\.allow-jit<\/key>\s*<true\s*\/>/);
 }
+if (DISTRIBUTION_TARGET === 'mac-app-store') {
+  assert.deepEqual(config.mac.target, ['mas'], 'Mac App Store builds only the MAS package');
+  assert.equal(config.mac.notarize, false, 'Apple handles Mac App Store notarization');
+  assert.equal(config.mac.hardenedRuntime, false, 'MAS uses App Sandbox instead of Developer ID');
+  assert.equal(config.mas.entitlements, 'build/entitlements.mas.plist');
+  assert.equal(config.mas.entitlementsInherit, 'build/entitlements.mas.inherit.plist');
+  const appEntitlements = readFileSync(resolve(root, config.mas.entitlements), 'utf8');
+  for (const key of [
+    'com.apple.security.app-sandbox',
+    'com.apple.security.cs.allow-jit',
+    'com.apple.security.device.audio-input',
+    'com.apple.security.files.user-selected.read-write',
+    'com.apple.security.network.client',
+    'com.apple.security.network.server',
+  ]) {
+    assert.match(
+      appEntitlements,
+      new RegExp(`<key>${key.replaceAll('.', '\\.')}</key>\\s*<true\\s*/>`),
+    );
+  }
+  const inheritedEntitlements = readFileSync(resolve(root, config.mas.entitlementsInherit), 'utf8');
+  for (const key of ['com.apple.security.app-sandbox', 'com.apple.security.inherit']) {
+    assert.match(
+      inheritedEntitlements,
+      new RegExp(`<key>${key.replaceAll('.', '\\.')}</key>\\s*<true\\s*/>`),
+    );
+  }
+} else {
+  assert.deepEqual(config.mac.target, ['dmg', 'zip'], 'Direct macOS artifacts stay unchanged');
+}
 const project = readFileSync(resolve(root, '../pyproject.toml'), 'utf8');
 const readme = project.match(/^readme\s*=\s*"([^"]+)"/m)?.[1];
 assert(readme, 'Python project declares a README');
-for (const resource of [readme, 'LICENSE', 'LICENSE-NOTICE.md', 'electron/T3CODE-LICENSE.txt', 'pyproject.toml', 'uv.lock', 'backend', 'omnivoice']) {
+for (const resource of [
+  readme,
+  'LICENSE',
+  'LICENSE-NOTICE.md',
+  'electron/T3CODE-LICENSE.txt',
+  'pyproject.toml',
+  'uv.lock',
+  'backend',
+  'omnivoice',
+  'config/app.json',
+]) {
   const entry = config.extraResources.find((item) => item.to === resource);
   assert(entry && existsSync(resolve(root, entry.from)), 'Required resource: ' + resource);
   if (artifactRequested)

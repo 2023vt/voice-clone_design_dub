@@ -4,7 +4,6 @@ import { LANG_CODES } from '@shared/utils/languages';
 import { normalizeSearch, type SearchOption } from '@shared/components/VirtualSearchableSelect';
 import type { QueryClient } from '@tanstack/react-query';
 import type { EnginesResponse } from './api/types';
-import type { ComputeTargetState } from '@/hooks/use-compute-target';
 
 const codes: Record<string, string> = {
   ...languageCodes,
@@ -46,12 +45,9 @@ export function ttsLanguagesSupported(
 
 export function cachedTtsLanguagesSupported(
   client: QueryClient,
-  operation: string,
+  _operation: string,
   languages: string[],
 ) {
-  const target = client.getQueryData<ComputeTargetState>(['workers', 'target', operation]);
-  // Unknown worker metadata must not incorrectly block a capable remote model.
-  if (!target || target.active.remote) return true;
   const state = client.getQueryState(['engines']);
   if (state?.status === 'error' || state?.isInvalidated) return true;
   return ttsLanguagesSupported(client.getQueryData<EnginesResponse>(['engines']), languages);

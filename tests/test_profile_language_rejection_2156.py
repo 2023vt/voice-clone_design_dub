@@ -323,73 +323,6 @@ def test_a_generic_rejection_is_quoted_once_not_twice(client, monkeypatch, persi
     assert detail.count("Invalid language code") == 1
 
 
-def _route_remotely(monkeypatch, failure):
-    """Send the render to a worker, and fail it there with `failure`."""
-    from types import SimpleNamespace
-
-    from services import gpu_gateway
-
-    gen = _gen_mod()
-    monkeypatch.setattr(
-        gen, "_routing_decision",
-        lambda: SimpleNamespace(remote=True, label="gpu-box", reason=""),
-    )
-
-    async def _boom(*_a, **_k):
-        raise failure
-
-    monkeypatch.setattr(gpu_gateway, "run", _boom)
-
-
-def test_a_remote_language_refusal_is_a_400_not_a_retryable_503(
-    client, monkeypatch, persian_profile
-):
-    """Greptile P1. A worker's rejection comes home as RemoteJobFailed, which is
-    caught ahead of the ValueError branch — so the profile-aware 400 never ran
-    and the user was told to retry on this machine, where the same engine
-    refuses the same language."""
-    from services import gpu_gateway
-
-    fake = _make_refusing_engine("fake-remote-2156")
-    monkeypatch.setitem(_tts_mod()._REGISTRY, fake.id, fake)
-    _route_remotely(monkeypatch, gpu_gateway.RemoteJobFailed(
-        KOKORO_REFUSAL, worker_label="gpu-box"))
-
-    res = client.post("/generate", data={
-        "text": "Salam", "profile_id": persian_profile, "engine": fake.id,
-    })
-
-    assert res.status_code == 400, f"{res.status_code}: {res.text}"
-    assert res.headers.get("X-OmniVoice-Retryable") != "true"
-    detail = res.json()["detail"]
-    if isinstance(detail, dict):
-        assert detail["code"] == "profile_language_rejected"
-        assert detail["language"] == "Persian"
-        detail = detail["message"]
-    assert "voice profile" in detail.lower()
-    assert "Run it on this machine instead" not in detail
-
-
-def test_a_remote_non_language_failure_is_still_a_retryable_503(
-    client, monkeypatch, persian_profile
-):
-    """Guard on the same branch: only language refusals change class — a real
-    worker failure keeps its retryable 503 and its 'run it here' offer."""
-    from services import gpu_gateway
-
-    fake = _make_refusing_engine("fake-remote-ok-2156")
-    monkeypatch.setitem(_tts_mod()._REGISTRY, fake.id, fake)
-    _route_remotely(monkeypatch, gpu_gateway.RemoteJobFailed(
-        "CUDA out of memory on the worker", worker_label="gpu-box"))
-
-    res = client.post("/generate", data={
-        "text": "Salam", "profile_id": persian_profile, "engine": fake.id,
-    })
-
-    assert res.status_code == 503, f"{res.status_code}: {res.text}"
-    assert res.headers.get("X-OmniVoice-Retryable") == "true"
-
-
 def test_the_wrapper_keeps_the_engines_own_error_reachable():
     class _Engine:
         id = "mlx-audio"
@@ -438,14 +371,10 @@ def test_explicit_auto_is_not_filled_from_the_profile(language):
     assert out["language"] is None
     assert out["language_from_profile"] is False
 
-@pytest.mark.parametrize('remote', [False, True])
-def test_streamed_profile_language_refusal_is_terminal(client, monkeypatch, persian_profile, remote):
+def test_streamed_profile_language_refusal_is_terminal(client, monkeypatch, persian_profile):
     import json
-    from services import gpu_gateway
     fake = _make_refusing_engine('fake-stream-language-2156')
     monkeypatch.setitem(_tts_mod()._REGISTRY, fake.id, fake)
-    if remote:
-        _route_remotely(monkeypatch, gpu_gateway.RemoteJobFailed(KOKORO_REFUSAL, worker_label='gpu-box'))
     response = client.post('/generate', data={
         'text': 'Salam', 'profile_id': persian_profile, 'engine': fake.id, 'stream': 'true',
     })

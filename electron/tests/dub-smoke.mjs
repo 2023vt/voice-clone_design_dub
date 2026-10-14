@@ -129,17 +129,6 @@ try {
       },
     }),
   );
-  await page.route('**/api/workers/target**', (route) =>
-    route.fulfill({
-      json: {
-        target: 'local',
-        op: 'dub',
-        active: { remote: false, label: 'Local device', reason: '' },
-        remote_operations: [],
-        targets: [],
-      },
-    }),
-  );
   await page.route('**/api/engines/translation', (route) =>
     route.fulfill({
       json: {

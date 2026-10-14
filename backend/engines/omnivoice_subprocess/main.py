@@ -30,6 +30,7 @@ handshake even on a cold filesystem.
 from __future__ import annotations
 
 import base64
+import contextlib
 import json
 import logging
 import os
@@ -116,6 +117,54 @@ def _ensure_backend_on_path() -> None:
         sys.path.insert(0, root)
 
 
+def _prefetch_weights(checkpoint: str, stop: threading.Event) -> None:
+    """Read the installed checkpoint's weight files so the kernel caches them.
+
+    The ~8 s of torch/transformers imports leave the disk idle, and on a cold
+    cache the 3 GB of weights are read serially right after. Reading them
+    during the imports overlaps the two. Installed files only; never downloads,
+    never raises, and stops as soon as the real load starts.
+    """
+    try:
+        if os.path.isdir(checkpoint):
+            root = checkpoint
+        else:
+            from huggingface_hub import snapshot_download  # noqa: PLC0415
+
+            root = snapshot_download(checkpoint, local_files_only=True)
+        for folder, _dirs, names in os.walk(root):
+            for name in sorted(names):
+                if not name.endswith(".safetensors"):
+                    continue
+                with open(os.path.join(folder, name), "rb", buffering=0) as handle:
+                    while not stop.is_set() and handle.read(8 * 1024 * 1024):
+                        pass
+            if stop.is_set():
+                return
+    except Exception:  # noqa: BLE001 - a warm-up hint must never fail a synthesis
+        return
+
+
+@contextlib.contextmanager
+def _skip_unused_heavy_imports():
+    """Keep transformers from importing sklearn and torchvision.
+
+    transformers imports sklearn (an assisted-decoding helper) and torchvision
+    (image utils) whenever they are installed. Speech synthesis uses neither,
+    and together they cost ~2 s of every cold start. They are blocked only for
+    the omnivoice import, then unblocked, so later code can still import them.
+    """
+    blocked = [m for m in ("sklearn", "torchvision") if m not in sys.modules]
+    for module in blocked:
+        sys.modules[module] = None
+    try:
+        yield
+    finally:
+        for module in blocked:
+            if sys.modules.get(module, False) is None:
+                del sys.modules[module]
+
+
 def _load_model(stdout):
     """Cold-construct the OmniVoice model, reusing the parent's load path."""
     global _model
@@ -162,14 +211,23 @@ def _load_model(stdout):
                 "percent": progress["percent"],
             })
 
-    torch = _lazy_torch()
-    OmniVoice = _lazy_omnivoice()
     checkpoint = resolve_omnivoice_checkpoint()
+    stop_prefetch = threading.Event()
+    threading.Thread(
+        target=_prefetch_weights,
+        args=(checkpoint, stop_prefetch),
+        name="omnivoice-weight-prefetch",
+        daemon=True,
+    ).start()
+    torch = _lazy_torch()
+    with _skip_unused_heavy_imports():
+        OmniVoice = _lazy_omnivoice()
     device = get_best_device()
     from omnivoice.utils.dtype import tts_dtype_name
 
     preload_asr = should_preload_tts_asr()
 
+    stop_prefetch.set()
     lid = register_listener(_on_progress)
     heartbeat = threading.Thread(
         target=_heartbeat,

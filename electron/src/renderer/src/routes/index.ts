@@ -28,7 +28,10 @@ const ProjectsPage = lazyRouteComponent(
   () => import('@/features/projects/projects-page'),
   'ProjectsPage',
 );
-const CallsPage = lazyRouteComponent(() => import('@/features/workflows/workflows-page'), 'WorkflowsPage');
+const CallsPage = lazyRouteComponent(
+  () => import('@/features/workflows/workflows-page'),
+  'WorkflowsPage',
+);
 const ToolsPage = lazyRouteComponent(() => import('@/features/tools/tools-page'), 'ToolsPage');
 const IntegrationsPage = lazyRouteComponent(
   () => import('@/features/integrations/integrations-page'),
@@ -210,11 +213,6 @@ export const usageRoute = createRoute({
   path: '/settings/usage',
   component: SettingsPage,
 });
-export const workersRoute = createRoute({
-  getParentRoute: () => rootRoute,
-  path: '/settings/workers',
-  component: SettingsPage,
-});
 export const privacyRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: '/settings/privacy',
@@ -272,7 +270,6 @@ export const routeTree = rootRoute.addChildren([
   permissionsRoute,
   performanceRoute,
   usageRoute,
-  workersRoute,
   networkRoute,
   sharingRoute,
   credentialsRoute,

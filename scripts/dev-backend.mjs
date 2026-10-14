@@ -27,10 +27,11 @@ import { homedir } from "node:os";
 import path from "node:path";
 import process from "node:process";
 import { fileURLToPath } from "node:url";
+import { DEFAULT_BACKEND_PORT } from "../config/app-config.mjs";
 
-export const DEFAULT_BACKEND_PORT = 3900;
+export { DEFAULT_BACKEND_PORT };
 
-/** The port Vite proxies to (electron/vite.web.config.ts: OMNIVOICE_PORT || 3900). */
+/** The port Vite proxies to (OMNIVOICE_PORT or config/app.json). */
 export function backendPort(env = process.env) {
   const port = Number.parseInt(String(env.OMNIVOICE_PORT ?? "").trim(), 10);
   return Number.isInteger(port) && port > 0 && port < 65536 ? port : DEFAULT_BACKEND_PORT;

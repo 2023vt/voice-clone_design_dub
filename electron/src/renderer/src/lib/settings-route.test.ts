@@ -14,6 +14,9 @@ it('restores only real settings routes and defaults to Appearance', () => {
 
   localStorage.setItem(SETTINGS_ROUTE_STORAGE_KEY, '/clone');
   expect(readLastSettingsRoute()).toBe('/settings/appearance');
+
+  localStorage.setItem(SETTINGS_ROUTE_STORAGE_KEY, '/settings/workers');
+  expect(readLastSettingsRoute()).toBe('/settings/appearance');
 });
 
 it('ignores non-settings paths rather than replacing the last page', () => {

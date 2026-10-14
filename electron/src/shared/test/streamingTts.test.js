@@ -16,7 +16,6 @@ const {
   streamGenerateSpeech,
   createStreamingChunkPlayer,
   supportsStreamingPreview,
-  resolveRemoteTtsTarget,
   decodePcm16Base64,
   pcm16BytesToFloat32,
   peaksFromChunkList,
@@ -237,48 +236,6 @@ describe('supportsStreamingPreview', () => {
     delete window.webkitAudioContext;
     expect(supportsStreamingPreview()).toBe(false);
     window.AudioContext = saved;
-  });
-});
-
-// ── resolveRemoteTtsTarget ──────────────────────────────────────────────────
-//
-// The stream is rendered by THIS process, so a progressive preview on a
-// remote target would quietly run the job on this machine after the user
-// picked their 4090. This is the check that stops that, and it must fail
-// open: a picker that cannot be reached must never block a local render.
-
-describe('resolveRemoteTtsTarget', () => {
-  const json = (body, ok = true) => ({ ok, json: async () => body });
-
-  it('asks routing for the tts operation specifically', async () => {
-    apiFetch.mockResolvedValue(json({ active: { remote: false } }));
-    await resolveRemoteTtsTarget();
-    expect(apiFetch.mock.calls[0][0]).toBe('/workers/target?op=tts');
-    // A dead backend must fail this probe in one round trip, not stall the
-    // click behind the transport retry ladder.
-    expect(apiFetch.mock.calls[0][1]).toMatchObject({ retryTransport: false });
-  });
-
-  it('reports the worker when the resolved target is remote', async () => {
-    apiFetch.mockResolvedValue(
-      json({ active: { remote: true, worker_id: 'w1', label: 'desktop-4090' } }),
-    );
-    expect(await resolveRemoteTtsTarget()).toEqual({ workerId: 'w1', label: 'desktop-4090' });
-  });
-
-  it('answers local for a fallback decision, so streaming stays available', async () => {
-    apiFetch.mockResolvedValue(
-      json({ active: { remote: false, reason: 'desktop-4090 is offline — running locally' } }),
-    );
-    expect(await resolveRemoteTtsTarget()).toBeNull();
-  });
-
-  it('answers local when the endpoint errors or the backend is unreachable', async () => {
-    apiFetch.mockResolvedValue(json({ detail: 'nope' }, false));
-    expect(await resolveRemoteTtsTarget()).toBeNull();
-
-    apiFetch.mockRejectedValue(new Error('connection refused'));
-    expect(await resolveRemoteTtsTarget()).toBeNull();
   });
 });
 

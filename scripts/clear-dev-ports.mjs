@@ -4,8 +4,9 @@ import { spawnSync } from "node:child_process";
 import { readFileSync, readlinkSync } from "node:fs";
 import path, { dirname, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
+import { DEFAULT_BACKEND_PORT, DEFAULT_WEB_PORT } from "../config/app-config.mjs";
 
-const DEFAULT_PORTS = [3900, 3901];
+const DEFAULT_PORTS = [DEFAULT_BACKEND_PORT, DEFAULT_WEB_PORT];
 const CHECKOUT_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 export function parseWindowsListeners(output, ports) {

@@ -5,7 +5,7 @@ transcription, voice design, and workflows. Tauri is archived at v0.5.3. For
 existing installations, see [migration notes](../docs/electron-migration.md).
 
 The runtime supervisor manages the local FastAPI backend. Network integrations
-and remote workers require configuration; local generation stays on your machine.
+and remote-backend connections require configuration; local generation stays on your machine.
 
 ## Stack
 
@@ -159,8 +159,8 @@ The workspace footer shows Integrations, Become a Sponsor, and a right-aligned X
 They open the integration directory, partner inquiry form, and dedicated
 VoiceStudio Pro page respectively. The sponsor hover/focus card shows dated
 GitHub reach data. The Pro page compares Free and Pro, opens website pricing,
-and offers licence activation and deactivation when the live product IDs are
-configured. Checkout remains gated until the paid tools and terms are ready.
+and leaves licence activation to the separate Pro distribution. Checkout remains
+gated until the paid tools and terms are ready.
 
 The composer groups language and generation options beside a single primary action.
 Its shortcut appears inline when the composer has space, and controls wrap in narrow panes.
@@ -263,9 +263,7 @@ Transcribe, Projects, Tools, and Integrations remain directly accessible.
 
 ### Desktop Pro licence configuration
 
-The Pro page opens the public pricing site. Licence activation requires the live
-Lemon Squeezy store, product, and variant IDs at build time:
-`VOICESTUDIO_PRO_STORE_ID`, `VOICESTUDIO_PRO_PRODUCT_ID`,
-`VOICESTUDIO_PRO_YEARLY_VARIANT_ID`, and `VOICESTUDIO_PRO_LIFETIME_VARIANT_ID`.
-Builds without all four IDs keep activation
-unavailable. See `docs/specs/desktop-pro-page.md` for the checkout release gates.
+The open-source Pro page opens the public pricing site. The open-source app
+contains no licence client and makes no licensing network calls; any licence
+activation belongs to a separate Pro distribution. See
+`docs/specs/desktop-pro-page.md` for the checkout release gates.

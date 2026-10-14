@@ -13,10 +13,12 @@ import { ApiError, apiJson } from '@/lib/api/client';
 import { cn } from '@/lib/utils';
 import {
   MODEL_LICENCE_REQUIRED_EVENT,
+  modelLicenseCategory,
   type ModelLicenceAcceptance,
   type ModelLicenceDetails,
   type ModelLicenceRequirement,
 } from './model-license-contract';
+import { ModelLicenseIcon } from './model-license-icon';
 import {
   LICENCE_DIALOG_SURFACE,
   LicenceSection,
@@ -31,11 +33,12 @@ export interface AcceptableModel {
   fingerprint: string;
   required: boolean;
   accepted: boolean;
+  category?: string;
 }
 
 export function toAcceptable(
   label: string,
-  acceptance: Pick<ModelLicenceAcceptance, 'repo_id' | 'fingerprint' | 'required' | 'accepted'>,
+  acceptance: Pick<ModelLicenceAcceptance, 'repo_id' | 'fingerprint' | 'required' | 'accepted' | 'category'>,
 ): AcceptableModel {
   return {
     repo_id: acceptance.repo_id,
@@ -43,6 +46,7 @@ export function toAcceptable(
     fingerprint: acceptance.fingerprint,
     required: acceptance.required,
     accepted: acceptance.accepted,
+    category: acceptance.category,
   };
 }
 
@@ -123,34 +127,50 @@ export function LicenceAcceptanceFooter({
   };
 
   return (
-    <div className="max-h-[45dvh] shrink-0 space-y-3 overflow-y-auto border-t border-border bg-popover p-4">
+    <div
+      data-licence-acceptance
+      className="max-h-[45dvh] shrink-0 space-y-4 overflow-y-auto border-t border-border bg-[linear-gradient(180deg,color-mix(in_srgb,var(--muted)_42%,transparent),var(--popover)_4.5rem)] p-4"
+    >
       {pending.length > 0 && (
         <>
-          <p className="max-w-prose text-sm leading-relaxed">{t('modelLicense.acceptNotice')}</p>
-          <ul className="space-y-2">
+          <div className="border-s-2 border-warning/70 ps-3">
+            <p className="max-w-prose text-sm leading-relaxed text-foreground/90">{t('modelLicense.acceptNotice')}</p>
+          </div>
+          <ul className="grid gap-2" aria-live="polite">
             {pending.map((model, index) => {
               const id = `${baseId}-${index}`;
+              const checkedModel = !!checked[model.repo_id];
               return (
                 <li key={model.repo_id}>
                   <label
                     htmlFor={id}
                     className={cn(
-                      'flex items-start gap-2 rounded-lg border p-3 text-sm',
-                      checked[model.repo_id] ? 'border-primary/60 bg-primary/5' : 'border-border',
+                      'group flex cursor-pointer items-start gap-3 rounded-lg border bg-background/75 p-3 text-sm shadow-sm transition-[border-color,background-color] motion-reduce:transition-none',
+                      checkedModel
+                        ? 'border-primary/60 bg-primary/[0.07]'
+                        : 'border-border hover:border-foreground/25',
                     )}
                   >
-                    <input
-                      id={id}
-                      type="checkbox"
-                      checked={!!checked[model.repo_id]}
-                      disabled={busy}
-                      onChange={(event) => {
-                        const value = event.currentTarget.checked;
-                        setChecked((prev) => ({ ...prev, [model.repo_id]: value }));
-                      }}
-                      className="mt-0.5 size-4 shrink-0 accent-primary focus-visible:ring-2 focus-visible:ring-ring"
-                    />
-                    <span>{t('modelLicense.acceptCheckbox', { model: model.label })}</span>
+                    <span className="min-w-0 flex-1 space-y-1">
+                      <span aria-hidden="true" className="flex items-start gap-2 font-medium text-foreground">
+                        <ModelLicenseIcon category={modelLicenseCategory(model.category)} className="mt-0.5 size-4 shrink-0" />
+                        <span data-model-label={model.label} className="break-all after:content-[attr(data-model-label)]" />
+                      </span>
+                      <span className="flex items-start gap-3 leading-relaxed text-muted-foreground">
+                        <input
+                          id={id}
+                          type="checkbox"
+                          checked={!!checked[model.repo_id]}
+                          disabled={busy}
+                          onChange={(event) => {
+                            const value = event.currentTarget.checked;
+                            setChecked((prev) => ({ ...prev, [model.repo_id]: value }));
+                          }}
+                          className="mt-0.5 size-4 shrink-0 accent-primary focus-visible:ring-2 focus-visible:ring-ring"
+                        />
+                        <span>{t('modelLicense.acceptCheckbox', { model: model.label })}</span>
+                      </span>
+                    </span>
                   </label>
                 </li>
               );
@@ -163,7 +183,7 @@ export function LicenceAcceptanceFooter({
           {t(error === 'changed' ? 'modelLicense.acceptChanged' : 'modelLicense.acceptFailed')}
         </p>
       )}
-      <div className="flex flex-col-reverse gap-2 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
+      <div className="flex flex-col-reverse gap-2 border-t border-border/70 pt-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-end">
         {accepted.map((model) => (
           <Button
             key={model.repo_id}
@@ -183,7 +203,7 @@ export function LicenceAcceptanceFooter({
           {t('common.close')}
         </Button>
         {pending.length > 0 && (
-          <Button disabled={!allChecked || busy} onClick={() => void accept()}>
+          <Button className="min-w-40" disabled={!allChecked || busy} onClick={() => void accept()}>
             {pending.length > 1 ? t('modelLicense.acceptAll', { count: pending.length }) : t('modelLicense.accept')}
           </Button>
         )}
@@ -233,6 +253,7 @@ export function ModelLicenceGate() {
       fingerprint: acceptance?.fingerprint ?? model.fingerprint,
       required: acceptance?.required ?? true,
       accepted: acceptance?.accepted ?? false,
+      category: acceptance?.category ?? model.category,
     });
   });
 
@@ -241,15 +262,24 @@ export function ModelLicenceGate() {
       <DialogContent
         showCloseButton={false}
         className={cn(
-          'flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl',
+          'flex max-h-[calc(100dvh-2rem)] flex-col gap-0 overflow-hidden p-0 sm:max-w-3xl',
           LICENCE_DIALOG_SURFACE,
         )}
       >
-        <DialogHeader className="border-b border-border p-4">
-          <DialogTitle>{t('modelLicense.requiredTitle')}</DialogTitle>
-          <DialogDescription>{t('modelLicense.gateIntro')}</DialogDescription>
+        <DialogHeader className="border-b border-border bg-muted/30 px-5 py-4">
+          <div className="flex items-start gap-3">
+            <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-warning/35 bg-warning/10 shadow-sm">
+              <ModelLicenseIcon category="conditions" className="size-5" />
+            </span>
+            <div className="min-w-0 space-y-1">
+              <DialogTitle className="text-lg tracking-[-0.01em]">
+                {t(done ? 'modelLicense.acceptedTitle' : 'modelLicense.requiredTitle')}
+              </DialogTitle>
+              <DialogDescription className="max-w-prose leading-relaxed">{t('modelLicense.gateIntro')}</DialogDescription>
+            </div>
+          </div>
         </DialogHeader>
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto bg-background p-5">
           {done && (
             <p role="status" className="rounded-lg border border-success/40 bg-success/10 p-3 text-sm">
               {t('modelLicense.retryHint')}

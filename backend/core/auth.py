@@ -199,20 +199,55 @@ def _forwarded_host(connection) -> str | None:
     return None
 
 
-def _client_host(connection) -> str | None:
+def is_trusted_proxy(host: str | None) -> bool:
+    """Return True if host is a trusted reverse proxy peer.
+
+    By default, only loopback addresses (127.0.0.1, ::1) are trusted to forward
+    client headers (e.g. local reverse proxies like Nginx/Caddy on localhost).
+    Explicit proxy subnets or IPs may be configured via OMNIVOICE_TRUSTED_PROXIES.
+    OMNIVOICE_TRUSTED_NETWORKS is a consumption-tier authorization subnet for
+    clients and must NOT be trusted as a reverse proxy.
+    """
+    if not host:
+        return False
+    if is_loopback(host):
+        return True
+    proxies = os.environ.get("OMNIVOICE_TRUSTED_PROXIES", "").strip()
+    if not proxies:
+        return False
+    for item in proxies.split(","):
+        item = item.strip()
+        if not item:
+            continue
+        try:
+            if "/" in item:
+                if ipaddress.ip_address(host) in ipaddress.ip_network(item, strict=False):
+                    return True
+            elif ipaddress.ip_address(host) == ipaddress.ip_address(item):
+                return True
+        except ValueError:
+            continue
+    return False
+
+
+def client_host(connection) -> str | None:
     """Resolve the effective client IP.
 
-    If the immediate peer is a trusted local network address or loopback
-    (such as a local reverse proxy like Nginx or Caddy), check for forwarded
-    client headers so external clients are not granted loopback privileges.
-    Direct untrusted peers cannot spoof their address via forwarded headers.
+    If the immediate peer is a trusted reverse proxy (loopback or explicitly
+    designated via OMNIVOICE_TRUSTED_PROXIES), check for forwarded client
+    headers so external clients are evaluated by their real address and not
+    granted loopback privileges. Direct untrusted peers cannot spoof their
+    address via forwarded headers.
     """
     peer = _peer_host(connection)
-    if peer is not None and is_local_host(peer):
+    if peer is not None and is_trusted_proxy(peer):
         forwarded = _forwarded_host(connection)
         if forwarded:
             return forwarded
     return peer
+
+
+_client_host = client_host
 
 
 def _credential_candidate(connection) -> _CredentialCandidate | None:

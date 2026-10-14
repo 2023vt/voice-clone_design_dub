@@ -16,6 +16,10 @@ metadata and the backend fallback mirror it.
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
 
+### Docs
+
+- The macOS install guide no longer tells users to re-download when Gatekeeper reports "damaged" for a checksum-valid installer — that verdict is the missing Developer ID signature plus the quarantine attribute, not a corrupt download; the guide now leads with the working Terminal fix and the README download section links to it (#2763)
+
 ## [0.5.7] — 2026-10-13
 
 **VoiceStudio now runs on PCs without a GPU and recovers instead of giving up.** Voice cloning uses the speech-to-text model you installed from Model Catalogue, GPU-less computers get the small CPU PyTorch build, and slow or busy backends are no longer reported as failed.

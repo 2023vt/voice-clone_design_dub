@@ -64,33 +64,41 @@ checksum, and installs `VoiceStudio.app` into `/Applications` (or
 curl -fsSL https://voicestudio.sh/install | sh
 ```
 
-If the first launch is blocked by macOS Gatekeeper ("VoiceStudio cannot be
-opened because the developer cannot be verified"), see the next section — it
-opens with one right-click, no Terminal.
+If the first launch is blocked by macOS Gatekeeper, see the next section. Two
+dialogs exist: **"cannot be opened because the developer cannot be verified"**
+(clearable in the GUI) and **"app is damaged and can't be opened"** (needs the
+Terminal fix). Releases published before signing and notarization land (#1779)
+trigger the "damaged" dialog on current macOS.
 
 ## App is "damaged" / can't be opened (Gatekeeper)
 
 <a id="gatekeeper-quarantine"></a>
 
-An unsigned or ad-hoc signed installer may show **"VoiceStudio cannot be opened
-because the developer cannot be verified"**. macOS Gatekeeper cannot verify an
-Apple Developer identity until the Electron release is signed and notarized
-(#1779). For an installer from the official GitHub release, compare its SHA-256
-with the release's `SHA256SUMS.txt` before considering the workaround below.
-Restricted environments that prohibit the workaround need a signed, notarized
-release; bypassing Gatekeeper is not a substitute.
+macOS Gatekeeper cannot verify an Apple Developer identity until the Electron
+release is signed and notarized (#1779). Until then, installers are unsigned or
+ad-hoc signed; once the browser has added the `com.apple.quarantine` attribute
+to the download, Gatekeeper refuses the app on first launch — and on recent
+macOS that refusal is the harsh **"VoiceStudio is damaged and can't be opened.
+Move to Trash"** dialog (#2763), not the friendlier "unidentified developer"
+one.
 
-**Fix — GUI, no Terminal (do this):** in Finder, **right-click** (or
-Control-click) **VoiceStudio.app** → **Open** → click **Open** again in the
-dialog. (On macOS 15 Sequoia: double-click once, then go to **System Settings →
-Privacy & Security**, scroll down, and click **"Open Anyway"**.) This is a
-one-time confirmation per install; afterwards it launches by double-click.
+First compare the installer's SHA-256 with the release's `SHA256SUMS.txt`. If
+the checksum matches, the file is intact and **re-downloading cannot change the
+verdict**: the dialog reports the missing Developer ID signature, not a broken
+download. Use the Terminal fix below. Restricted environments that prohibit the
+workaround need a signed, notarized release; bypassing Gatekeeper is not a
+substitute.
 
-> If you instead see the harsher **"app is damaged and can't be opened. Move to
-> Trash"** with no Open option, the download was corrupted or it's a pre-signing
-> build — re-download the latest release, or use the Terminal fallback below.
+**Fix — GUI (only when the dialog offers an Open option):** in Finder,
+**right-click** (or Control-click) **VoiceStudio.app** → **Open** → click
+**Open** again in the dialog. (On macOS 15 Sequoia: double-click once, then go
+to **System Settings → Privacy & Security**, scroll down, and click **"Open
+Anyway"**.) This is a one-time confirmation per install. This path exists only
+for builds that fail just the notarization check; unsigned/ad-hoc releases get
+the "damaged" dialog with no Open option — use the Terminal fix.
 
-**Fix — Terminal:** after dragging the app into `/Applications`, run:
+**Fix — Terminal (works for the "damaged" dialog):** after dragging the app
+into `/Applications`, run:
 
 ```bash
 xattr -dr com.apple.quarantine "/Applications/VoiceStudio.app"
@@ -98,8 +106,14 @@ xattr -dr com.apple.quarantine "/Applications/VoiceStudio.app"
 
 (Adjust the path if you put the app somewhere other than `/Applications`.)
 
-That clears the quarantine attribute so Gatekeeper stops blocking the launch — a
-one-time fix per install.
+That clears the quarantine attribute so Gatekeeper stops assessing the launch —
+a one-time fix per install. Optionally, repair the bundle's local signature and
+verify it:
+
+```bash
+codesign --force --deep --sign - "/Applications/VoiceStudio.app"
+codesign --verify --deep --strict --verbose=2 "/Applications/VoiceStudio.app"
+```
 
 ### For maintainers — enabling notarized Electron builds
 

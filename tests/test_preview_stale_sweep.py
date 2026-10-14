@@ -2,7 +2,13 @@
 import os
 import time
 
-from core.file_cleanup import sweep_stale_files
+
+def _sweep(*args, **kwargs):
+    # Resolved at call time: another test may replace core.file_cleanup in
+    # sys.modules, which would leave a module-level import pointing at a stale copy.
+    from core.file_cleanup import sweep_stale_files
+
+    return sweep_stale_files(*args, **kwargs)
 
 
 def _age(path, seconds):
@@ -20,14 +26,14 @@ def test_removes_only_old_regular_files(tmp_path):
     sub.mkdir()
     _age(sub, 3 * 3600)
 
-    assert sweep_stale_files(tmp_path, 3600) == 1
+    assert _sweep(tmp_path, 3600) == 1
     assert not old.exists()
     assert new.exists()
     assert sub.is_dir()
 
 
 def test_missing_directory_is_a_noop(tmp_path):
-    assert sweep_stale_files(tmp_path / "nope", 1) == 0
+    assert _sweep(tmp_path / "nope", 1) == 0
 
 
 def test_symlink_is_not_followed(tmp_path):
@@ -41,5 +47,5 @@ def test_symlink_is_not_followed(tmp_path):
         link.symlink_to(target)
     except OSError:
         return
-    assert sweep_stale_files(scratch, 1) == 0
+    assert _sweep(scratch, 1) == 0
     assert target.exists()

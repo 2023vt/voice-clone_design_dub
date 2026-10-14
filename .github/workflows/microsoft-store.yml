@@ -102,15 +102,28 @@ jobs:
           if ($null -eq $signTool) { throw 'SignTool is unavailable' }
           & $signTool.FullName sign /fd SHA256 /sha1 $cert.Thumbprint /s My $testPackage
           if ($LASTEXITCODE -ne 0) { throw "Test signing failed: $LASTEXITCODE" }
+          $processName = $null
           try {
             Add-AppxPackage -Path $testPackage
             $installed = Get-AppxPackage -Name $metadata.microsoftStore.identityName
             if ($null -eq $installed) { throw 'The test MSIX did not install' }
-            $env:VOICESTUDIO_PACKAGED_EXE = Join-Path $installed.InstallLocation 'app\VoiceStudio.exe'
-            Push-Location electron
-            node tests/packaged-smoke.mjs --setup
-            Pop-Location
+            $manifest = Get-AppxPackageManifest -Package $installed
+            $application = @($manifest.Package.Applications.Application)[0]
+            $processName = [System.IO.Path]::GetFileNameWithoutExtension($application.Executable)
+            $aumid = "$($installed.PackageFamilyName)!$($application.Id)"
+            Start-Process explorer.exe -ArgumentList "shell:AppsFolder\$aumid"
+            $deadline = (Get-Date).AddSeconds(30)
+            do {
+              Start-Sleep -Seconds 1
+              $launched = Get-Process -Name $processName -ErrorAction SilentlyContinue |
+                Select-Object -First 1
+            } until ($null -ne $launched -or (Get-Date) -gt $deadline)
+            if ($null -eq $launched) { throw "The installed MSIX did not launch: $aumid" }
           } finally {
+            if ($null -ne $processName) {
+              Get-Process -Name $processName -ErrorAction SilentlyContinue |
+                Stop-Process -Force -ErrorAction SilentlyContinue
+            }
             Get-AppxPackage -Name $metadata.microsoftStore.identityName |
               Remove-AppxPackage -ErrorAction SilentlyContinue
             Remove-Item "Cert:\LocalMachine\TrustedPeople\$($cert.Thumbprint)" -ErrorAction SilentlyContinue

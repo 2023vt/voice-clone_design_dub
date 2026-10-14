@@ -79,3 +79,10 @@ def test_appx_commands_run_in_windows_powershell():
     assert all(step.get("shell") == "powershell" for step in appx_steps)
     assert all("Copy-Item $source.FullName $testPackage" in step["run"] for step in appx_steps)
     assert all("Cert:\\LocalMachine\\TrustedPeople" in step["run"] for step in appx_steps)
+    install_step = next(
+        step
+        for step in appx_steps
+        if step["name"] == "Install and launch a temporary self-signed copy"
+    )
+    assert "Get-AppxPackageManifest" in install_step["run"]
+    assert "shell:AppsFolder\\$aumid" in install_step["run"]

@@ -83,6 +83,9 @@ Or download from [Releases](https://github.com/debpalash/VoiceStudio/releases/la
 
 **[macOS](docs/install/macos.md) · [Windows](docs/install/windows.md) · [Linux](docs/install/linux.md) · [Docker](docs/install/docker.md)**
 
+> [!NOTE]
+> macOS: Electron releases are unsigned and not Apple-notarized yet (#1779), so recent macOS may report **"VoiceStudio is damaged"** on first open — that is the missing-signature refusal, not a broken download. See [the Gatekeeper section of the macOS guide](docs/install/macos.md#gatekeeper-quarantine) (#2763) for the one-command fix.
+
 | Hardware | Support |
 |---|---|
 | NVIDIA GPU (Windows / Linux) | CUDA acceleration |

@@ -459,3 +459,63 @@ def test_principal_dataclass_cannot_carry_a_raw_secret():
     assert "credential" not in AuthPrincipal.__dataclass_fields__
     assert "token" not in AuthPrincipal.__dataclass_fields__
     assert "secret" not in AuthPrincipal.__dataclass_fields__
+
+
+def test_reverse_proxy_forwarded_header_prevents_loopback_bypass(monkeypatch, store):
+    monkeypatch.setenv("OMNIVOICE_API_KEY", MASTER)
+
+    # An external client forwarded through a local reverse proxy (peer=127.0.0.1)
+    # must NOT receive loopback privileges.
+    proxied_external = Connection(
+        host="127.0.0.1",
+        headers={"x-forwarded-for": "203.0.113.195"},
+    )
+    principal = resolve_principal(proxied_external, store=store)
+    assert principal.kind is PrincipalKind.ANONYMOUS
+    assert principal.allows("admin") is False
+    assert principal.allows("native") is False
+
+
+def test_reverse_proxy_forwarded_with_auth_resolves_credential(monkeypatch, store):
+    monkeypatch.setenv("OMNIVOICE_API_KEY", MASTER)
+
+    # An authenticated remote client through a local reverse proxy gets API_KEY principal
+    proxied_auth = Connection(
+        host="127.0.0.1",
+        headers={
+            "x-forwarded-for": "203.0.113.195",
+            "authorization": f"Bearer {MASTER}",
+        },
+    )
+    principal = resolve_principal(proxied_auth, store=store)
+    assert principal.kind is PrincipalKind.API_KEY
+    assert principal.allows("admin") is True
+    assert principal.allows("native") is False
+
+
+def test_untrusted_direct_peer_cannot_spoof_loopback_via_forwarded_headers(monkeypatch, store):
+    monkeypatch.setenv("OMNIVOICE_API_KEY", MASTER)
+
+    # Direct connection from external IP sending forged X-Forwarded-For: 127.0.0.1
+    # must NOT be trusted because the peer itself is not loopback/trusted.
+    direct_attacker = Connection(
+        host="203.0.113.195",
+        headers={"x-forwarded-for": "127.0.0.1"},
+    )
+    principal = resolve_principal(direct_attacker, store=store)
+    assert principal.kind is PrincipalKind.ANONYMOUS
+    assert principal.allows("admin") is False
+    assert principal.allows("native") is False
+
+
+def test_rfc7239_forwarded_header_evaluated_for_proxy(monkeypatch, store):
+    monkeypatch.setenv("OMNIVOICE_API_KEY", MASTER)
+
+    proxied = Connection(
+        host="127.0.0.1",
+        headers={"forwarded": "for=198.51.100.42;proto=https"},
+    )
+    principal = resolve_principal(proxied, store=store)
+    assert principal.kind is PrincipalKind.ANONYMOUS
+    assert principal.allows("admin") is False
+

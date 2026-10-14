@@ -163,7 +163,7 @@ def _canonical_websocket_path(connection) -> str:
     return path
 
 
-def _client_host(connection) -> str | None:
+def _peer_host(connection) -> str | None:
     client = getattr(connection, "client", None)
     if client is not None:
         return getattr(client, "host", None)
@@ -171,6 +171,48 @@ def _client_host(connection) -> str | None:
     if isinstance(scope, dict) and scope.get("client"):
         return scope["client"][0]
     return None
+
+
+def _forwarded_host(connection) -> str | None:
+    headers = getattr(connection, "headers", None) or {}
+    xff = _mapping_get(headers, "x-forwarded-for").strip()
+    if xff:
+        client_part = xff.split(",")[0].strip()
+        if client_part.startswith("[") and "]" in client_part:
+            client_part = client_part[1 : client_part.index("]")]
+        elif ":" in client_part and client_part.count(":") == 1:
+            client_part = client_part.split(":")[0]
+        return client_part or None
+
+    forwarded = _mapping_get(headers, "forwarded").strip()
+    if forwarded:
+        for item in forwarded.split(","):
+            for part in item.split(";"):
+                part = part.strip()
+                if part.lower().startswith("for="):
+                    target = part[4:].strip().strip('"')
+                    if target.startswith("[") and "]" in target:
+                        target = target[1 : target.index("]")]
+                    elif ":" in target and target.count(":") == 1:
+                        target = target.split(":")[0]
+                    return target or None
+    return None
+
+
+def _client_host(connection) -> str | None:
+    """Resolve the effective client IP.
+
+    If the immediate peer is a trusted local network address or loopback
+    (such as a local reverse proxy like Nginx or Caddy), check for forwarded
+    client headers so external clients are not granted loopback privileges.
+    Direct untrusted peers cannot spoof their address via forwarded headers.
+    """
+    peer = _peer_host(connection)
+    if peer is not None and is_local_host(peer):
+        forwarded = _forwarded_host(connection)
+        if forwarded:
+            return forwarded
+    return peer
 
 
 def _credential_candidate(connection) -> _CredentialCandidate | None:

@@ -381,7 +381,7 @@ async def unload_all() -> dict:
             if entry["id"].startswith(("engine:", "active-engine:"))
         )
     except Exception as e:
-        logger.warning("Could not enumerate optional engines during global unload: %s", e)
+        logger.warning("Could not enumerate optional engines during global unload: %s", type(e).__name__)
     for mid in dict.fromkeys(model_ids):
         try:
             results[mid] = await unload(mid)

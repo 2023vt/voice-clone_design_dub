@@ -6,21 +6,14 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-# Ensure torch is mocked if not installed in the environment
-if "torch" not in sys.modules:
-    mock_torch = MagicMock()
-    mock_torch.cuda.is_available.return_value = False
-    mock_torch.get_default_dtype.return_value = "float32"
-    sys.modules["torch"] = mock_torch
-
-import services.model_lifecycle as ml
-import services.model_manager as mm
-
 
 def test_tts_vram_mb_logs_exception_and_returns_zero(caplog):
+    import services.model_lifecycle as ml
+    import services.model_manager as mm
+
     mock_torch = MagicMock()
     mock_torch.cuda.is_available.side_effect = RuntimeError("CUDA driver crashed")
-    
+
     with patch.object(mm, "_lazy_torch", return_value=mock_torch):
         with caplog.at_level(logging.DEBUG, logger="omnivoice.model_lifecycle"):
             result = ml._tts_vram_mb()
@@ -33,7 +26,12 @@ def test_tts_vram_mb_logs_exception_and_returns_zero(caplog):
 
 
 def test_active_tts_id_logs_exception_and_returns_none(caplog):
-    with patch.dict(sys.modules, {"services.tts_backend": MagicMock(active_backend_id=MagicMock(side_effect=Exception("tts backend init error")))}):
+    import services.model_lifecycle as ml
+
+    with patch.dict(
+        sys.modules,
+        {"services.tts_backend": MagicMock(active_backend_id=MagicMock(side_effect=Exception("tts backend init error")))},
+    ):
         with caplog.at_level(logging.DEBUG, logger="omnivoice.model_lifecycle"):
             result = ml._active_tts_id()
             assert result is None
@@ -45,6 +43,9 @@ def test_active_tts_id_logs_exception_and_returns_none(caplog):
 
 
 def test_list_loaded_handles_model_parameters_exception(caplog, monkeypatch):
+    import services.model_lifecycle as ml
+    import services.model_manager as mm
+
     class ExplodingModel:
         def parameters(self):
             raise RuntimeError("Corrupted weights tensor")
@@ -67,10 +68,12 @@ def test_list_loaded_handles_model_parameters_exception(caplog, monkeypatch):
 
 
 def test_list_loaded_handles_memory_budget_exception(caplog, monkeypatch):
+    import services.model_lifecycle as ml
+    import services.model_manager as mm
+    import services.memory_budget as mb
+
     monkeypatch.setattr(mm, "model", None)
     monkeypatch.setattr(mm, "_diar_pipeline", None)
-    
-    import services.memory_budget as mb
     monkeypatch.setattr(mb, "available_memory", MagicMock(side_effect=RuntimeError("cgroups read failure")))
 
     with caplog.at_level(logging.WARNING, logger="omnivoice.model_lifecycle"):
@@ -84,6 +87,8 @@ def test_list_loaded_handles_memory_budget_exception(caplog, monkeypatch):
 
 
 def test_unload_all_handles_optional_engine_enumeration_exception(caplog, monkeypatch):
+    import services.model_lifecycle as ml
+
     def fail_list_loaded():
         raise RuntimeError("Subprocess manager unavailable")
 
@@ -93,7 +98,6 @@ def test_unload_all_handles_optional_engine_enumeration_exception(caplog, monkey
         res = asyncio.run(ml.unload_all())
         assert isinstance(res, dict)
         assert any(
-            "Could not enumerate optional engines during global unload" in record.message
-            and "Subprocess manager unavailable" in record.message
+            "Could not enumerate optional engines during global unload: RuntimeError" in record.message
             for record in caplog.records
         )

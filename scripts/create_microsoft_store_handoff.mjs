@@ -35,84 +35,66 @@ export function createMicrosoftStoreHandoff({
   releaseDir,
   output,
   version,
-  tag,
-  repository = "debpalash/VoiceStudio",
   generatedAt = new Date().toISOString(),
 }) {
   assert.match(version, /^\d+\.\d+\.\d+$/, "Version must be a release version");
-  assert.equal(tag, `v${version}`, "Microsoft Store packages require the exact version tag");
-  assert.match(repository, /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/, "Invalid GitHub repository");
 
   const packages = readdirSync(releaseDir)
     .filter((name) =>
       new RegExp(
-        `^VoiceStudio-MicrosoftStore-${version.replaceAll(".", "\\.")}-win-(x64|arm64)\\.exe$`,
+        `^VoiceStudio-MicrosoftStore-${version.replaceAll(".", "\\.")}-win-(x64|arm64)\\.msix$`,
       ).test(name),
     )
     .sort()
     .map((file) => {
-      const arch = file.match(/-win-(x64|arm64)\.exe$/)?.[1];
-      assert(arch, `Cannot determine architecture for ${file}`);
-      const manifestFile = `store-artifact-manifest-win32-${arch}.json`;
-      const evidenceFile = `authenticode-win32-${arch}.json`;
-      const updateManifestFile = `electron-microsoft-store-stable-win32-${arch}.yml`;
-      const manifestPath = resolve(releaseDir, manifestFile);
-      const evidencePath = resolve(releaseDir, evidenceFile);
-      assert(existsSync(manifestPath), `Missing provenance manifest: ${manifestFile}`);
-      assert(existsSync(evidencePath), `Missing Authenticode evidence: ${evidenceFile}`);
-      const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
+      const architecture = file.match(/-win-(x64|arm64)\.msix$/)?.[1];
+      assert(architecture, `Cannot determine architecture for ${file}`);
+      const provenance = `store-artifact-manifest-win32-${architecture}.json`;
+      const verification = `msix-verification-win32-${architecture}.json`;
+      const wackReport = `wack-win32-${architecture}.xml`;
+      for (const evidence of [provenance, verification, wackReport]) {
+        assert(existsSync(resolve(releaseDir, evidence)), `Missing validation evidence: ${evidence}`);
+      }
+      const manifest = JSON.parse(readFileSync(resolve(releaseDir, provenance), "utf8"));
       assert.equal(manifest.distribution?.target, "microsoft-store");
-      assert.equal(manifest.distribution?.applicationUpdates, "application");
+      assert.equal(manifest.distribution?.applicationUpdates, "store");
       assert.deepEqual(manifest.signingVerification, {
-        status: "valid",
-        evidence: evidenceFile,
+        status: "store-pending",
+        evidence: verification,
       });
       const path = resolve(releaseDir, file);
       const digest = sha256(path);
       const artifact = manifest.artifacts?.find((item) => item.file === file);
-      assert(artifact, `${manifestFile} does not describe ${file}`);
+      assert(artifact, `${provenance} does not describe ${file}`);
       assert.equal(artifact.bytes, statSync(path).size, `${file} size differs from provenance`);
       assert.equal(artifact.sha256, digest, `${file} digest differs from provenance`);
-      const updateArtifact = manifest.artifacts?.find((item) => item.file === updateManifestFile);
-      assert(updateArtifact, `${manifestFile} does not describe ${updateManifestFile}`);
-      const updateManifestPath = resolve(releaseDir, updateManifestFile);
-      assert(existsSync(updateManifestPath), `Missing update manifest: ${updateManifestFile}`);
-      assert.equal(
-        updateArtifact.sha256,
-        sha256(updateManifestPath),
-        `${updateManifestFile} digest differs from provenance`,
-      );
       return {
-        architecture: arch,
-        type: "exe",
+        architecture,
+        type: "msix",
         file,
-        url: `https://github.com/${repository}/releases/download/${tag}/${file}`,
         sha256: digest,
         bytes: statSync(path).size,
-        installerParameters: "/S",
-        provenance: manifestFile,
-        authenticodeEvidence: evidenceFile,
-        updateManifest: updateManifestFile,
+        provenance,
+        verification,
+        wackReport,
+        signing: "Microsoft Store after certification",
       };
     });
 
-  assert(
-    packages.some((item) => item.architecture === "x64"),
-    "An x64 Store package is required",
-  );
+  assert(packages.some((item) => item.architecture === "x64"), "An x64 MSIX is required");
   const metadata = JSON.parse(readFileSync(resolve(root, "store/metadata.json"), "utf8"));
   const assets = JSON.parse(readFileSync(resolve(root, "store/assets.json"), "utf8"));
   const handoff = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt,
-    lifecycle: "validated",
+    lifecycle: "validated-for-submission",
     ownerApprovalRequiredForSubmission: true,
-    identity: metadata.identity,
+    identity: metadata.microsoftStore,
     listing: metadata.listing,
     category: metadata.categories["microsoft-store"],
     privacyPolicyUrl: metadata.urls.privacyPolicy,
     supportUrl: metadata.urls.support,
-    applicableLicenseTermsUrl: `${metadata.urls.source}/blob/${tag}/LICENSE`,
+    applicableLicenseTermsUrl: `${metadata.urls.source}/blob/main/LICENSE`,
     supportedLanguages: [metadata.identity.defaultLocale.toLowerCase()],
     assets: {
       boxArt: assets.iconSource,
@@ -136,12 +118,6 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     root,
     option("output", "electron/release/microsoft-store-submission.json"),
   );
-  createMicrosoftStoreHandoff({
-    releaseDir,
-    output,
-    version,
-    tag: option("tag", `v${version}`),
-    repository: option("repository", process.env.GITHUB_REPOSITORY || "debpalash/VoiceStudio"),
-  });
+  createMicrosoftStoreHandoff({ releaseDir, output, version });
   console.log(`Wrote ${basename(output)}`);
 }

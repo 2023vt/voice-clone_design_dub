@@ -64,7 +64,6 @@ import {
   feedManifestName,
   listDesktopReleases,
   registerUpdateIpc,
-  resolveUpdateFeedUrl,
   UPDATE_CHANNELS,
 } from './updater';
 
@@ -121,68 +120,6 @@ describe('DesktopUpdater', () => {
       notes: 'Ready',
       progress: 100,
       transferredBytes: 0,
-    });
-  });
-
-  test('keeps Microsoft Store updates on the newest release containing its feed', async () => {
-    const channel = `electron-microsoft-store-stable-${process.platform}-${process.arch}`;
-    const manifest = feedManifestName(process.platform, process.arch, 'microsoft-store');
-    const feedFetcher = vi.fn(
-      async () =>
-        new Response(
-          JSON.stringify([
-            { tag_name: 'v0.5.6', assets: [{ name: manifest }] },
-            { tag_name: 'v0.5.8', assets: [{ name: 'unrelated.txt' }] },
-            { tag_name: 'v0.5.7', assets: [{ name: manifest }] },
-          ]),
-          { status: 200, headers: { 'Content-Type': 'application/json' } },
-        ),
-    );
-    const updater = new DesktopUpdater('microsoft-store', feedFetcher);
-    expect(mocks.autoUpdater.setFeedURL).not.toHaveBeenCalled();
-    await updater.check();
-    expect(mocks.autoUpdater.channel).toBe(channel);
-    expect(mocks.autoUpdater.setFeedURL).toHaveBeenLastCalledWith({
-      provider: 'generic',
-      url: 'https://github.com/debpalash/VoiceStudio/releases/download/v0.5.7',
-      channel,
-    });
-  });
-
-  test('prevents downloads from racing Store feed discovery', async () => {
-    const manifest = feedManifestName(process.platform, process.arch, 'microsoft-store');
-    let finishFeedLookup!: (response: Response) => void;
-    const feedFetcher = vi.fn(
-      () => new Promise<Response>((resolve) => (finishFeedLookup = resolve)),
-    );
-    const updater = new DesktopUpdater('microsoft-store', feedFetcher);
-    emit('update-available', { version: '0.5.7', releaseNotes: null });
-
-    const check = updater.check();
-    expect(updater.snapshot().status).toBe('checking');
-    await updater.download();
-    expect(mocks.autoUpdater.downloadUpdate).not.toHaveBeenCalled();
-
-    finishFeedLookup(
-      new Response(JSON.stringify([{ tag_name: 'v0.5.7', assets: [{ name: manifest }] }]), {
-        status: 200,
-      }),
-    );
-    await check;
-    expect(mocks.autoUpdater.checkForUpdates).toHaveBeenCalledOnce();
-  });
-
-  test('preserves an available update when quiet Store feed discovery fails', async () => {
-    const feedFetcher = vi.fn(async () => new Response('unavailable', { status: 503 }));
-    const updater = new DesktopUpdater('microsoft-store', feedFetcher);
-    emit('update-available', { version: '0.5.7', releaseNotes: 'Ready' });
-
-    await updater.check(true);
-
-    expect(updater.snapshot()).toMatchObject({
-      status: 'available',
-      availableVersion: '0.5.7',
-      notes: 'Ready',
     });
   });
 
@@ -304,7 +241,7 @@ describe('DesktopUpdater', () => {
     }
   });
 
-  test.each(['snap-store', 'mac-app-store'] as const)(
+  test.each(['microsoft-store', 'snap-store', 'mac-app-store'] as const)(
     'defers updates to the %s even when the updater environment override is absent',
     async (distribution) => {
       const updater = new DesktopUpdater(distribution);
@@ -318,22 +255,6 @@ describe('DesktopUpdater', () => {
       expect(mocks.autoUpdater.quitAndInstall).not.toHaveBeenCalled();
     },
   );
-
-  test('retains application-owned updates for the Microsoft Store EXE package', async () => {
-    const manifest = feedManifestName(process.platform, process.arch, 'microsoft-store');
-    const feedFetcher = vi.fn(
-      async () =>
-        new Response(JSON.stringify([{ tag_name: 'v0.5.7', assets: [{ name: manifest }] }]), {
-          status: 200,
-        }),
-    );
-    const updater = new DesktopUpdater('microsoft-store', feedFetcher);
-    expect(updater.snapshot()).toMatchObject({ status: 'idle' });
-    expect(mocks.autoUpdater.setFeedURL).not.toHaveBeenCalled();
-    await updater.check();
-    expect(mocks.autoUpdater.setFeedURL).toHaveBeenCalledOnce();
-    expect(mocks.autoUpdater.checkForUpdates).toHaveBeenCalledOnce();
-  });
 
   test('loads and validates native release history without trusting GitHub response fields', async () => {
     const fetcher = vi.fn().mockResolvedValue(
@@ -376,19 +297,6 @@ describe('update feed selection', () => {
     expect(feedManifestName('win32', 'x64')).toBe('electron-stable-win32-x64.yml');
     expect(feedManifestName('darwin', 'arm64')).toBe('electron-stable-darwin-arm64-mac.yml');
     expect(feedManifestName('linux', 'x64')).toBe('electron-stable-linux-x64-linux.yml');
-    expect(feedManifestName('win32', 'x64', 'microsoft-store')).toBe(
-      'electron-microsoft-store-stable-win32-x64.yml',
-    );
-  });
-
-  test('rejects Store feed discovery when no release contains its manifest', async () => {
-    const fetcher = vi.fn(
-      async () =>
-        new Response(JSON.stringify([{ tag_name: 'v0.5.8', assets: [] }]), { status: 200 }),
-    );
-    await expect(resolveUpdateFeedUrl('microsoft-store', 'win32', 'x64', fetcher)).rejects.toThrow(
-      'No Microsoft Store update feed publishes',
-    );
   });
 });
 

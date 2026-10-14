@@ -32,6 +32,12 @@ assert.equal(metadata.identity.productName, PRODUCT_NAME);
 assert.equal(metadata.identity.applicationId, APP_ID);
 assert.equal(metadata.identity.license, "AGPL-3.0-only");
 assert(metadata.identity.publisherLegalName);
+assert.equal(metadata.microsoftStore.identityName, "Yupcha.VoiceStudio");
+assert.match(metadata.microsoftStore.publisher, /^CN=[A-F0-9-]+$/);
+assert(metadata.microsoftStore.publisherDisplayName);
+assert.match(metadata.microsoftStore.packageFamilyName, /^Yupcha\.VoiceStudio_[a-z0-9]+$/);
+assert.match(metadata.microsoftStore.storeId, /^[A-Z0-9]+$/);
+assert.equal(new URL(metadata.microsoftStore.url).protocol, "https:");
 assert(metadata.listing.shortDescription.length <= 100);
 assert(metadata.listing.description.length >= 100);
 for (const [name, value] of Object.entries(metadata.urls)) {

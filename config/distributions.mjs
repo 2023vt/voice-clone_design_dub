@@ -6,13 +6,10 @@ const profiles = {
     signing: "platform",
   },
   "microsoft-store": {
-    // The first Microsoft Store package is the existing unpackaged NSIS EXE.
-    // Microsoft explicitly leaves updates for existing EXE/MSI users to the
-    // application; change this only if the package format changes to MSIX.
-    applicationUpdates: "application",
+    applicationUpdates: "store",
     runtimeCode: "user-initiated-download",
     fileAccess: "user-selected",
-    signing: "authenticode",
+    signing: "store",
   },
   "snap-store": {
     applicationUpdates: "store",

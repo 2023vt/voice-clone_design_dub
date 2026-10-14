@@ -38,9 +38,8 @@ test('creates deterministic provenance for regular files only', async () => {
 
 test('keeps Microsoft Store artifacts separate from direct installers', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'voicestudio-microsoft-store-manifest-'));
-  writeFileSync(join(dir, 'VoiceStudio-MicrosoftStore-0.5.7-win-x64.exe'), 'store');
+  writeFileSync(join(dir, 'VoiceStudio-MicrosoftStore-0.5.7-win-x64.msix'), 'store');
   writeFileSync(join(dir, 'VoiceStudio-Electron-0.5.7-win-x64.exe'), 'direct');
-  writeFileSync(join(dir, 'electron-microsoft-store-stable-win32-x64.yml'), 'version: 0.5.7\n');
   const output = join(dir, 'store-artifact-manifest-win32-x64.json');
 
   await createArtifactManifest({
@@ -52,19 +51,19 @@ test('keeps Microsoft Store artifacts separate from direct installers', async ()
     version: '0.5.7',
     commit: 'b'.repeat(40),
     generatedAt: '2026-10-13T00:00:00.000Z',
-    signingVerification: { status: 'valid', evidence: 'authenticode-win32-x64.json' },
+    signingVerification: {
+      status: 'store-pending',
+      evidence: 'msix-verification-win32-x64.json',
+    },
   });
 
   const manifest = JSON.parse(readFileSync(output, 'utf8'));
   assert.deepEqual(
     manifest.artifacts.map((item) => item.file),
-    [
-      'VoiceStudio-MicrosoftStore-0.5.7-win-x64.exe',
-      'electron-microsoft-store-stable-win32-x64.yml',
-    ],
+    ['VoiceStudio-MicrosoftStore-0.5.7-win-x64.msix'],
   );
   assert.deepEqual(manifest.signingVerification, {
-    status: 'valid',
-    evidence: 'authenticode-win32-x64.json',
+    status: 'store-pending',
+    evidence: 'msix-verification-win32-x64.json',
   });
 });

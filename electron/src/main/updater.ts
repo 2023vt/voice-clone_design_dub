@@ -21,76 +21,16 @@ const RELEASES_API = 'https://api.github.com/repos/debpalash/VoiceStudio/release
 function feedChannelName(
   platform: NodeJS.Platform = process.platform,
   arch: string = process.arch,
-  distribution: DistributionTarget = CURRENT_DISTRIBUTION,
 ): string {
-  const prefix =
-    distribution === 'microsoft-store' ? 'electron-microsoft-store-stable' : 'electron-stable';
-  return `${prefix}-${platform}-${arch}`;
+  return `electron-stable-${platform}-${arch}`;
 }
 
 export function feedManifestName(
   platform: NodeJS.Platform = process.platform,
   arch: string = process.arch,
-  distribution: DistributionTarget = CURRENT_DISTRIBUTION,
 ): string {
   const suffix = platform === 'darwin' ? '-mac' : platform === 'linux' ? '-linux' : '';
-  return `${feedChannelName(platform, arch, distribution)}${suffix}.yml`;
-}
-
-export async function resolveUpdateFeedUrl(
-  distribution: DistributionTarget,
-  platform: NodeJS.Platform = process.platform,
-  arch: string = process.arch,
-  fetcher: typeof fetch = fetch,
-): Promise<string> {
-  if (distribution !== 'microsoft-store') return STABLE_FEED;
-  const manifest = feedManifestName(platform, arch, distribution);
-  const response = await fetcher(RELEASES_API, {
-    headers: {
-      Accept: 'application/vnd.github+json',
-      'User-Agent': 'VoiceStudio',
-    },
-    signal: AbortSignal.timeout(10_000),
-  });
-  if (!response.ok) throw new Error(`Store update feed lookup failed (${response.status})`);
-  const releases: unknown = await response.json();
-  if (!Array.isArray(releases)) throw new Error('Store update feed lookup returned invalid data');
-  const matchingReleases = releases.flatMap(
-    (
-      value,
-    ): Array<{
-      release: Record<string, unknown>;
-      version: [number, number, number];
-    }> => {
-      if (!value || typeof value !== 'object') return [];
-      const item = value as Record<string, unknown>;
-      const version =
-        typeof item.tag_name === 'string' ? item.tag_name.match(/^v(\d+)\.(\d+)\.(\d+)$/) : null;
-      const publishesManifest =
-        Array.isArray(item.assets) &&
-        item.assets.some(
-          (asset) =>
-            asset &&
-            typeof asset === 'object' &&
-            (asset as Record<string, unknown>).name === manifest,
-        );
-      return version && publishesManifest
-        ? [{ release: item, version: [Number(version[1]), Number(version[2]), Number(version[3])] }]
-        : [];
-    },
-  );
-  matchingReleases.sort((left, right) => {
-    for (let index = 0; index < left.version.length; index += 1) {
-      const difference = right.version[index] - left.version[index];
-      if (difference) return difference;
-    }
-    return 0;
-  });
-  const release = matchingReleases[0]?.release;
-  if (!release) throw new Error(`No Microsoft Store update feed publishes ${manifest}`);
-  return `https://github.com/debpalash/VoiceStudio/releases/download/${encodeURIComponent(
-    release.tag_name as string,
-  )}`;
+  return `${feedChannelName(platform, arch)}${suffix}.yml`;
 }
 
 export const UPDATE_CHANNELS = {
@@ -169,10 +109,7 @@ export class DesktopUpdater {
   private checkInFlight: Promise<UpdateState> | null = null;
   private downloadInFlight: Promise<UpdateState> | null = null;
 
-  constructor(
-    private readonly distribution: DistributionTarget = CURRENT_DISTRIBUTION,
-    private readonly feedFetcher: typeof fetch = fetch,
-  ) {
+  constructor(private readonly distribution: DistributionTarget = CURRENT_DISTRIBUTION) {
     const supported = this.updatesSupported();
     this.state = {
       status: supported ? 'idle' : 'unsupported',
@@ -256,7 +193,7 @@ export class DesktopUpdater {
     autoUpdater.on('error', (error) =>
       this.patch({ status: 'error', error: error.message || String(error) }),
     );
-    if (this.distribution !== 'microsoft-store') this.configureFeed(STABLE_FEED);
+    this.configureFeed(STABLE_FEED);
   }
 
   snapshot(): UpdateState {
@@ -288,16 +225,7 @@ export class DesktopUpdater {
     });
     const operation = (async () => {
       try {
-        const feedUrl =
-          this.distribution === 'microsoft-store'
-            ? await resolveUpdateFeedUrl(
-                this.distribution,
-                process.platform,
-                process.arch,
-                this.feedFetcher,
-              )
-            : STABLE_FEED;
-        this.configureFeed(feedUrl);
+        this.configureFeed(STABLE_FEED);
         await autoUpdater.checkForUpdates();
         if (this.state.status === 'checking') {
           this.patch({ status: 'idle', lastCheckedAt: Date.now() });
@@ -373,7 +301,7 @@ export class DesktopUpdater {
   private configureFeed(url: string): void {
     if (!this.updatesSupported()) return;
     autoUpdater.allowPrerelease = false;
-    const feedChannel = feedChannelName(process.platform, process.arch, this.distribution);
+    const feedChannel = feedChannelName(process.platform, process.arch);
     autoUpdater.channel = feedChannel;
     // electron-updater's channel setter silently enables downgrades; keep the
     // app monotonic.

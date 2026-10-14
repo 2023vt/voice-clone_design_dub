@@ -36,9 +36,9 @@ describe('distribution contract', () => {
     }
   });
 
-  test('records update ownership without treating Microsoft EXE listings as managed packages', () => {
+  test('records update ownership for managed Store packages', () => {
     expect(distributionProfile('direct').applicationUpdates).toBe('application');
-    expect(distributionProfile('microsoft-store').applicationUpdates).toBe('application');
+    expect(distributionProfile('microsoft-store').applicationUpdates).toBe('store');
     expect(distributionProfile('snap-store').applicationUpdates).toBe('store');
     expect(distributionProfile('mac-app-store').applicationUpdates).toBe('store');
   });
@@ -46,7 +46,7 @@ describe('distribution contract', () => {
   test('store ownership cannot be bypassed by a runtime environment variable', () => {
     expect(applicationUpdatesSupported(true, 'direct', false)).toBe(true);
     expect(applicationUpdatesSupported(true, 'direct', true)).toBe(false);
-    expect(applicationUpdatesSupported(true, 'microsoft-store', false)).toBe(true);
+    expect(applicationUpdatesSupported(true, 'microsoft-store', false)).toBe(false);
     expect(applicationUpdatesSupported(true, 'snap-store', false)).toBe(false);
     expect(applicationUpdatesSupported(true, 'mac-app-store', false)).toBe(false);
     expect(applicationUpdatesSupported(false, 'direct', false)).toBe(false);

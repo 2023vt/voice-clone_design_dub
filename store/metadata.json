@@ -7,6 +7,17 @@
     "license": "AGPL-3.0-only",
     "defaultLocale": "en-US"
   },
+  "microsoftStore": {
+    "identityName": "Yupcha.VoiceStudio",
+    "publisher": "CN=E9EA905A-714E-495C-902A-6128F2021B76",
+    "publisherDisplayName": "Yupcha",
+    "packageFamilyName": "Yupcha.VoiceStudio_7typsprfwscpe",
+    "packageSid": "S-1-15-2-614896096-3438965523-322314662-276053835-722937828-677606762-2932889148",
+    "storeId": "9PDMFM4FG106",
+    "url": "https://apps.microsoft.com/detail/9PDMFM4FG106",
+    "protocolUrl": "ms-windows-store://pdp/?productid=9PDMFM4FG106",
+    "msaAppId": "26e0e20f-52f8-4ad0-b8bb-2bb53155badc"
+  },
   "listing": {
     "title": "VoiceStudio",
     "shortDescription": "Local voice cloning, voice design, dubbing and dictation on your computer.",

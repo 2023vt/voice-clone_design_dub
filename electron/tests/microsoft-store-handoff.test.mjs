@@ -6,52 +6,43 @@ import test from 'node:test';
 
 import { createMicrosoftStoreHandoff } from '../../scripts/create_microsoft_store_handoff.mjs';
 
-test('creates a Partner Center handoff only from validated signed packages', () => {
+test('creates a Partner Center handoff only from validated MSIX packages', () => {
   const dir = mkdtempSync(join(tmpdir(), 'voicestudio-microsoft-store-handoff-'));
-  const file = 'VoiceStudio-MicrosoftStore-0.5.7-win-x64.exe';
+  const file = 'VoiceStudio-MicrosoftStore-0.5.7-win-x64.msix';
   const packagePath = join(dir, file);
-  writeFileSync(packagePath, 'signed installer fixture');
-  const updateManifest = 'electron-microsoft-store-stable-win32-x64.yml';
-  writeFileSync(join(dir, updateManifest), 'version: 0.5.7\n');
-  const digest = '78406fc74fb60fb5a9babc70740938a6d95da5ca2cd0b5ec143f43dc57865604';
-  const updateDigest = 'e9d1c3d8921489039e65fb6319a0d178d7dd9ffd2b75f08d42e76f76d56307c9';
+  writeFileSync(packagePath, 'unsigned msix fixture');
+  const digest = '194418af6a1cd5ef17de0d7b3b9b9c91e9da9af6cd67534926029dcc00b02c65';
   writeFileSync(
     join(dir, 'store-artifact-manifest-win32-x64.json'),
     JSON.stringify({
-      distribution: { target: 'microsoft-store', applicationUpdates: 'application' },
+      distribution: { target: 'microsoft-store', applicationUpdates: 'store' },
       signingVerification: {
-        status: 'valid',
-        evidence: 'authenticode-win32-x64.json',
+        status: 'store-pending',
+        evidence: 'msix-verification-win32-x64.json',
       },
-      artifacts: [
-        { file, bytes: 24, sha256: digest },
-        { file: updateManifest, bytes: 15, sha256: updateDigest },
-      ],
+      artifacts: [{ file, bytes: 21, sha256: digest }],
     }),
   );
-  writeFileSync(join(dir, 'authenticode-win32-x64.json'), '{}');
+  writeFileSync(join(dir, 'msix-verification-win32-x64.json'), '{}');
+  writeFileSync(join(dir, 'wack-win32-x64.xml'), '<report />');
   const output = join(dir, 'submission.json');
 
   const handoff = createMicrosoftStoreHandoff({
     releaseDir: dir,
     output,
     version: '0.5.7',
-    tag: 'v0.5.7',
-    generatedAt: '2026-10-13T00:00:00.000Z',
+    generatedAt: '2026-10-15T00:00:00.000Z',
   });
 
-  assert.equal(handoff.lifecycle, 'validated');
-  assert.equal(handoff.ownerApprovalRequiredForSubmission, true);
-  assert.equal(handoff.packages[0].installerParameters, '/S');
-  assert.equal(handoff.packages[0].updateManifest, updateManifest);
-  assert.equal(
-    handoff.packages[0].url,
-    'https://github.com/debpalash/VoiceStudio/releases/download/v0.5.7/' + file,
-  );
+  assert.equal(handoff.schemaVersion, 2);
+  assert.equal(handoff.lifecycle, 'validated-for-submission');
+  assert.equal(handoff.identity.storeId, '9PDMFM4FG106');
+  assert.equal(handoff.packages[0].type, 'msix');
+  assert.equal(handoff.packages[0].signing, 'Microsoft Store after certification');
   assert.deepEqual(JSON.parse(readFileSync(output, 'utf8')), handoff);
 });
 
-test('rejects unsigned or non-versioned handoffs', () => {
+test('rejects missing packages or validation evidence', () => {
   const dir = mkdtempSync(join(tmpdir(), 'voicestudio-microsoft-store-reject-'));
   assert.throws(
     () =>
@@ -59,8 +50,7 @@ test('rejects unsigned or non-versioned handoffs', () => {
         releaseDir: dir,
         output: join(dir, 'submission.json'),
         version: '0.5.7',
-        tag: 'main',
       }),
-    /exact version tag/,
+    /x64 MSIX/,
   );
 });

@@ -100,12 +100,27 @@ if (DISTRIBUTION_TARGET === 'microsoft-store') {
     'Yupcha Softwares Private Limited',
     'Microsoft Store uninstall metadata uses the legal publisher',
   );
+  assert.deepEqual(config.win.target, ['appx'], 'Microsoft Store builds only an MSIX package');
+  assert.equal(config.appx.identityName, 'Yupcha.VoiceStudio');
+  assert.equal(config.appx.publisher, 'CN=E9EA905A-714E-495C-902A-6128F2021B76');
+  assert.equal(config.appx.publisherDisplayName, 'Yupcha');
+  assert.equal(config.appx.electronUpdaterAware, false);
+  assert(config.appx.capabilities.includes('microphone'));
+  for (const asset of [
+    'StoreLogo.png',
+    'Square150x150Logo.png',
+    'Square44x44Logo.png',
+    'Wide310x150Logo.png',
+  ]) {
+    assert(existsSync(resolve(root, 'build/appx', asset)), `Missing branded MSIX asset: ${asset}`);
+  }
 } else {
   assert.equal(
     config.extraMetadata.author,
     undefined,
     'Direct package author metadata is unchanged',
   );
+  assert.deepEqual(config.win.target, ['nsis'], 'Direct Windows packaging remains NSIS');
 }
 assert.equal(
   config.extraMetadata.desktopName,

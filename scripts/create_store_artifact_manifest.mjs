@@ -39,12 +39,7 @@ function releaseArtifact(name, distribution) {
       "microsoft-store": "VoiceStudio-MicrosoftStore-",
       "mac-app-store": "VoiceStudio-MacAppStore-",
     }[distribution] ?? "VoiceStudio-Electron-";
-  const updatePrefix =
-    distribution === "microsoft-store"
-      ? "electron-microsoft-store-stable-"
-      : distribution === "direct"
-        ? "electron-stable-"
-        : null;
+  const updatePrefix = distribution === "direct" ? "electron-stable-" : null;
   return (
     name.startsWith(installerPrefix) ||
     (updatePrefix !== null && name.startsWith(updatePrefix) && name.endsWith(".yml"))
@@ -128,7 +123,10 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
     version: packageJson.version,
     commit,
     signingVerification: option("signing-evidence", "")
-      ? { status: "valid", evidence: option("signing-evidence", "") }
+      ? {
+          status: option("signing-status", "valid"),
+          evidence: option("signing-evidence", ""),
+        }
       : { status: "not-run" },
   });
   console.log(`Wrote ${basename(output)}`);

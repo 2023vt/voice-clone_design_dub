@@ -6,6 +6,7 @@ import metadata from '../../store/metadata.json' with { type: 'json' };
 
 test('keeps direct Linux packaging and its updater unchanged', () => {
   const packaging = distributionPackaging('direct');
+  assert.deepEqual(packaging.windowsTargets, ['nsis']);
   assert.deepEqual(packaging.linuxTargets, ['AppImage', 'deb']);
   assert.equal(packaging.linuxExecutableName, undefined);
   assert.equal(packaging.snapcraft, undefined);
@@ -18,6 +19,7 @@ test('keeps direct Linux packaging and its updater unchanged', () => {
 
 test('builds the Snap Store distribution as a strictly confined store-owned package', () => {
   const packaging = distributionPackaging('snap-store');
+  assert.deepEqual(packaging.windowsTargets, ['nsis']);
   assert.deepEqual(packaging.linuxTargets, ['snap']);
   assert.equal(packaging.linuxExecutableName, 'voicestudio');
   assert.equal(packaging.snapcraft.base, 'core22');
@@ -48,4 +50,9 @@ test('builds the Snap Store distribution as a strictly confined store-owned pack
     assert(plugs.includes(plug), `Snap declares required ${plug} interface`);
   }
   assert(!plugs.includes('removable-media'), 'User-selected removable files use the portal');
+});
+
+test('builds Microsoft Store packages as Store-owned MSIX', () => {
+  const packaging = distributionPackaging('microsoft-store');
+  assert.deepEqual(packaging.windowsTargets, ['appx']);
 });

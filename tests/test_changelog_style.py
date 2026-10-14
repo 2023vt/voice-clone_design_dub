@@ -62,6 +62,8 @@ _REF_ALLOWLIST = (
     "Dubbing and batch jobs accept only plain language codes",
     "Saved voice, gallery and call-recording files are read only from inside",
     "Engine install folders can no longer be set to a typed path",
+    # owner-requested Microsoft Store MSIX publication work, no public issue
+    "Microsoft Store builds use the reserved VoiceStudio identity",
 )
 
 _HEADING = re.compile(r"^## \[([^\]]+)\](?:\s*[—–-]\s*(.*))?$")

@@ -15,7 +15,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const { version } = JSON.parse(readFileSync(resolve(here, '../package.json'), 'utf-8'));
 const storeMetadata = JSON.parse(readFileSync(resolve(here, '../store/metadata.json'), 'utf-8'));
 const storeIdentity = storeMetadata.identity;
+const microsoftStoreIdentity = storeMetadata.microsoftStore;
 const isMacAppStore = DISTRIBUTION_TARGET === 'mac-app-store';
+const isMicrosoftStore = DISTRIBUTION_TARGET === 'microsoft-store';
 const artifactLabel =
   {
     'microsoft-store': 'MicrosoftStore',
@@ -35,8 +37,10 @@ if (
 const updateUrl = 'https://github.com/debpalash/VoiceStudio/releases/latest/download';
 
 export function distributionPackaging(target = DISTRIBUTION_TARGET) {
+  const windowsTargets = target === 'microsoft-store' ? ['appx'] : ['nsis'];
   if (target === 'snap-store') {
     return {
+      windowsTargets,
       linuxTargets: ['snap'],
       linuxExecutableName: 'voicestudio',
       snapcraft: {
@@ -72,6 +76,7 @@ export function distributionPackaging(target = DISTRIBUTION_TARGET) {
     };
   }
   return {
+    windowsTargets,
     linuxTargets: ['AppImage', 'deb'],
     publish: {
       provider: 'generic',
@@ -188,7 +193,20 @@ export default {
     // (--x64 / --arm64); an unflagged local build uses the host's. Never pin
     // `arch` here: electron-builder unions it with the CLI flag, so
     // `--win --arm64` would also build x64 (tests/packaging-contract.mjs).
-    target: ['nsis'],
+    target: packaging.windowsTargets,
+  },
+  appx: {
+    artifactName: `${artifactPrefix}-\${version}-win-\${arch}.msix`,
+    applicationId: PRODUCT_NAME,
+    identityName: microsoftStoreIdentity.identityName,
+    publisher: microsoftStoreIdentity.publisher,
+    publisherDisplayName: microsoftStoreIdentity.publisherDisplayName,
+    displayName: PRODUCT_NAME,
+    languages: [storeIdentity.defaultLocale],
+    capabilities: ['internetClient', 'privateNetworkClientServer', 'microphone'],
+    minVersion: '10.0.17763.0',
+    maxVersionTested: '10.0.26100.0',
+    electronUpdaterAware: false,
   },
   nsis: {
     oneClick: false,

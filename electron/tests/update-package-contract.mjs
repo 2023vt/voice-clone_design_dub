@@ -48,10 +48,12 @@ const channel = option(
   process.env.VOICESTUDIO_UPDATE_CHANNEL || `electron-stable-${platform}-${arch}`,
 );
 const releaseDir = resolve(electronRoot, option('release', 'release'));
-const expectedChannel =
-  process.env.VOICESTUDIO_DISTRIBUTION === 'microsoft-store'
-    ? `electron-microsoft-store-stable-${platform}-${arch}`
-    : `electron-stable-${platform}-${arch}`;
+assert.notEqual(
+  process.env.VOICESTUDIO_DISTRIBUTION,
+  'microsoft-store',
+  'Microsoft Store MSIX updates are owned by the Store',
+);
+const expectedChannel = `electron-stable-${platform}-${arch}`;
 assert.equal(channel, expectedChannel, 'Distribution uses its dedicated stable update channel');
 
 assert(['win32', 'darwin', 'linux'].includes(platform), `Supported platform: ${platform}`);
@@ -102,10 +104,7 @@ const hashes = await fileHashes(artifactPath, platform === 'linux');
 assert.equal(hashes.sha512, fileSha, 'Update metadata SHA-512 matches artifact bytes');
 
 const osToken = platform === 'win32' ? 'win' : platform === 'darwin' ? 'mac' : 'linux';
-const artifactBrand =
-  process.env.VOICESTUDIO_DISTRIBUTION === 'microsoft-store'
-    ? 'VoiceStudio-MicrosoftStore'
-    : 'VoiceStudio-Electron';
+const artifactBrand = 'VoiceStudio-Electron';
 assert(
   fileUrl.startsWith(`${artifactBrand}-${expectedVersion}-${osToken}-${arch}.`),
   'Update artifact preserves the branded version/platform/architecture name',

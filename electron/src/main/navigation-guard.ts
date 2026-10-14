@@ -19,6 +19,26 @@ export async function openOutside(url: string): Promise<void> {
   }
 }
 
+const ALLOWED_EMBED_HOSTS = new Set(['forms.gle', 'docs.google.com']);
+
+export function isAllowedFrameUrl(
+  url: string,
+  isMainFrame: boolean = false,
+  devUrl?: string,
+): boolean {
+  if (isOwnUrl(url, devUrl)) return true;
+  if (isMainFrame) return false;
+  try {
+    const parsed = new URL(url);
+    return (
+      parsed.protocol === 'https:' &&
+      (ALLOWED_EMBED_HOSTS.has(parsed.hostname) || parsed.hostname.endsWith('.google.com'))
+    );
+  } catch {
+    return false;
+  }
+}
+
 export interface NavigationGuardTarget {
   setWindowOpenHandler(handler: (details: { url: string }) => { action: 'deny' | 'allow' }): void;
   on(event: 'will-navigate', listener: (event: { preventDefault: () => void }, url: string) => void): unknown;
@@ -43,7 +63,7 @@ export function attachNavigationGuards(
     void openOutsideFn(url);
   });
   contents.on('will-frame-navigate', (event) => {
-    if (isOwnUrl(event.url, devUrl)) return;
+    if (isAllowedFrameUrl(event.url, event.isMainFrame, devUrl)) return;
     event.preventDefault();
     void openOutsideFn(event.url);
   });

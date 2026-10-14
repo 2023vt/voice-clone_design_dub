@@ -2,6 +2,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   attachNavigationGuards,
+  isAllowedFrameUrl,
   isOwnUrl,
   openOutside,
   type NavigationGuardTarget,
@@ -34,6 +35,27 @@ describe('isOwnUrl', () => {
     expect(isOwnUrl('file:///etc/passwd')).toBe(false);
     expect(isOwnUrl('javascript:alert(1)')).toBe(false);
     expect(isOwnUrl('not-a-valid-url')).toBe(false);
+  });
+});
+
+describe('isAllowedFrameUrl', () => {
+  it('allows own URLs on both main frame and subframes', () => {
+    expect(isAllowedFrameUrl('app://voicestudio/index.html', true)).toBe(true);
+    expect(isAllowedFrameUrl('app://voicestudio/index.html', false)).toBe(true);
+  });
+
+  it('allows approved Google Forms embeds only in subframes', () => {
+    expect(isAllowedFrameUrl('https://forms.gle/2PYCvd39hbwijzX37', false)).toBe(true);
+    expect(isAllowedFrameUrl('https://docs.google.com/forms/d/e/viewform', false)).toBe(true);
+    // Main frame navigation to external forms is strictly disallowed
+    expect(isAllowedFrameUrl('https://forms.gle/2PYCvd39hbwijzX37', true)).toBe(false);
+    expect(isAllowedFrameUrl('https://docs.google.com/forms/d/e/viewform', true)).toBe(false);
+  });
+
+  it('rejects unapproved external hosts in subframes', () => {
+    expect(isAllowedFrameUrl('https://malicious.org/embed', false)).toBe(false);
+    expect(isAllowedFrameUrl('http://forms.gle/insecure', false)).toBe(false);
+    expect(isAllowedFrameUrl('file:///tmp/leak.html', false)).toBe(false);
   });
 });
 
@@ -129,13 +151,34 @@ describe('attachNavigationGuards', () => {
     attachNavigationGuards(target, mockOpenOutside);
 
     // Own frame URL allowed
-    const ownFrameEvent = { preventDefault: vi.fn(), url: 'app://voicestudio/iframe.html' };
+    const ownFrameEvent = { preventDefault: vi.fn(), url: 'app://voicestudio/iframe.html', isMainFrame: false };
     emitWillFrameNavigate(ownFrameEvent);
     expect(ownFrameEvent.preventDefault).not.toHaveBeenCalled();
     expect(mockOpenOutside).not.toHaveBeenCalled();
 
+    // Approved sponsor form embed allowed in subframe
+    const sponsorFrameEvent = {
+      preventDefault: vi.fn(),
+      url: 'https://forms.gle/2PYCvd39hbwijzX37',
+      isMainFrame: false,
+    };
+    emitWillFrameNavigate(sponsorFrameEvent);
+    expect(sponsorFrameEvent.preventDefault).not.toHaveBeenCalled();
+    expect(mockOpenOutside).not.toHaveBeenCalled();
+
+    // Main frame navigation to external forms blocked and opened outside
+    const mainFrameSponsorEvent = {
+      preventDefault: vi.fn(),
+      url: 'https://forms.gle/2PYCvd39hbwijzX37',
+      isMainFrame: true,
+    };
+    emitWillFrameNavigate(mainFrameSponsorEvent);
+    expect(mainFrameSponsorEvent.preventDefault).toHaveBeenCalledOnce();
+    expect(mockOpenOutside).toHaveBeenCalledWith('https://forms.gle/2PYCvd39hbwijzX37');
+
     // Untrusted iframe navigation blocked and opened outside
-    const externalFrameEvent = { preventDefault: vi.fn(), url: 'https://evil.com/iframe' };
+    mockOpenOutside.mockClear();
+    const externalFrameEvent = { preventDefault: vi.fn(), url: 'https://evil.com/iframe', isMainFrame: false };
     emitWillFrameNavigate(externalFrameEvent);
     expect(externalFrameEvent.preventDefault).toHaveBeenCalledOnce();
     expect(mockOpenOutside).toHaveBeenCalledWith('https://evil.com/iframe');

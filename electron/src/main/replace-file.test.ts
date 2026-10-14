@@ -2,6 +2,7 @@
 import {
   chmod,
   lstat,
+  mkdir,
   mkdtemp,
   open,
   readdir,
@@ -189,6 +190,29 @@ describe.skipIf(process.platform === 'win32')('exports through dangling symlinks
     expect((await lstat(link)).isSymbolicLink()).toBe(true);
     expect((await lstat(intermediate)).isSymbolicLink()).toBe(true);
     expect([...(await readFile(target))]).toEqual([1, 2, 3]);
+  });
+
+  it('resolves `..` after a symlinked directory like the OS, not lexically', async () => {
+    const work = join(directory, 'work');
+    const other = join(directory, 'other');
+    await mkdir(join(other, 'subdir'), { recursive: true });
+    await mkdir(work);
+    await symlink(join(other, 'subdir'), join(work, 'alias'));
+    await writeFile(join(work, 'future.wav'), 'unrelated');
+    const link = join(work, 'export.wav');
+    await symlink('alias/../future.wav', link);
+    await replaceFile(link, 'new export');
+    expect((await lstat(link)).isSymbolicLink()).toBe(true);
+    expect(await readFile(join(other, 'future.wav'), 'utf8')).toBe('new export');
+    expect(await readFile(join(work, 'future.wav'), 'utf8')).toBe('unrelated');
+  });
+
+  it('rejects a missing intermediate directory instead of collapsing the path', async () => {
+    const link = join(directory, 'export.wav');
+    await symlink('missing/../export.wav', link);
+    await expect(replaceFile(link, 'new export')).rejects.toMatchObject({ code: 'ENOENT' });
+    expect((await lstat(link)).isSymbolicLink()).toBe(true);
+    expect(await readdir(directory)).toEqual(['export.wav']);
   });
 
   it('refuses a cyclic symlink without overwriting the link', async () => {

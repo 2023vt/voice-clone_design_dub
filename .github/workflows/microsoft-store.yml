@@ -96,7 +96,7 @@ jobs:
             -FriendlyName 'VoiceStudio MSIX CI test'
           $cer = Join-Path $env:RUNNER_TEMP 'VoiceStudio-MSIX-CI.cer'
           Export-Certificate -Cert $cert -FilePath $cer | Out-Null
-          Import-Certificate -FilePath $cer -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
+          Import-Certificate -FilePath $cer -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null
           $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
             Sort-Object FullName -Descending | Select-Object -First 1
           if ($null -eq $signTool) { throw 'SignTool is unavailable' }
@@ -113,7 +113,7 @@ jobs:
           } finally {
             Get-AppxPackage -Name $metadata.microsoftStore.identityName |
               Remove-AppxPackage -ErrorAction SilentlyContinue
-            Remove-Item "Cert:\CurrentUser\TrustedPeople\$($cert.Thumbprint)" -ErrorAction SilentlyContinue
+            Remove-Item "Cert:\LocalMachine\TrustedPeople\$($cert.Thumbprint)" -ErrorAction SilentlyContinue
             Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -ErrorAction SilentlyContinue
           }
       - name: Run Windows App Certification Kit
@@ -130,7 +130,7 @@ jobs:
             -FriendlyName 'VoiceStudio WACK test'
           $cer = Join-Path $env:RUNNER_TEMP 'VoiceStudio-WACK.cer'
           Export-Certificate -Cert $cert -FilePath $cer | Out-Null
-          Import-Certificate -FilePath $cer -CertStoreLocation 'Cert:\CurrentUser\TrustedPeople' | Out-Null
+          Import-Certificate -FilePath $cer -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null
           $signTool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" |
             Sort-Object FullName -Descending | Select-Object -First 1
           & $signTool.FullName sign /fd SHA256 /sha1 $cert.Thumbprint /s My $testPackage
@@ -143,7 +143,7 @@ jobs:
           $exitCode = $LASTEXITCODE
           Get-AppxPackage -Name $metadata.microsoftStore.identityName |
             Remove-AppxPackage -ErrorAction SilentlyContinue
-          Remove-Item "Cert:\CurrentUser\TrustedPeople\$($cert.Thumbprint)" -ErrorAction SilentlyContinue
+          Remove-Item "Cert:\LocalMachine\TrustedPeople\$($cert.Thumbprint)" -ErrorAction SilentlyContinue
           Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -ErrorAction SilentlyContinue
           if ($exitCode -ne 0) { throw "WACK failed: $exitCode" }
           if (-not (Test-Path $report)) { throw 'WACK did not produce a report' }

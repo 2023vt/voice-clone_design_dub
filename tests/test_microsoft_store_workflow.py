@@ -78,3 +78,4 @@ def test_appx_commands_run_in_windows_powershell():
     assert len(appx_steps) == 2
     assert all(step.get("shell") == "powershell" for step in appx_steps)
     assert all("Copy-Item $source.FullName $testPackage" in step["run"] for step in appx_steps)
+    assert all("Cert:\\LocalMachine\\TrustedPeople" in step["run"] for step in appx_steps)

@@ -9,6 +9,7 @@ import {
   stageRuntimeSources,
   type RuntimeRegion,
 } from './runtime-project';
+import { runtimeSetupSupported } from './distribution';
 import { asciiSafePthFiles } from './pth-ascii';
 import { devProbeStamped, writeDevProbeStamp } from './dev-probe-stamp';
 import { CrashJournal } from './crash-journal';
@@ -785,6 +786,7 @@ export class BackendSupervisor extends EventEmitter<{
   /** Explicit first-run action. Installation never happens in start()/restart(). */
   async setupRuntime(): Promise<void> {
     if (
+      !runtimeSetupSupported() ||
       !app.isPackaged ||
       this.installation ||
       this.cleaningRuntime ||
@@ -930,6 +932,7 @@ export class BackendSupervisor extends EventEmitter<{
   /** Remove only an Electron-owned Python project, then perform a fresh install. */
   async cleanSetupRuntime(): Promise<void> {
     if (
+      !runtimeSetupSupported() ||
       !app.isPackaged ||
       this.installation ||
       this.cleaningRuntime ||
@@ -1298,8 +1301,7 @@ export class BackendSupervisor extends EventEmitter<{
     // A native fault's last line is whatever followed the dump: the stdlib
     // frame that started the process, an extension-module list or an access
     // log line. Name the fault and where it happened instead (#2382, #2187).
-    const lastLine =
-      nativeFaultSummary(recorded?.logTail.join('\n') ?? '') || this.childLog.at(-1);
+    const lastLine = nativeFaultSummary(recorded?.logTail.join('\n') ?? '') || this.childLog.at(-1);
     const why = signal ? `signal ${signal}` : `exit code ${code}`;
     this.setStage('crashed', {
       message: `Backend exited unexpectedly (${why}).${lastLine ? ` Last output: ${lastLine}` : ''}`,
@@ -1343,7 +1345,8 @@ export class BackendSupervisor extends EventEmitter<{
       return healthy;
     } catch (error) {
       const name = (error as { name?: unknown } | null)?.name;
-      this.lastProbeOutcome = name === 'TimeoutError' || name === 'AbortError' ? 'timeout' : 'refused';
+      this.lastProbeOutcome =
+        name === 'TimeoutError' || name === 'AbortError' ? 'timeout' : 'refused';
       return false;
     }
   }

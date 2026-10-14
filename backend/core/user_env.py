@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import os
 import re
+import tempfile
 from typing import Optional
 
 USER_ENV_PATH = os.path.expanduser("~/.config/omnivoice/env")
@@ -37,25 +38,28 @@ def _read_lines(path: str) -> list[str]:
     # keys (e.g. a persisted HF_TOKEN) when it rewrites the file.
 
 
-def _opener_0600(path: str, flags: int) -> int:
-    # Create the file with 0600 from the start (no world-readable window before
-    # a follow-up chmod) — it can hold secrets like HF_TOKEN. The mode is
-    # masked by umask but only ever *more* restrictive; non-POSIX platforms
-    # ignore the mode bits.
-    return os.open(path, flags, 0o600)
-
-
 def _write_lines(path: str, lines: list[str]) -> None:
+    path = os.path.realpath(path)
     parent = os.path.dirname(path)
     if parent:  # bare filename (e.g. an OMNIVOICE_ENV_FILE override) has no parent
         os.makedirs(parent, exist_ok=True)
     body = "\n".join(lines)
     if body and not body.endswith("\n"):
         body += "\n"
-    with open(path, "w", encoding="utf-8", opener=_opener_0600) as f:
-        f.write(body)
+    fd, temporary = tempfile.mkstemp(prefix=".omnivoice-env-", dir=parent or ".")
     try:
-        os.chmod(path, 0o600)  # tighten an existing file that predates the opener
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(body)
+        os.replace(temporary, path)
+    finally:
+        try:
+            os.unlink(temporary)
+        except OSError:
+            # Successful replacement already removed this path; cleanup failures
+            # must not mask the original write or replacement exception.
+            pass
+    try:
+        os.chmod(path, 0o600)  # best-effort private permissions on the replacement
     except OSError:
         pass  # best-effort; some filesystems/Windows don't support chmod
 

@@ -491,17 +491,19 @@ class SubprocessBackend(TTSBackend):
 
     def _join_stderr_thread(self, proc: Optional[subprocess.Popen] = None, timeout: float = 1.0) -> None:
         """Close stderr pipe and join the background drain reader thread."""
-        if proc is not None and getattr(proc, "stderr", None) is not None:
+        thread = getattr(self, "_stderr_thread", None)
+        is_alive = False
+        if thread is not None:
+            if thread.is_alive():
+                thread.join(timeout=timeout)
+            is_alive = thread.is_alive()
+            if not is_alive:
+                self._stderr_thread = None
+        if not is_alive and proc is not None and getattr(proc, "stderr", None) is not None:
             try:
                 proc.stderr.close()
             except Exception:
                 pass
-        thread = getattr(self, "_stderr_thread", None)
-        if thread is not None:
-            if thread.is_alive():
-                thread.join(timeout=timeout)
-            if not thread.is_alive():
-                self._stderr_thread = None
 
     def _spawn(self) -> None:
         """Launch the sidecar if not already running. Blocks on the ready

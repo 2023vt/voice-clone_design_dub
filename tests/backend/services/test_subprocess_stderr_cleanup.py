@@ -135,10 +135,49 @@ def test_join_stderr_thread_retains_reference_on_timeout():
 
     backend._join_stderr_thread(mock_proc, timeout=0.1)
 
-    mock_stderr.close.assert_called_once()
     mock_thread.join.assert_called_once_with(timeout=0.1)
-    # The reference is retained because the thread is still running
+    # The reference is retained and stderr is not closed prematurely
     assert backend._stderr_thread is mock_thread
+    mock_stderr.close.assert_not_called()
+
+
+def test_join_stderr_thread_with_real_pipe_writer_open_retains_alive_reader():
+    import os
+    DummySidecar = _get_dummy_sidecar_class()
+    backend = DummySidecar()
+
+    r_fd, w_fd = os.pipe()
+    r_file = os.fdopen(r_fd, "rb")
+
+    mock_proc = MagicMock()
+    mock_proc.stderr = r_file
+
+    tail = collections.deque()
+    thread = threading.Thread(
+        target=backend._drain_stderr,
+        args=(mock_proc, tail),
+        daemon=True,
+    )
+    backend._stderr_thread = thread
+    thread.start()
+
+    try:
+        # With writer still open and no data written, readline is blocked on Linux.
+        # A short join timeout (0.05s) will time out without thread exit.
+        backend._join_stderr_thread(mock_proc, timeout=0.05)
+
+        # Thread is still alive because writer is open; _stderr_thread must NOT be cleared.
+        assert thread.is_alive()
+        assert backend._stderr_thread is thread
+    finally:
+        # Close writer to unblock read and allow clean thread exit
+        os.close(w_fd)
+        thread.join(timeout=1.0)
+
+    assert not thread.is_alive()
+    # Calling join now clears it
+    backend._join_stderr_thread(mock_proc, timeout=0.1)
+    assert backend._stderr_thread is None
 
 
 def test_drain_stderr_closes_stderr_in_finally():

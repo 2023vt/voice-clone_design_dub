@@ -18,7 +18,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- Audio.cpp runtime installation retries transient file locks and preserves the previous runtime if publication fails (#2685).
+- Audio.cpp runtime installation retries transient file locks and preserves the previous runtime if publication fails (#2685) — thanks @rudycelekli!
 
 ## [0.5.7] — 2026-10-13
 

@@ -4,6 +4,7 @@ import collections
 import importlib
 import io
 import subprocess
+import sys
 from pathlib import Path
 from unittest.mock import MagicMock
 
@@ -59,6 +60,11 @@ def test_start_cleans_up_on_early_exit_with_real_is_running(monkeypatch):
         monkeypatch.setattr(sonitranslate, "is_installed", lambda: True)
         monkeypatch.setattr(sonitranslate, "is_venv_ready", lambda: False)
         monkeypatch.setattr(sonitranslate.subprocess, "Popen", lambda *args, **kwargs: mock_proc)
+
+        # Stub httpx so test never hits a real server on port 7860
+        mock_httpx = MagicMock()
+        mock_httpx.get.return_value = MagicMock(status_code=503)
+        monkeypatch.setitem(sys.modules, "httpx", mock_httpx)
 
         # Do NOT mock is_running(); let real is_running() run, which checks poll() and resets _proc
         with pytest.raises(RuntimeError) as exc_info:

@@ -33,14 +33,14 @@ SONI_URL = f"http://127.0.0.1:{SONI_PORT}"
 _proc: Optional[subprocess.Popen] = None
 _output_tail: collections.deque[str] = collections.deque(maxlen=100)
 _drain_thread: Optional[threading.Thread] = None
-_start_lock: Optional[asyncio.Lock] = None
+_lifecycle_lock: Optional[asyncio.Lock] = None
 
 
-def _get_start_lock() -> asyncio.Lock:
-    global _start_lock
-    if _start_lock is None:
-        _start_lock = asyncio.Lock()
-    return _start_lock
+def _get_lifecycle_lock() -> asyncio.Lock:
+    global _lifecycle_lock
+    if _lifecycle_lock is None:
+        _lifecycle_lock = asyncio.Lock()
+    return _lifecycle_lock
 
 
 def _redact_home_paths(text: str) -> str:
@@ -202,7 +202,7 @@ async def install(progress_callback=None) -> dict:
 
 async def start() -> dict:
     """Start the SoniTranslate Gradio server as a subprocess."""
-    async with _get_start_lock():
+    async with _get_lifecycle_lock():
         global _proc, _output_tail, _drain_thread
         if is_running():
             return {"started": False, "reason": "already_running", **status()}
@@ -265,18 +265,19 @@ async def start() -> dict:
 
 async def stop() -> dict:
     """Stop the SoniTranslate subprocess."""
-    global _proc, _drain_thread
-    if _proc is None:
-        return {"stopped": False, "reason": "not_running"}
+    async with _get_lifecycle_lock():
+        global _proc, _drain_thread
+        if _proc is None:
+            return {"stopped": False, "reason": "not_running"}
 
-    proc = _proc
-    drain_thread = _drain_thread
-    _proc = None
-    _drain_thread = None
+        proc = _proc
+        drain_thread = _drain_thread
+        _proc = None
+        _drain_thread = None
 
-    await asyncio.to_thread(_wait_and_reap, proc, drain_thread)
-    logger.info("SoniTranslate stopped")
-    return {"stopped": True}
+        await asyncio.to_thread(_wait_and_reap, proc, drain_thread)
+        logger.info("SoniTranslate stopped")
+        return {"stopped": True}
 
 
 async def dub_video(

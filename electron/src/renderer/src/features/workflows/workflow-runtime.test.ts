@@ -166,4 +166,14 @@ describe('typed media workflows', () => {
     document.connections[1].source = '__proto__';
     expect(() => compileWorkflow(document)).toThrow('graph');
   });
+
+  it('preserves null prototypes and ignores inherited properties across run restarts', () => {
+    const document = audioRecipe(['audio', 'transcribe', 'end']);
+    const plan = compileWorkflow(document);
+    const run = prepareRun(plan);
+    const restarted = prepareRun(plan, run);
+    expect(Object.getPrototypeOf(restarted.items[0].texts!)).toBeNull();
+    expect(Object.getPrototypeOf(restarted.items[0].audio)).toBeNull();
+    expect(Object.hasOwn(restarted.items[0].texts!, 'toString')).toBe(false);
+  });
 });

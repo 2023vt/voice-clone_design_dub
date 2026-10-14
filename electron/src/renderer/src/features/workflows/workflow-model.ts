@@ -97,7 +97,12 @@ export function makeCallWorkflow(name: string, brief: string): WorkflowDocument 
   };
 }
 
-const DANGEROUS_OBJECT_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+const DANGEROUS_OBJECT_KEYS = new Set([
+  '__proto__',
+  'constructor',
+  'prototype',
+  ...Object.getOwnPropertyNames(Object.prototype),
+]);
 
 export function isSafeStepId(id: unknown): id is string {
   return typeof id === 'string' && id.length > 0 && id.length <= 128 &&

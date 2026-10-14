@@ -131,6 +131,9 @@ it('rejects unsafe step IDs to prevent prototype pollution', () => {
   expect(isSafeStepId('__proto__')).toBe(false);
   expect(isSafeStepId('constructor')).toBe(false);
   expect(isSafeStepId('prototype')).toBe(false);
+  expect(isSafeStepId('toString')).toBe(false);
+  expect(isSafeStepId('valueOf')).toBe(false);
+  expect(isSafeStepId('hasOwnProperty')).toBe(false);
   expect(isSafeStepId('')).toBe(false);
   expect(isSafeStepId('step with spaces')).toBe(false);
   expect(isSafeStepId('step/path')).toBe(false);

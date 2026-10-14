@@ -165,7 +165,16 @@ export function compileWorkflow(document: WorkflowDocument, engine = ''): Execut
 export function prepareRun(plan: ExecutionPlan, previous?: WorkflowRun | null): WorkflowRun {
   if (previous?.version === 1 && previous.signature === plan.signature && previous.items.length === plan.scripts.length) {
     const restored = structuredClone(previous);
-    return { ...restored, items: restored.items.map((item) => ({ ...item, state: item.state === 'done' ? 'done' : 'ready', error: undefined })) };
+    return {
+      ...restored,
+      items: restored.items.map((item) => ({
+        ...item,
+        state: item.state === 'done' ? 'done' : 'ready',
+        error: undefined,
+        audio: Object.assign(Object.create(null), item.audio),
+        texts: Object.assign(Object.create(null), item.texts),
+      })),
+    };
   }
   return { version: 1, signature: plan.signature, updatedAt: Date.now(), items: plan.scripts.map((script) => ({ ...script, state: 'ready', audio: Object.create(null), texts: Object.create(null) })) };
 }
@@ -194,14 +203,14 @@ export async function executeWorkflow(
     if (item.state === 'done') continue;
     try {
       signal.throwIfAborted();
-      const texts: Record<string, string> = (item.texts ??= Object.create(null) as Record<string, string>);
-      const audio: Record<string, Blob> = (item.audio ??= Object.create(null) as Record<string, Blob>);
+      const texts: Record<string, string> = (item.texts = Object.assign(Object.create(null), item.texts));
+      const audio: Record<string, Blob> = (item.audio = Object.assign(Object.create(null), item.audio));
       let value: string | Blob = item.text;
       const input = plan.steps[0];
       if (!isSafeStepId(input.id)) throw new WorkflowValidationError('graph');
       if (!item.sourceId) texts[input.id] = item.text;
       if (item.sourceId) {
-        value = audio[input.id] || await operations.loadAudio!(item.sourceId);
+        value = (Object.hasOwn(audio, input.id) ? audio[input.id] : undefined) || await operations.loadAudio!(item.sourceId);
         audio[input.id] = value;
         await save();
       }
@@ -226,7 +235,7 @@ export async function executeWorkflow(
         item.stepId = step.id;
         item.state = 'running';
         await save();
-        const cached = texts[step.id] ?? audio[step.id];
+        const cached = Object.hasOwn(texts, step.id) ? texts[step.id] : Object.hasOwn(audio, step.id) ? audio[step.id] : undefined;
         if (cached !== undefined) value = cached;
         else {
           switch (step.kind) {

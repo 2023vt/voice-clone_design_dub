@@ -24,12 +24,11 @@ import {
 } from '@shared/config/integration-catalog';
 import './integrations-page.css';
 
-function openExternal(url: string) {
+function openExternal(url: string, failureMessage: string) {
   const bridge = getBridge();
+  // The bridge's own refusal text is technical; show the localized next step.
   if (bridge)
-    void Promise.resolve(bridge.files.openExternal(url)).catch((error) =>
-      toast.error(describeError(error)),
-    );
+    void Promise.resolve(bridge.files.openExternal(url)).catch(() => toast.error(failureMessage));
   else window.open(url, '_blank', 'noopener,noreferrer');
 }
 
@@ -192,7 +191,7 @@ export function IntegrationDetailPage() {
       <p className="integration-detail-url">{entry.url}</p>
       <button
         type="button"
-        onClick={() => openExternal(entry.url)}
+        onClick={() => openExternal(entry.url, t('integrationCatalog.websiteOpenFailed'))}
         className="integration-open-button"
       >
         {t('common.open')}

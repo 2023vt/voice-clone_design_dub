@@ -56,5 +56,10 @@ it('reports a refused vendor website open instead of leaving the rejection unhan
   bridge.openExternal.mockRejectedValueOnce(new Error('Refusing to open ftp: URLs'));
   render(<IntegrationDetailPage />);
   fireEvent.click(screen.getByRole('button', { name: 'Open' }));
-  await waitFor(() => expect(toast.error).toHaveBeenCalledWith('Refusing to open ftp: URLs'));
+  await waitFor(() =>
+    expect(toast.error).toHaveBeenCalledWith(
+      'Could not open the website. Check your default browser and try again.',
+    ),
+  );
+  expect(toast.error).not.toHaveBeenCalledWith('Refusing to open ftp: URLs');
 });

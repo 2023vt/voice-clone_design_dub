@@ -12,7 +12,7 @@ def _nonnegative_int_env(name: str, default: int) -> int:
         if value >= 0:
             return value
     except ValueError:
-        pass
+        pass  # fall through to the warning and the default below
     logger.warning("%s must be a non-negative integer; using the default", name)
     return default
 

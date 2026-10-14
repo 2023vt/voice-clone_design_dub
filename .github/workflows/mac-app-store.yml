@@ -74,6 +74,10 @@ jobs:
           mkdir -p electron/build/uv
           cp "$UV" "electron/build/uv/uv-${{ matrix.target }}"
           chmod 755 "electron/build/uv/uv-${{ matrix.target }}"
+          if [ '${{ matrix.arch }}' = arm64 ]; then
+            node scripts/build_mac_app_store_runtime.mjs --output="electron/build/runtime/${{ matrix.target }}"
+            echo "VOICESTUDIO_BUNDLED_RUNTIME=$GITHUB_WORKSPACE/electron/build/runtime/${{ matrix.target }}" >> "$GITHUB_ENV"
+          fi
       - name: Install locked dependencies
         run: bun install --frozen-lockfile
       - name: Validate Electron

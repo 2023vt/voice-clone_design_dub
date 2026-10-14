@@ -5,7 +5,11 @@ import {
   distributionProfile,
   resolveDistributionTarget,
 } from '../../../config/distributions.mjs';
-import { applicationUpdatesSupported, runtimeSetupSupported } from './distribution';
+import {
+  applicationUpdatesSupported,
+  bundledRuntimeRequired,
+  runtimeSetupSupported,
+} from './distribution';
 
 describe('distribution contract', () => {
   test('accepts only the four maintained distribution identities', () => {
@@ -53,5 +57,9 @@ describe('distribution contract', () => {
     expect(runtimeSetupSupported('microsoft-store')).toBe(true);
     expect(runtimeSetupSupported('snap-store')).toBe(true);
     expect(runtimeSetupSupported('mac-app-store')).toBe(false);
+    expect(bundledRuntimeRequired('direct')).toBe(false);
+    expect(bundledRuntimeRequired('microsoft-store')).toBe(false);
+    expect(bundledRuntimeRequired('snap-store')).toBe(false);
+    expect(bundledRuntimeRequired('mac-app-store')).toBe(true);
   });
 });

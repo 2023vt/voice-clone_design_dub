@@ -195,6 +195,24 @@ if (process.env.VOICESTUDIO_RUST_TARGET || process.env.VOICESTUDIO_BUNDLED_UV) {
 if (artifactRequested && bundledUvSource) {
   assert(existsSync(resolve(artifactResources, bundledUvSource.to)), 'Packaged uv executable');
 }
+const bundledRuntime = config.extraResources.find((item) => item.to === 'runtime');
+if (
+  DISTRIBUTION_TARGET === 'mac-app-store' &&
+  artifactArch === 'arm64' &&
+  (artifactRequested || process.env.VOICESTUDIO_BUNDLED_RUNTIME)
+) {
+  assert(bundledRuntime, 'Apple Silicon App Store builds package the local runtime');
+  assert(
+    existsSync(resolve(bundledRuntime.from, 'runtime-manifest.json')),
+    'Bundled runtime manifest',
+  );
+  if (artifactRequested) {
+    assert(
+      existsSync(resolve(artifactResources, 'runtime/runtime-manifest.json')),
+      'Packaged runtime manifest',
+    );
+  }
+}
 assert.equal(
   config.extraMetadata.version,
   JSON.parse(readFileSync(resolve(root, '../package.json'))).version,

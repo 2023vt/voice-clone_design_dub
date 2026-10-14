@@ -1,7 +1,11 @@
 // @vitest-environment node
 import { expect, it, vi } from 'vitest';
 
-import { securityScopedDialogOptions, withSecurityScopedBookmark } from './security-scoped-files';
+import {
+  securityScopedDialogOptions,
+  startSecurityScopedAccess,
+  withSecurityScopedBookmark,
+} from './security-scoped-files';
 
 it('leaves direct-download dialog options unchanged', () => {
   const options = { defaultPath: 'take.wav' };
@@ -35,4 +39,15 @@ it('fails closed when a sandbox dialog omits authorization', async () => {
     'did not include sandbox authorization',
   );
   expect(operation).not.toHaveBeenCalled();
+});
+
+it('holds a sandbox folder lease until its caller releases it', () => {
+  const stop = vi.fn();
+  const start = vi.fn(() => stop);
+  const release = startSecurityScopedAccess('folder-bookmark', true, start);
+
+  expect(start).toHaveBeenCalledWith('folder-bookmark');
+  expect(stop).not.toHaveBeenCalled();
+  release();
+  expect(stop).toHaveBeenCalledOnce();
 });

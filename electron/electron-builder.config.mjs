@@ -104,6 +104,17 @@ const bundledUvResources =
   uvSource && existsSync(uvSource) && statSync(uvSource).size > 0
     ? [{ from: uvSource, to: `tools/uv${uvExtension}` }]
     : [];
+const bundledRuntimeSource = process.env.VOICESTUDIO_BUNDLED_RUNTIME
+  ? resolve(process.env.VOICESTUDIO_BUNDLED_RUNTIME)
+  : rustTarget
+    ? resolve(here, `build/runtime/${rustTarget}`)
+    : null;
+const bundledRuntimeResources =
+  isMacAppStore &&
+  bundledRuntimeSource &&
+  existsSync(resolve(bundledRuntimeSource, 'runtime-manifest.json'))
+    ? [{ from: bundledRuntimeSource, to: 'runtime' }]
+    : [];
 const notarizeMac =
   !isMacAppStore &&
   Boolean(
@@ -167,6 +178,7 @@ export default {
     { from: '../config/app.json', to: 'config/app.json' },
     { from: 'T3CODE-LICENSE.txt', to: 'electron/T3CODE-LICENSE.txt' },
     ...bundledUvResources,
+    ...bundledRuntimeResources,
   ],
   asar: true,
   afterPack: packageNativeHelper,

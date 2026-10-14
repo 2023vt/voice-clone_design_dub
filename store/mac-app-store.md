@@ -1,8 +1,8 @@
 # Mac App Store runbook
 
-Status: `built` is blocked; no package has been submitted.
+Status: implementation in progress; `built` is blocked and no package has been submitted.
 
-Branch: `feat/mac-app-store`
+Branch: `feat/mac-app-store-runtime`
 
 Final commit: record when the platform branch is ready for review.
 
@@ -22,10 +22,12 @@ are resolved in the shared compliance ledger and packaging contract:
 - record the exact bundled `uv` binary provenance, digest and notices;
 - approve every locked Python runtime and wheel for redistribution, including
   the PyAV/FFmpeg chain;
-- create a relocatable, signed, bundled Python runtime for both maintained Mac
-  architectures and prove that normal launch never installs executable code;
+- run and inspect the new relocatable Apple Silicon runtime build on a native
+  runner, then prove its signed package launches offline without installing code;
+- validate the documented x64 UI-only remote workflow in the sandbox and obtain
+  owner approval for that scope before submission;
 - finish security-scoped access for imported media and persistent user-selected
-  directories; export writes already use scoped bookmarks;
+  directories; export writes and active watch folders now hold scoped access;
 - validate the native dictation helper, microphone, accessibility, local
   backend listener and child processes in a signed sandbox build;
 - resolve any user-visible scope difference consistently across platforms with
@@ -55,6 +57,17 @@ bun run --cwd electron typecheck
 VOICESTUDIO_DISTRIBUTION=mac-app-store node electron/tests/packaging-contract.mjs
 uv run pytest tests/test_mac_app_store_workflow.py -q
 ```
+
+On an Apple Silicon Mac, build the locked offline runtime before packaging:
+
+```bash
+node scripts/build_mac_app_store_runtime.mjs
+```
+
+The script installs the managed Python build and frozen dependency graph into a
+relocatable archive, rejects links to build-machine paths, probes native imports
+and records the exact Python hash and installed package inventory. It does not
+approve redistribution; the compliance ledger remains the legal gate.
 
 The first command is expected to fail while the bundled-runtime ledger remains
 unresolved. A successful signed workflow must retain:

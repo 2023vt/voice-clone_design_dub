@@ -25,3 +25,7 @@ export function applicationUpdatesSupported(
 export function runtimeSetupSupported(target: DistributionTarget = CURRENT_DISTRIBUTION): boolean {
   return DISTRIBUTION_PROFILES[target].runtimeCode === 'user-initiated-download';
 }
+
+export function bundledRuntimeRequired(target: DistributionTarget = CURRENT_DISTRIBUTION): boolean {
+  return DISTRIBUTION_PROFILES[target].runtimeCode === 'bundled-only';
+}

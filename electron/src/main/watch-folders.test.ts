@@ -6,6 +6,8 @@ const mocks = vi.hoisted(() => ({
   pick: vi.fn(),
   request: vi.fn(),
   close: vi.fn(),
+  releaseAccess: vi.fn(),
+  startAccess: vi.fn(),
 }));
 vi.mock('electron', () => ({
   app: { isPackaged: false },
@@ -16,6 +18,16 @@ vi.mock('electron', () => ({
   },
 }));
 vi.mock('./backend', () => ({ backendRoot: () => '/repo' }));
+vi.mock('./security-scoped-files', () => ({
+  securityScopedDialogOptions: (options: object) => ({
+    ...options,
+    securityScopedBookmarks: true,
+  }),
+  startSecurityScopedAccess: (...args: unknown[]) => {
+    mocks.startAccess(...args);
+    return mocks.releaseAccess;
+  },
+}));
 vi.mock('./dictation-output', () => ({
   DictationOutputClient: class {
     request = mocks.request;
@@ -33,7 +45,11 @@ function fixture(baseUrl = 'http://127.0.0.1:3900', headers: Record<string, stri
     () => baseUrl,
     () => headers,
   );
-  mocks.pick.mockResolvedValue({ canceled: false, filePaths: ['/selected'] });
+  mocks.pick.mockResolvedValue({
+    canceled: false,
+    filePaths: ['/selected'],
+    bookmarks: ['folder-bookmark'],
+  });
   mocks.request.mockResolvedValue({ token: 'capability', path: '/selected' });
   const call = (name: string, value?: unknown) =>
     mocks.handlers.get('watch:' + name)!(event, value);
@@ -53,11 +69,17 @@ it('only the owning main frame can pick or access a folder', async () => {
   ).rejects.toThrow('Untrusted');
   expect(mocks.pick).not.toHaveBeenCalled();
   await f.call('pick');
+  expect(mocks.pick).toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ securityScopedBookmarks: true }),
+  );
+  expect(mocks.startAccess).toHaveBeenCalledWith('folder-bookmark');
   await expect(f.call('scan', 'invented')).rejects.toThrow('not authorized');
   await f.call('scan', 'capability');
   expect(mocks.request).toHaveBeenLastCalledWith({ method: 'watch_scan', token: 'capability' });
   f.contents.emit('did-start-loading');
   expect(mocks.close).toHaveBeenCalledTimes(1);
+  expect(mocks.releaseAccess).toHaveBeenCalledTimes(1);
   await expect(f.call('scan', 'capability')).rejects.toThrow('not authorized');
   f.close();
 });

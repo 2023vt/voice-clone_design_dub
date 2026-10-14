@@ -9,7 +9,8 @@ import {
   stageRuntimeSources,
   type RuntimeRegion,
 } from './runtime-project';
-import { runtimeSetupSupported } from './distribution';
+import { bundledRuntimeRequired, runtimeSetupSupported } from './distribution';
+import { materializeBundledRuntime } from './bundled-runtime';
 import { asciiSafePthFiles } from './pth-ascii';
 import { devProbeStamped, writeDevProbeStamp } from './dev-probe-stamp';
 import { CrashJournal } from './crash-journal';
@@ -1123,6 +1124,16 @@ export class BackendSupervisor extends EventEmitter<{
   private async resolveRuntimeProject(): Promise<{ project: string; ready: boolean }> {
     const bundle = backendRoot();
     const own = join(defaultRuntimeRoot(), 'project');
+    if (bundledRuntimeRequired() && !isUnsupportedPlatform()) {
+      await materializeBundledRuntime(join(bundle, 'runtime'), own);
+      this.runtimeProject = own;
+      return {
+        project: own,
+        ready:
+          ((await runtimeReady(bundle, own)) || (await runtimeCompatible(bundle, own))) &&
+          (await runtimeDependenciesReady(own)),
+      };
+    }
     const configuredRoot = storedRuntimeRoot();
     const configured = configuredRoot ? join(configuredRoot, 'project') : null;
     // Explicit selection is authoritative, including when it needs setup.

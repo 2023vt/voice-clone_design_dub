@@ -78,3 +78,36 @@ def test_start_cleans_up_on_early_exit_with_real_is_running(monkeypatch):
         assert sonitranslate._proc is None
 
     asyncio.run(_run())
+
+
+def test_stop_interrupts_start(monkeypatch):
+    sonitranslate = _get_sonitranslate()
+
+    async def _run():
+        mock_proc = MagicMock(spec=subprocess.Popen)
+        mock_proc.poll = MagicMock(return_value=None)
+        mock_proc.stdout = io.BytesIO(b"Startup line 1\n")
+        mock_proc.wait = MagicMock(return_value=0)
+
+        monkeypatch.setattr(sonitranslate, "is_installed", lambda: True)
+        monkeypatch.setattr(sonitranslate, "is_venv_ready", lambda: False)
+        monkeypatch.setattr(sonitranslate.subprocess, "Popen", lambda *args, **kwargs: mock_proc)
+        monkeypatch.setattr(sonitranslate, "is_running", lambda: False)
+
+        start_task = asyncio.create_task(sonitranslate.start())
+
+        # Give start() time to acquire lock, spawn proc, and enter readiness sleep
+        await asyncio.sleep(0.1)
+
+        # Call stop() while startup is waiting for readiness
+        stop_result = await sonitranslate.stop()
+        assert stop_result["stopped"] is True
+        assert sonitranslate._proc is None
+
+        with pytest.raises(RuntimeError) as exc_info:
+            await start_task
+
+        assert "interrupted by stop request" in str(exc_info.value)
+
+    asyncio.run(_run())
+

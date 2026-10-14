@@ -239,28 +239,38 @@ async def start() -> dict:
         _drain_thread = drain_thread
         drain_thread.start()
 
-        # Wait up to 30s for it to be ready
+    # Poll readiness outside the lock so stop() can interrupt startup
+    try:
         for _ in range(60):
             await asyncio.sleep(0.5)
-            if is_running():
-                logger.info("SoniTranslate started successfully")
-                return {"started": True, **status()}
-            if proc.poll() is not None:
-                if _proc is proc:
+            async with _get_lifecycle_lock():
+                if _proc is not proc:
+                    raise RuntimeError("SoniTranslate startup was interrupted by stop request")
+                if is_running():
+                    logger.info("SoniTranslate started successfully")
+                    return {"started": True, **status()}
+                if proc.poll() is not None:
                     _proc = None
-                if _drain_thread is drain_thread:
                     _drain_thread = None
+                    await asyncio.to_thread(_wait_and_reap, proc, drain_thread)
+                    recent_logs = _redact_home_paths("\n".join(_output_tail))
+                    raise RuntimeError(f"SoniTranslate exited early: {recent_logs}")
+
+        async with _get_lifecycle_lock():
+            if _proc is proc:
+                _proc = None
+                _drain_thread = None
                 await asyncio.to_thread(_wait_and_reap, proc, drain_thread)
                 recent_logs = _redact_home_paths("\n".join(_output_tail))
-                raise RuntimeError(f"SoniTranslate exited early: {recent_logs}")
-
-        if _proc is proc:
-            _proc = None
-        if _drain_thread is drain_thread:
-            _drain_thread = None
-        await asyncio.to_thread(_wait_and_reap, proc, drain_thread)
-        recent_logs = _redact_home_paths("\n".join(_output_tail))
-        raise RuntimeError(f"SoniTranslate failed to start within 30s: {recent_logs}")
+                raise RuntimeError(f"SoniTranslate failed to start within 30s: {recent_logs}")
+            raise RuntimeError("SoniTranslate startup was interrupted by stop request")
+    except Exception:
+        async with _get_lifecycle_lock():
+            if _proc is proc:
+                _proc = None
+                _drain_thread = None
+                await asyncio.to_thread(_wait_and_reap, proc, drain_thread)
+        raise
 
 
 async def stop() -> dict:

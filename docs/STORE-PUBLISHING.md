@@ -28,17 +28,17 @@ to weaken the shared policy.
 
 ## Platform handoffs
 
-| Worker  | Target            | Starting package         | Update owner  | First blocking work                                                                                           |
-| ------- | ----------------- | ------------------------ | ------------- | ------------------------------------------------------------------------------------------------------------- |
-| Windows | `microsoft-store` | Existing signed NSIS EXE | VoiceStudio   | Run the signed package workflow, reserve Partner Center identity, submit privately and complete certification |
-| Linux   | `snap-store`      | New confined Snap        | Snap Store    | Confinement interfaces, writable paths, runtime installation and store review                                 |
-| macOS   | `mac-app-store`   | New sandboxed MAS app    | Mac App Store | Entitlements, sandbox file access, bundled executable/runtime licensing and StoreKit receipt behavior         |
+| Worker  | Target            | Starting package      | Update owner    | First blocking work                                                                               |
+| ------- | ----------------- | --------------------- | --------------- | ------------------------------------------------------------------------------------------------- |
+| Windows | `microsoft-store` | Store-signed x64 MSIX | Microsoft Store | Run the MSIX workflow, upload its handoff artifact, submit privately and complete certification   |
+| Linux   | `snap-store`      | New confined Snap     | Snap Store      | Confinement interfaces, writable paths, runtime installation and store review                     |
+| macOS   | `mac-app-store`   | New sandboxed MAS app | Mac App Store   | Entitlements, sandbox file access, bundled executable/runtime licensing and StoreKit receipt work |
 
 The Linux implementation and evidence checklist live in the
 [`Snap Store runbook`](store-publishing/snap-store.md).
 
-Build order should be Windows, Linux, then macOS. Windows reuses the current
-signed installer and updater contract; Linux introduces confinement; macOS has
+Build order should be Windows, Linux, then macOS. Windows uses a dedicated
+Store-owned MSIX; Linux introduces confinement; macOS has
 the largest architecture change because downloaded executable code is not part
 of the approved foundation.
 
@@ -48,9 +48,9 @@ capabilities or compliance records must update the canonical files rather than
 being copied into a platform-only document. Electron remains the only UI and
 desktop shell; no Tauri path may be restored.
 
-The Microsoft Store packaging and submission handoff is implemented in
-`.github/workflows/microsoft-store.yml`; operating steps and pending owner work
-are in [`store/microsoft-store.md`](store/microsoft-store.md).
+The Microsoft Store MSIX packaging and submission handoff is implemented in
+`.github/workflows/microsoft-store.yml`; operating steps are in
+[`store/microsoft-store.md`](store/microsoft-store.md).
 
 The Mac App Store sandbox target and private packaging workflow are scaffolded
 in `electron/electron-builder.config.mjs` and `.github/workflows/mac-app-store.yml`.

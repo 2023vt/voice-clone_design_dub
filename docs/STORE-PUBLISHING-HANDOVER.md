@@ -67,22 +67,18 @@ Target: `microsoft-store`
 
 Scope:
 
-1. Confirm Partner Center supports the existing signed NSIS EXE submission and
-   reserve the product identity with the owner.
-2. Add a Microsoft Store packaging/submission workflow that sets
+1. Reserve the MSIX product identity with the owner and record its exact,
+   case-sensitive manifest values.
+2. Add a Microsoft Store MSIX packaging/submission workflow that sets
    `VOICESTUDIO_DISTRIBUTION=microsoft-store` without affecting direct builds.
-3. Keep VoiceStudio's in-app updater enabled for this EXE distribution on the
-   dedicated `electron-microsoft-store-stable-*` feed; never publish Store
-   packages through the direct-download `electron-stable-*` feed. Store builds
-   select the newest GitHub release containing their dedicated feed, so a newer
-   direct-only release cannot hide the last published Store update.
-4. Validate silent install/uninstall behavior, upgrade from the previous direct
-   release, clean install, first-run setup and application launch.
+3. Let Microsoft Store own updates; keep the in-app updater unavailable.
+4. Validate MSIX installation, first-run setup, application launch and the
+   Windows App Certification Kit result on x64.
 5. Produce required icon and screenshot derivatives from `store/assets.json`;
    do not fork listing copy outside the canonical metadata.
 6. Complete permission, generative-AI, voice-cloning, age-rating and privacy
    declarations with owner approval.
-7. Generate the artifact provenance manifest and record Authenticode
+7. Generate the artifact provenance manifest and record MSIX manifest and WACK
    verification evidence.
 8. Submit privately, resolve certification findings on the branch, then request
    owner approval for production publication.
@@ -90,8 +86,8 @@ Scope:
 Exit criteria:
 
 - Partner Center certification passes.
-- Signed installer identity matches the listing publisher.
-- Clean install and upgrade tests pass on supported Windows architectures.
+- MSIX identity matches the Partner Center listing publisher.
+- Clean install and Store update tests pass on Windows x64.
 - Direct GitHub installation and updating remain unchanged.
 - Production listing is published and independently install-verified.
 

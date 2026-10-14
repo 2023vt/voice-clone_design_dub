@@ -16,12 +16,12 @@ candidate verification, evidence and rollback. Do not add a Snap to the
 maintained-channel table below until its stable listing is independently
 install-verified.
 
-Microsoft Store EXE preparation uses the owner-dispatched
+Microsoft Store MSIX preparation uses the owner-dispatched
 `microsoft-store.yml` workflow and the
-[`Microsoft Store runbook`](store/microsoft-store.md). It builds a distinct
-Store installer without changing direct-download artifacts. Staging its
-immutable versioned URL requires owner approval; Partner Center submission and
-publication remain manual owner actions.
+[`Microsoft Store runbook`](store/microsoft-store.md). It builds an unsigned
+x64 MSIX without changing direct-download artifacts; Microsoft signs it after
+certification. Partner Center submission and publication remain manual owner
+actions.
 
 Mac App Store preparation uses the manual, private `mac-app-store.yml` workflow
 and the [`Mac App Store runbook`](../store/mac-app-store.md). The workflow cannot

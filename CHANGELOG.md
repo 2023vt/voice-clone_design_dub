@@ -11,6 +11,11 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
+- Microsoft Store packaging now produces a Store-signed MSIX submission
+
+### Added
+
+- Microsoft Store builds use the reserved VoiceStudio identity, Store-owned updates and an x64 MSIX validated by the Windows App Certification Kit
 
 ### Removed
 

@@ -52,6 +52,8 @@ failure screen, restart action and logs.
 Source-mode shutdown closes active renderer-proxy streams as well as its listening socket. A live
 backend response or keep-alive connection therefore cannot strand Quit, Restart, or an isolated
 native lifecycle check.
+An interrupted backend response also closes the matching renderer request
+promptly, so it cannot remain pending after a mid-stream backend failure.
 
 The long-running supervisor probes the canonical compact `/health` contract. Full `/system/info`
 hardware, storage and settings data is fetched only by views that use it, avoiding repeated payload

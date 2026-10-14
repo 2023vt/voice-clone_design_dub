@@ -62,3 +62,19 @@ def test_only_disposable_copies_are_self_signed():
     assert "sign /fd SHA256" in source
     assert "VoiceStudio-Wack-x64.msix" in source
     assert "AppxSignature.p7x" not in source
+
+
+def test_appx_commands_run_in_windows_powershell():
+    package = load_workflow()["jobs"]["package"]
+    appx_steps = [
+        step
+        for step in package["steps"]
+        if step.get("name")
+        in {
+            "Install and launch a temporary self-signed copy",
+            "Run Windows App Certification Kit",
+        }
+    ]
+    assert len(appx_steps) == 2
+    assert all(step.get("shell") == "powershell" for step in appx_steps)
+    assert all("Copy-Item $source.FullName $testPackage" in step["run"] for step in appx_steps)

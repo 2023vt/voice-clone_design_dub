@@ -82,7 +82,8 @@ jobs:
             -Package $package[0].FullName `
             -Output 'electron/release/msix-verification-win32-x64.json'
       - name: Install and launch a temporary self-signed copy
-        shell: pwsh
+        # The Appx module is only supported by Windows PowerShell 5.1 on the runner.
+        shell: powershell
         run: |
           $metadata = Get-Content store/metadata.json -Raw | ConvertFrom-Json
           $source = @(Get-ChildItem 'electron/release/VoiceStudio-MicrosoftStore-*-win-x64.msix')[0]
@@ -116,11 +117,12 @@ jobs:
             Remove-Item "Cert:\CurrentUser\My\$($cert.Thumbprint)" -ErrorAction SilentlyContinue
           }
       - name: Run Windows App Certification Kit
-        shell: pwsh
+        shell: powershell
         run: |
           $metadata = Get-Content store/metadata.json -Raw | ConvertFrom-Json
           $source = @(Get-ChildItem 'electron/release/VoiceStudio-MicrosoftStore-*-win-x64.msix')[0]
           $testPackage = Join-Path $env:RUNNER_TEMP 'VoiceStudio-Wack-x64.msix'
+          Copy-Item $source.FullName $testPackage -Force
           $cert = New-SelfSignedCertificate -Type Custom -KeyUsage DigitalSignature `
             -Subject $metadata.microsoftStore.publisher `
             -CertStoreLocation 'Cert:\CurrentUser\My' `

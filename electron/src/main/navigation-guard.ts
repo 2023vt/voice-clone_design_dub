@@ -6,14 +6,12 @@ export function isOwnUrl(url: string, devUrl?: string): boolean {
   return isTrustedRenderer(url, dev);
 }
 
+const ALLOWED_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
+
 export async function openOutside(url: string): Promise<void> {
   try {
     const parsed = new URL(url);
-    if (
-      parsed.protocol === 'http:' ||
-      parsed.protocol === 'https:' ||
-      parsed.protocol === 'mailto:'
-    ) {
+    if (ALLOWED_EXTERNAL_PROTOCOLS.has(parsed.protocol)) {
       await shell.openExternal(parsed.toString());
     }
   } catch {

@@ -83,6 +83,11 @@ MIN_BUFFER_BYTES = 64000  # ~2s of 16-bit mono 16kHz — needs enough WebM frame
 # to transcribe whatever the user recorded, even short utterances.
 MIN_FINAL_BUFFER_BYTES = 4000  # ~125ms of 16-bit mono 16kHz
 
+# Maximum accumulated audio buffer to prevent heap exhaustion DoS (~25MB, ~13 min of 16kHz 16-bit mono).
+MAX_STREAM_BUFFER_BYTES = int(
+    os.environ.get("OMNIVOICE_MAX_STREAM_BUFFER_BYTES", 25 * 1024 * 1024)
+)
+
 # ── Dictate-over-playback AEC (parity Action 8b, opt-in) ──────────────────
 # Activated by the ``?aec=1`` query param. When OFF (the default), the
 # protocol and behaviour are byte-for-byte unchanged. When ON, the client
@@ -437,6 +442,17 @@ async def ws_transcribe(websocket: WebSocket):
                         if not payload:
                             continue
                         data = aec.process_near_end(payload)
+                    if total_bytes + len(data) > MAX_STREAM_BUFFER_BYTES:
+                        logger.warning(
+                            "WS transcribe audio buffer exceeded limit (%d bytes), terminating stream",
+                            MAX_STREAM_BUFFER_BYTES,
+                        )
+                        await _safe_send({
+                            "type": "error",
+                            "error": "Audio stream exceeded maximum buffer limit",
+                        })
+                        running = False
+                        break
                     audio_chunks.append(data)
                     total_bytes += len(data)
                     last_audio_time = time.monotonic()
@@ -1039,6 +1055,14 @@ async def _run_sherpa_offline(websocket: WebSocket, spec):
                     break
                 if kind == "skip":
                     continue
+                if len(buf) + len(pcm) > MAX_STREAM_BUFFER_BYTES:
+                    logger.warning(
+                        "sherpa offline buffer exceeded limit (%d bytes), committing early",
+                        MAX_STREAM_BUFFER_BYTES,
+                    )
+                    snapshot = bytes(buf)
+                    buf.clear()
+                    await _commit(snapshot)
                 buf.extend(pcm)
                 session_pcm.extend(pcm)
                 if not heard_speech and _pcm16_rms(pcm) >= SHERPA_OFFLINE_RMS_FLOOR:

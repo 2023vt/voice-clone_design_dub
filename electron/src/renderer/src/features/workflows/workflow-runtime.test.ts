@@ -158,4 +158,12 @@ describe('typed media workflows', () => {
     const restored = parseWorkflowLibrary(saved, 'Untitled').documents[0];
     expect(compileWorkflow(restored).signature).toBe(compileWorkflow(document).signature);
   });
+
+  it('rejects workflows with unsafe step IDs during compilation', () => {
+    const document = audioRecipe(['audio', 'transcribe', 'end']);
+    document.steps[1].id = '__proto__';
+    document.connections[0].target = '__proto__';
+    document.connections[1].source = '__proto__';
+    expect(() => compileWorkflow(document)).toThrow('graph');
+  });
 });

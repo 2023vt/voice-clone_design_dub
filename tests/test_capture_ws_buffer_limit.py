@@ -140,8 +140,75 @@ def test_sherpa_offline_rejects_oversized_frame(monkeypatch):
 
         await capture_ws._run_sherpa_offline(mock_ws, spec)
 
-        # The oversized frame was dropped, so no non-empty tail was committed
         mock_ws.close.assert_awaited_once()
+        sent_messages = [call.args[0] for call in mock_ws.send_json.await_args_list]
+        assert any(msg.get("type") == "error" and "limit exceeded" in msg.get("error", "") for msg in sent_messages)
+        # Assert oversized frame is not decoded or included in final transcript
+        mock_backend._decode_offline.assert_not_called()
+        assert not any(msg.get("final_kind") == "summary" for msg in sent_messages)
 
     asyncio.run(_run())
+
+
+def test_sherpa_offline_preserves_inflight_commit_on_eof(monkeypatch):
+    from api.routers import capture_ws
+
+    async def _run():
+        monkeypatch.setattr(capture_ws, "MAX_STREAM_BUFFER_BYTES", 50000)
+        monkeypatch.setattr(capture_ws, "SHERPA_OFFLINE_PARTIAL_S", 0.01)
+        monkeypatch.setattr(capture_ws, "SHERPA_OFFLINE_SILENCE_S", 0.01)
+        monkeypatch.setattr(capture_ws, "_sherpa_session", AsyncMock(return_value=(16000, None)))
+        monkeypatch.setattr(capture_ws, "_sherpa_load_with_status", AsyncMock(return_value=True))
+
+        mock_backend = MagicMock()
+        mock_backend.id = "mock_model"
+        
+        # Simulate decode delay in background thread
+        def delayed_decode(samples, sr):
+            import time
+            time.sleep(0.05)
+            return "committed speech"
+
+        mock_backend._decode_offline = MagicMock(side_effect=delayed_decode)
+        monkeypatch.setattr("services.asr_backend.get_sherpa_dictation_backend", lambda mid: mock_backend)
+
+        mock_ws = MagicMock()
+        mock_ws.send_json = AsyncMock()
+        mock_ws.close = AsyncMock()
+
+        # Frame 1: Loud speech audio (3000 bytes)
+        # Frame 2: Trailing silence audio (1000 bytes)
+        # Frame 3: EOF after short sleep
+        loud_pcm = b"\x00\x40" * 1500
+        sil_pcm = b"\x00\x00" * 500
+        
+        frames = [
+            ("data", loud_pcm),
+            ("data", sil_pcm),
+        ]
+        frame_idx = 0
+
+        async def _mock_recv(ws, aec):
+            nonlocal frame_idx
+            if frame_idx < len(frames):
+                f = frames[frame_idx]
+                frame_idx += 1
+                return f
+            await asyncio.sleep(0.02)
+            return ("eof", b"")
+
+        monkeypatch.setattr(capture_ws, "_recv_pcm_frame", _mock_recv)
+
+        spec = MagicMock()
+        spec.id = "mock_model"
+
+        await capture_ws._run_sherpa_offline(mock_ws, spec)
+
+        sent_messages = [call.args[0] for call in mock_ws.send_json.await_args_list]
+        summaries = [msg for msg in sent_messages if msg.get("final_kind") == "summary"]
+        assert len(summaries) == 1
+        assert "committed speech" in summaries[0].get("text", "").lower()
+
+    asyncio.run(_run())
+
 

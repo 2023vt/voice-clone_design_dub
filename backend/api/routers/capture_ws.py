@@ -404,6 +404,7 @@ async def ws_transcribe(websocket: WebSocket):
     # WebSocket is already in a closed/closing state and any attempt to
     # call `send_json()` will raise "Unexpected ASGI message".
     client_disconnected = False
+    quota_exceeded = False
 
     async def receive_audio():
         """Receive audio frames from the client.
@@ -415,7 +416,7 @@ async def ws_transcribe(websocket: WebSocket):
         message as the authoritative result and skip the duplicate HTTP
         POST that used to run on every dictation.
         """
-        nonlocal total_bytes, last_audio_time, running, client_disconnected, paused
+        nonlocal total_bytes, last_audio_time, running, client_disconnected, paused, quota_exceeded
         try:
             while running:
                 msg = await websocket.receive()
@@ -447,6 +448,7 @@ async def ws_transcribe(websocket: WebSocket):
                             "WS transcribe audio buffer exceeded limit (%d bytes), terminating stream",
                             MAX_STREAM_BUFFER_BYTES,
                         )
+                        quota_exceeded = True
                         await _safe_send({
                             "type": "error",
                             "error": "Audio stream exceeded maximum buffer limit",
@@ -535,53 +537,54 @@ async def ws_transcribe(websocket: WebSocket):
         except (asyncio.CancelledError, Exception):
             pass
 
-    # Final transcription on complete buffer — skip if client already gone.
-    if total_bytes > MIN_FINAL_BUFFER_BYTES:
-        try:
-            # The vocabulary hint is a dictation setting; API stream clients
-            # on PLATFORM_STREAM_PATH never get it.
-            result = await _transcribe_buffer_full(
-                audio_chunks, pcm_sr=pcm_sr, dictation=not is_platform_stream,
-            )
-            # Dictation v2: deterministic polish so the pasted final reads
-            # like typed text (leading capital, terminal punctuation).
-            result["text"] = polish_text(result.get("text", ""))
-            # Wave 2.1: optional local-LLM refinement of the final text.
-            # HARD-BOUNDED (maybe_refine_async, ~4s OMNIVOICE_REFINE_TIMEOUT_S):
-            # a slow/dead LLM can never delay this `final` beyond the budget —
-            # it falls back to the unrefined (but polished) text. Best-effort:
-            # never let refinement turn a good final into an error. The raw
-            # text always ships too — clients paste refined_text ?? text.
-            if result.get("text"):
-                try:
-                    from services.refinement import maybe_refine_async
-                    refined = await maybe_refine_async(result["text"])
-                    if refined and refined != result["text"]:
-                        result["refined_text"] = refined
-                except Exception as e:  # noqa: BLE001
-                    logger.debug("Dictation refinement skipped: %s", e)
-            if not await _safe_send({"type": "final", **result}):
-                logger.debug("Skipped final send — client already disconnected")
-        except Exception as e:
-            from services.model_acceptance import ModelLicenceNotAccepted
+    # Final transcription on complete buffer — skip if client already gone or quota exceeded.
+    if not quota_exceeded:
+        if total_bytes > MIN_FINAL_BUFFER_BYTES:
+            try:
+                # The vocabulary hint is a dictation setting; API stream clients
+                # on PLATFORM_STREAM_PATH never get it.
+                result = await _transcribe_buffer_full(
+                    audio_chunks, pcm_sr=pcm_sr, dictation=not is_platform_stream,
+                )
+                # Dictation v2: deterministic polish so the pasted final reads
+                # like typed text (leading capital, terminal punctuation).
+                result["text"] = polish_text(result.get("text", ""))
+                # Wave 2.1: optional local-LLM refinement of the final text.
+                # HARD-BOUNDED (maybe_refine_async, ~4s OMNIVOICE_REFINE_TIMEOUT_S):
+                # a slow/dead LLM can never delay this `final` beyond the budget —
+                # it falls back to the unrefined (but polished) text. Best-effort:
+                # never let refinement turn a good final into an error. The raw
+                # text always ships too — clients paste refined_text ?? text.
+                if result.get("text"):
+                    try:
+                        from services.refinement import maybe_refine_async
+                        refined = await maybe_refine_async(result["text"])
+                        if refined and refined != result["text"]:
+                            result["refined_text"] = refined
+                    except Exception as e:  # noqa: BLE001
+                        logger.debug("Dictation refinement skipped: %s", e)
+                if not await _safe_send({"type": "final", **result}):
+                    logger.debug("Skipped final send — client already disconnected")
+            except Exception as e:
+                from services.model_acceptance import ModelLicenceNotAccepted
 
-            if isinstance(e, ModelLicenceNotAccepted):
-                # Accepted at session start, revoked since: keep it typed.
-                await _safe_send({"type": "error", "kind": e.detail()["code"], **e.detail()})
-            else:
-                logger.exception("Final transcription failed")
-                await _safe_send({"type": "error", "message": str(e),
-                                  "kind": "transcribe", "detail": str(e)})
-    else:
-        await _safe_send({
-            "type": "final",
-            "text": "",
-            "segments": [],
-            "language": "unknown",
-            "duration_s": 0,
-            "transcription_time_s": 0,
-            "engine": "none",
-        })
+                if isinstance(e, ModelLicenceNotAccepted):
+                    # Accepted at session start, revoked since: keep it typed.
+                    await _safe_send({"type": "error", "kind": e.detail()["code"], **e.detail()})
+                else:
+                    logger.exception("Final transcription failed")
+                    await _safe_send({"type": "error", "message": str(e),
+                                      "kind": "transcribe", "detail": str(e)})
+        else:
+            await _safe_send({
+                "type": "final",
+                "text": "",
+                "segments": [],
+                "language": "unknown",
+                "duration_s": 0,
+                "transcription_time_s": 0,
+                "engine": "none",
+            })
 
     if not client_disconnected:
         try:
@@ -1055,14 +1058,22 @@ async def _run_sherpa_offline(websocket: WebSocket, spec):
                     break
                 if kind == "skip":
                     continue
+                if len(pcm) > MAX_STREAM_BUFFER_BYTES:
+                    logger.warning(
+                        "sherpa offline frame exceeded limit (%d > %d bytes), rejecting oversized frame",
+                        len(pcm),
+                        MAX_STREAM_BUFFER_BYTES,
+                    )
+                    continue
                 if len(buf) + len(pcm) > MAX_STREAM_BUFFER_BYTES:
                     logger.warning(
                         "sherpa offline buffer exceeded limit (%d bytes), committing early",
                         MAX_STREAM_BUFFER_BYTES,
                     )
-                    snapshot = bytes(buf)
-                    buf.clear()
-                    await _commit(snapshot)
+                    if buf:
+                        snapshot = bytes(buf)
+                        buf.clear()
+                        await _commit(snapshot)
                 buf.extend(pcm)
                 session_pcm.extend(pcm)
                 if not heard_speech and _pcm16_rms(pcm) >= SHERPA_OFFLINE_RMS_FLOOR:
@@ -1075,25 +1086,27 @@ async def _run_sherpa_offline(websocket: WebSocket, spec):
             logger.debug("sherpa offline receive ended: %s", e)
             running = False
 
+    commit_lock = asyncio.Lock()
+
     async def _commit(snapshot: bytes):
-        """Finalize one utterance: decode it off-thread, flush a polished
-        `final`, drop its samples from the live buffer. `receive()` may
-        append while we decode — only the snapshot's prefix is dropped."""
-        nonlocal last_partial
-        try:
-            text = await asyncio.to_thread(_decode_window, snapshot)
-        except Exception as e:
-            logger.debug("sherpa offline commit decode failed: %s", e)
-            return
-        del buf[:len(snapshot)]
-        last_partial = ""
-        text = polish_text(text)
-        if text:
-            committed.append(text)
-            await _send({"type": "final", "text": text,
-                         "final_kind": "utterance",
-                         "segments": [{"start": 0.0, "end": None, "text": text}],
-                         "language": "auto", "engine": backend.id})
+        """Finalize one utterance: decode it off-thread and flush a polished
+        `final`. Samples are removed from the live buffer at snapshot time so
+        concurrent receives append to fresh buffer without double-deletion."""
+        async with commit_lock:
+            nonlocal last_partial
+            try:
+                text = await asyncio.to_thread(_decode_window, snapshot)
+            except Exception as e:
+                logger.debug("sherpa offline commit decode failed: %s", e)
+                return
+            last_partial = ""
+            text = polish_text(text)
+            if text:
+                committed.append(text)
+                await _send({"type": "final", "text": text,
+                             "final_kind": "utterance",
+                             "segments": [{"start": 0.0, "end": None, "text": text}],
+                             "language": "auto", "engine": backend.id})
 
     async def partials():
         nonlocal last_partial, running
@@ -1105,6 +1118,7 @@ async def _run_sherpa_offline(websocket: WebSocket, spec):
             if len(snapshot) > sil_bytes and \
                     _pcm16_rms(snapshot[-sil_bytes:]) < SHERPA_OFFLINE_RMS_FLOOR:
                 if _pcm16_rms(snapshot[:-sil_bytes]) >= SHERPA_OFFLINE_RMS_FLOOR:
+                    buf.clear()
                     await _commit(snapshot)
                 else:
                     # Pure silence — drop it (keep the gate window for

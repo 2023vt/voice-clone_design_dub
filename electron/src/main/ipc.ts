@@ -124,7 +124,7 @@ async function openPermissionSettings(kind: unknown): Promise<boolean> {
 
 const RELOCATION_SELECTION_TTL_MS = 10 * 60 * 1000;
 
-const OPEN_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'file:', 'mailto:']);
+const OPEN_EXTERNAL_PROTOCOLS = new Set(['http:', 'https:', 'mailto:']);
 
 function windowFor(event: IpcMainInvokeEvent | Electron.IpcMainEvent): BrowserWindow | null {
   return BrowserWindow.fromWebContents(event.sender);
@@ -532,8 +532,14 @@ export function registerIpc(
     assertTrustedMainFrame(event, owner);
     return supervisor.setRuntimeLocation(null);
   });
-  ipcMain.handle(CHANNELS.backendRestart, () => supervisor.restart());
-  ipcMain.handle(CHANNELS.filesExtractScript, (_event, input: unknown) => extractWordScript(input));
+  ipcMain.handle(CHANNELS.backendRestart, (event) => {
+    assertTrustedMainFrame(event, getMainWindow());
+    return supervisor.restart();
+  });
+  ipcMain.handle(CHANNELS.filesExtractScript, (event, input: unknown) => {
+    assertTrustedMainFrame(event, getMainWindow());
+    return extractWordScript(input);
+  });
 
   ipcMain.handle(CHANNELS.filesAuthorizeMediaTool, async (event, raw: unknown) => {
     const owner = getMainWindow();
@@ -602,19 +608,16 @@ export function registerIpc(
     return { canceled: false, path: picked.filePath };
   });
 
-  ipcMain.handle(CHANNELS.filesRevealPath, (_event, raw: unknown) => {
+  ipcMain.handle(CHANNELS.filesRevealPath, (event, raw: unknown) => {
+    assertTrustedMainFrame(event, getMainWindow());
     const path = assertString(raw, 'path');
     if (!isAbsolute(path)) throw new Error('revealPath needs an absolute path');
     shell.showItemInFolder(path);
   });
 
-  ipcMain.handle(CHANNELS.filesOpenExternal, async (_event, raw: unknown) => {
+  ipcMain.handle(CHANNELS.filesOpenExternal, async (event, raw: unknown) => {
+    assertTrustedMainFrame(event, getMainWindow());
     const target = assertString(raw, 'url');
-    if (isAbsolute(target)) {
-      const failure = await shell.openPath(target);
-      if (failure) throw new Error(failure);
-      return;
-    }
     const url = new URL(target);
     if (!OPEN_EXTERNAL_PROTOCOLS.has(url.protocol)) {
       throw new Error(`Refusing to open ${url.protocol} URLs`);
@@ -623,18 +626,22 @@ export function registerIpc(
   });
 
   ipcMain.on(CHANNELS.windowMinimize, (event) => {
+    assertTrustedMainFrame(event, getMainWindow());
     (windowFor(event) ?? getMainWindow())?.minimize();
   });
   ipcMain.on(CHANNELS.windowToggleMaximize, (event) => {
+    assertTrustedMainFrame(event, getMainWindow());
     const win = windowFor(event) ?? getMainWindow();
     if (!win) return;
     if (win.isMaximized()) win.unmaximize();
     else win.maximize();
   });
   ipcMain.on(CHANNELS.windowClose, (event) => {
+    assertTrustedMainFrame(event, getMainWindow());
     (windowFor(event) ?? getMainWindow())?.close();
   });
   ipcMain.handle(CHANNELS.windowIsMaximized, (event) => {
+    assertTrustedMainFrame(event, getMainWindow());
     return (windowFor(event) ?? getMainWindow())?.isMaximized() ?? false;
   });
 }

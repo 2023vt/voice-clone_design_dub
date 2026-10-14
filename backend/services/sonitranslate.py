@@ -6,11 +6,13 @@ video dubbing with access to Edge TTS, Piper, Coqui XTTS, and RVC.
 """
 
 import asyncio
+import collections
 import logging
 import os
 import shutil
 import subprocess
 import sys
+import threading
 from pathlib import Path
 from typing import Optional
 
@@ -27,8 +29,28 @@ SONI_VENV = SONI_DIR / ".venv"
 SONI_PORT = 7860
 SONI_URL = f"http://127.0.0.1:{SONI_PORT}"
 
-# Track subprocess
+# Track subprocess and log drainer
 _proc: Optional[subprocess.Popen] = None
+_output_tail: collections.deque[str] = collections.deque(maxlen=100)
+_drain_thread: Optional[threading.Thread] = None
+
+
+def _drain_output(proc: subprocess.Popen, tail: collections.deque[str]) -> None:
+    """Continuously read stdout/stderr from proc into a bounded ring buffer to prevent pipe deadlock."""
+    try:
+        if proc.stdout is None:
+            return
+        for line in iter(proc.stdout.readline, b""):
+            text = line.decode("utf-8", errors="replace").rstrip()
+            tail.append(text)
+    except Exception:
+        pass
+    finally:
+        if proc.stdout:
+            try:
+                proc.stdout.close()
+            except Exception:
+                pass
 
 
 def _venv_bin(name: str):
@@ -170,6 +192,8 @@ async def start() -> dict:
         env["HF_TOKEN"] = resolved.token
         env["YOUR_HF_TOKEN"] = resolved.token
 
+    global _proc, _output_tail, _drain_thread
+    _output_tail.clear()
     logger.info("Starting SoniTranslate on port %d...", SONI_PORT)
     _proc = subprocess.Popen(
         [python, "app_rvc.py"],
@@ -178,6 +202,13 @@ async def start() -> dict:
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
     )
+    _drain_thread = threading.Thread(
+        target=_drain_output,
+        args=(_proc, _output_tail),
+        daemon=True,
+        name="sonitranslate-stdout-drain",
+    )
+    _drain_thread.start()
 
     # Wait up to 30s for it to be ready
     for _ in range(60):
@@ -186,24 +217,36 @@ async def start() -> dict:
             logger.info("SoniTranslate started successfully")
             return {"started": True, **status()}
         if _proc.poll() is not None:
-            out = _proc.stdout.read().decode()[-500:] if _proc.stdout else ""
-            raise RuntimeError(f"SoniTranslate exited early: {out}")
+            recent_logs = "\n".join(_output_tail)
+            await stop()
+            raise RuntimeError(f"SoniTranslate exited early: {recent_logs}")
 
-    raise RuntimeError("SoniTranslate failed to start within 30s")
+    recent_logs = "\n".join(_output_tail)
+    await stop()
+    raise RuntimeError(f"SoniTranslate failed to start within 30s: {recent_logs}")
 
 
 async def stop() -> dict:
     """Stop the SoniTranslate subprocess."""
-    global _proc
+    global _proc, _drain_thread
     if _proc is None:
         return {"stopped": False, "reason": "not_running"}
 
-    _proc.terminate()  # cross-platform (SIGTERM on POSIX, TerminateProcess on Windows)
-    try:
-        _proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        _proc.kill()
+    proc = _proc
     _proc = None
+    proc.terminate()  # cross-platform (SIGTERM on POSIX, TerminateProcess on Windows)
+    try:
+        proc.wait(timeout=5)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+    if proc.stdout:
+        try:
+            proc.stdout.close()
+        except Exception:
+            pass
+    if _drain_thread and _drain_thread.is_alive():
+        _drain_thread.join(timeout=2)
+    _drain_thread = None
     logger.info("SoniTranslate stopped")
     return {"stopped": True}
 

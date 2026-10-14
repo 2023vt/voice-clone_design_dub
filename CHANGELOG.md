@@ -11,10 +11,15 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
+- Invalid optional environment settings no longer stop startup
 
 ### Removed
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
+
+### Fixed
+
+- Blank, malformed or negative CPU-pool and legacy idle-timeout overrides fall back to defaults instead of preventing backend startup (#2803) — thanks @rudycelekli!
 
 ## [0.5.7] — 2026-10-13
 

@@ -34,6 +34,7 @@ _proc: Optional[subprocess.Popen] = None
 _output_tail: collections.deque[str] = collections.deque(maxlen=100)
 _drain_thread: Optional[threading.Thread] = None
 _lifecycle_lock: Optional[asyncio.Lock] = None
+_startup_task: Optional[asyncio.Task] = None
 
 
 def _get_lifecycle_lock() -> asyncio.Lock:
@@ -200,92 +201,109 @@ async def install(progress_callback=None) -> dict:
     return status()
 
 
-async def start() -> dict:
-    """Start the SoniTranslate Gradio server as a subprocess."""
-    async with _get_lifecycle_lock():
-        global _proc, _output_tail, _drain_thread
-        if is_running():
-            return {"started": False, "reason": "already_running", **status()}
+async def _start_internal() -> dict:
+    global _proc, _output_tail, _drain_thread
+    if not is_installed():
+        raise RuntimeError("SoniTranslate not installed. Call /engines/sonitranslate/install first.")
 
-        if not is_installed():
-            raise RuntimeError("SoniTranslate not installed. Call /engines/sonitranslate/install first.")
+    python = str(_venv_bin("python")) if is_venv_ready() else sys.executable
 
-        python = str(_venv_bin("python")) if is_venv_ready() else sys.executable
+    from services import engine_env, token_resolver
+    resolved = token_resolver.resolve()
+    env = engine_env.build_engine_env()
+    from services.hf_auth import env_allows_token
+    if resolved and resolved.token and env_allows_token(env):
+        env["HF_TOKEN"] = resolved.token
+        env["YOUR_HF_TOKEN"] = resolved.token
 
-        from services import engine_env, token_resolver
-        resolved = token_resolver.resolve()
-        env = engine_env.build_engine_env()
-        from services.hf_auth import env_allows_token
-        if resolved and resolved.token and env_allows_token(env):
-            env["HF_TOKEN"] = resolved.token
-            env["YOUR_HF_TOKEN"] = resolved.token
+    _output_tail.clear()
+    logger.info("Starting SoniTranslate on port %d...", SONI_PORT)
+    proc = subprocess.Popen(
+        [python, "app_rvc.py"],
+        cwd=str(SONI_DIR),
+        env=env,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.STDOUT,
+    )
+    _proc = proc
+    drain_thread = threading.Thread(
+        target=_drain_output,
+        args=(proc, _output_tail),
+        daemon=True,
+        name="sonitranslate-stdout-drain",
+    )
+    _drain_thread = drain_thread
+    drain_thread.start()
 
-        _output_tail.clear()
-        logger.info("Starting SoniTranslate on port %d...", SONI_PORT)
-        proc = subprocess.Popen(
-            [python, "app_rvc.py"],
-            cwd=str(SONI_DIR),
-            env=env,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
-        )
-        _proc = proc
-        drain_thread = threading.Thread(
-            target=_drain_output,
-            args=(proc, _output_tail),
-            daemon=True,
-            name="sonitranslate-stdout-drain",
-        )
-        _drain_thread = drain_thread
-        drain_thread.start()
-
-    # Poll readiness outside the lock so stop() can interrupt startup
     try:
         for _ in range(60):
             await asyncio.sleep(0.5)
-            async with _get_lifecycle_lock():
-                if _proc is not proc:
-                    raise RuntimeError("SoniTranslate startup was interrupted by stop request")
-                if is_running():
-                    logger.info("SoniTranslate started successfully")
-                    return {"started": True, **status()}
-                if proc.poll() is not None:
-                    _proc = None
-                    _drain_thread = None
-                    await asyncio.to_thread(_wait_and_reap, proc, drain_thread)
-                    recent_logs = _redact_home_paths("\n".join(_output_tail))
-                    raise RuntimeError(f"SoniTranslate exited early: {recent_logs}")
-
-        async with _get_lifecycle_lock():
-            if _proc is proc:
-                _proc = None
-                _drain_thread = None
-                await asyncio.to_thread(_wait_and_reap, proc, drain_thread)
+            if _proc is not proc:
+                raise RuntimeError("SoniTranslate startup was interrupted by stop request")
+            if is_running():
+                logger.info("SoniTranslate started successfully")
+                return {"started": True, **status()}
+            if proc.poll() is not None:
                 recent_logs = _redact_home_paths("\n".join(_output_tail))
-                raise RuntimeError(f"SoniTranslate failed to start within 30s: {recent_logs}")
-            raise RuntimeError("SoniTranslate startup was interrupted by stop request")
+                raise RuntimeError(f"SoniTranslate exited early: {recent_logs}")
+
+        recent_logs = _redact_home_paths("\n".join(_output_tail))
+        raise RuntimeError(f"SoniTranslate failed to start within 30s: {recent_logs}")
+    except asyncio.CancelledError:
+        if _proc is proc:
+            _proc = None
+            _drain_thread = None
+        await asyncio.to_thread(_wait_and_reap, proc, drain_thread)
+        raise RuntimeError("SoniTranslate startup was interrupted by stop request")
     except Exception:
-        async with _get_lifecycle_lock():
-            if _proc is proc:
-                _proc = None
-                _drain_thread = None
-                await asyncio.to_thread(_wait_and_reap, proc, drain_thread)
+        if _proc is proc:
+            _proc = None
+            _drain_thread = None
+        await asyncio.to_thread(_wait_and_reap, proc, drain_thread)
         raise
+
+
+async def start() -> dict:
+    """Start the SoniTranslate Gradio server as a subprocess."""
+    global _startup_task
+
+    async with _get_lifecycle_lock():
+        if is_running():
+            return {"started": False, "reason": "already_running", **status()}
+
+        if _startup_task is not None and not _startup_task.done():
+            task = _startup_task
+        else:
+            task = asyncio.create_task(_start_internal())
+            _startup_task = task
+
+    return await asyncio.shield(task)
 
 
 async def stop() -> dict:
     """Stop the SoniTranslate subprocess."""
     async with _get_lifecycle_lock():
-        global _proc, _drain_thread
-        if _proc is None:
-            return {"stopped": False, "reason": "not_running"}
-
+        global _proc, _drain_thread, _startup_task
+        task = _startup_task
         proc = _proc
         drain_thread = _drain_thread
         _proc = None
         _drain_thread = None
+        _startup_task = None
 
-        await asyncio.to_thread(_wait_and_reap, proc, drain_thread)
+        if proc is None and (task is None or task.done()):
+            return {"stopped": False, "reason": "not_running"}
+
+        if task is not None and not task.done():
+            task.cancel()
+            try:
+                await task
+            except Exception:
+                pass
+
+        if proc is not None:
+            await asyncio.to_thread(_wait_and_reap, proc, drain_thread)
+
         logger.info("SoniTranslate stopped")
         return {"stopped": True}
 

@@ -70,7 +70,7 @@ def remember_revision(repo_id: str, revision: str, cache_dir: str) -> None:
         try:
             os.unlink(temporary.name)
         except FileNotFoundError:
-            pass
+            pass  # os.replace already moved the staging file into place
 
 
 def installed_revision(repo_id: str, cache_dir: str) -> str:

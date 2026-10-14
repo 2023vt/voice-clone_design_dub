@@ -4,10 +4,6 @@ import os
 import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
-for mod_name in ("fastapi", "starlette", "starlette.requests", "starlette.websockets", "soundfile"):
-    if mod_name not in sys.modules:
-        sys.modules[mod_name] = MagicMock()
-
 import pytest
 
 
@@ -95,9 +91,6 @@ def test_probe_frame_rates_delimits_path_with_double_dash(monkeypatch):
 
 
 def test_dub_pipeline_probe_codecs_delimits_path_with_double_dash(monkeypatch):
-    if "soundfile" not in sys.modules:
-        sys.modules["soundfile"] = MagicMock()
-
     from services import dub_pipeline
 
     captured_cmds = []

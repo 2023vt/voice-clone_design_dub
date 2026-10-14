@@ -16,7 +16,7 @@
     "predesktop": "bun install",
     "desktop": "bun run --cwd electron dev",
     "build": "bun run --cwd electron build",
-    "check:electron": "bun run --cwd electron typecheck && bun run --cwd electron test && bun run --cwd electron build && bun run --cwd electron build:web && node electron/tests/packaging-contract.mjs",
+    "check:electron": "node scripts/validate_store_foundation.mjs && bun run --cwd electron typecheck && bun run --cwd electron test && bun run --cwd electron build && bun run --cwd electron build:web && node electron/tests/packaging-contract.mjs",
     "start": "bun run --cwd electron start",
     "test:frontend": "node --test tests/frontend/*.test.mjs",
     "smoke-test": "node scripts/electron-smoke-test.mjs",

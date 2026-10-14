@@ -97,6 +97,7 @@ def test_signatures_never_go_to_main():
 
 
 def test_privileged_workflows_never_run_pull_request_code():
+    """Allow privileged checkouts to use only the trusted event base commit."""
     for path in sorted(_WORKFLOWS.glob("*.y*ml")):
         workflow = _load(path)
         if not _triggers(workflow) & _PRIVILEGED_TRIGGERS:
@@ -111,7 +112,11 @@ def test_privileged_workflows_never_run_pull_request_code():
                 assert not uses.startswith("actions/download-artifact@"), f"{where} downloads artifacts"
                 if uses.startswith("actions/checkout@"):
                     options = step.get("with") or {}
-                    assert not {"ref", "repository"} & set(options), f"{where} checks out a non-base ref"
+                    assert "repository" not in options, f"{where} checks out another repository"
+                    assert options.get("ref", "${{ github.sha }}") in {
+                        "${{ github.sha }}",
+                        "${{ github.event.pull_request.base.sha }}",
+                    }, f"{where} checks out a non-base ref"
                     assert options.get("persist-credentials") is False, f"{where} keeps credentials"
                 assert "${{ github.event" not in str(step.get("run", "")), f"{where} interpolates event data"
 

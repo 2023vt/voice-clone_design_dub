@@ -30,11 +30,6 @@ const bridge: VoiceStudioBridge = {
     openExternal: (id) => ipcRenderer.invoke('site-browser:openExternal', id),
     onState: (callback) => subscribe('site-browser:changed', callback),
   },
-  pro: {
-    status: () => ipcRenderer.invoke('pro:status'),
-    activate: (key) => ipcRenderer.invoke('pro:activate', key),
-    deactivate: () => ipcRenderer.invoke('pro:deactivate'),
-  },
   repair: {
     list: (options) => ipcRenderer.invoke('repair:list', options),
     getState: () => ipcRenderer.invoke('repair:getState'),

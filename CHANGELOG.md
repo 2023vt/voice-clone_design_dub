@@ -10,8 +10,15 @@ metadata and the backend fallback mirror it.
 
 **Highlights**
 
+- The open-source app no longer contains a licence-key client
+
+### Fixed
+
 - Audiobook caches refresh when pronunciation entry order changes the spoken replacement. (#2728) — thanks @Liuchenbing-2026!
 
+### Removed
+
+- The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
 
 ## [0.5.7] — 2026-10-13
 

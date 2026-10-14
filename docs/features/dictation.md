@@ -29,9 +29,10 @@ auto-detects more than 90 languages. Parakeet TDT v3 remains available for its
 
 The pill reports **Inserted** only after native delivery succeeds. **Copied**
 means automatic insertion was unavailable and the complete final transcript is
-ready for a normal paste. A failed delivery is never replayed; finishing still
-releases the recording session, including when the native helper disconnected,
-so the next recording can start. VoiceStudio retries a speech-level empty Sherpa decode
+ready for a normal paste. A failed delivery is never replayed; the pill shows the
+error and then releases the recording session. If the native output helper itself
+disconnected, dictation cannot insert or copy again until you restart
+VoiceStudio. VoiceStudio retries a speech-level empty Sherpa decode
 only through another ASR model whose weights are already installed; when that
 fallback confirms the audio contains words, the silent model is demoted. This
 recovery never starts a download.

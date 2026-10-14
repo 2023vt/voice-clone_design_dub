@@ -1,15 +1,21 @@
 """Unit tests for SoniTranslate subprocess stdout draining and process termination."""
 import asyncio
 import collections
+import importlib
 import io
 import subprocess
-from unittest.mock import AsyncMock, MagicMock, patch
+from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
-from services import sonitranslate
+
+
+def _get_sonitranslate():
+    return importlib.import_module("services.sonitranslate")
 
 
 def test_drain_output_reads_lines_into_ring_buffer():
+    sonitranslate = _get_sonitranslate()
     lines = [b"Line 1\n", b"Line 2\n", b"Line 3\n"]
     mock_stdout = io.BytesIO(b"".join(lines))
     mock_proc = MagicMock(spec=subprocess.Popen)
@@ -22,8 +28,11 @@ def test_drain_output_reads_lines_into_ring_buffer():
 
 
 def test_stop_terminates_and_cleans_up():
+    sonitranslate = _get_sonitranslate()
+
     async def _run():
         mock_proc = MagicMock(spec=subprocess.Popen)
+        mock_proc.poll = MagicMock(return_value=None)
         mock_proc.stdout = MagicMock()
         mock_proc.wait = MagicMock(return_value=0)
 
@@ -38,20 +47,28 @@ def test_stop_terminates_and_cleans_up():
     asyncio.run(_run())
 
 
-def test_start_cleans_up_on_early_exit(monkeypatch):
+def test_start_cleans_up_on_early_exit_with_real_is_running(monkeypatch):
+    sonitranslate = _get_sonitranslate()
+
     async def _run():
         mock_proc = MagicMock(spec=subprocess.Popen)
         mock_proc.poll = MagicMock(return_value=1)
-        mock_proc.stdout = io.BytesIO(b"Failed to import torch\n")
+        home = str(Path.home())
+        mock_proc.stdout = io.BytesIO(f"Failed at {home}/models/checkpoint\n".encode())
 
         monkeypatch.setattr(sonitranslate, "is_installed", lambda: True)
-        monkeypatch.setattr(sonitranslate, "is_running", lambda: False)
         monkeypatch.setattr(sonitranslate, "is_venv_ready", lambda: False)
         monkeypatch.setattr(sonitranslate.subprocess, "Popen", lambda *args, **kwargs: mock_proc)
 
-        with pytest.raises(RuntimeError, match="SoniTranslate exited early"):
+        # Do NOT mock is_running(); let real is_running() run, which checks poll() and resets _proc
+        with pytest.raises(RuntimeError) as exc_info:
             await sonitranslate.start()
 
+        msg = str(exc_info.value)
+        assert "SoniTranslate exited early" in msg
+        # Verify home directory path was redacted
+        assert home not in msg
+        assert "~/models/checkpoint" in msg
         assert sonitranslate._proc is None
 
     asyncio.run(_run())

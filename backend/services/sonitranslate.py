@@ -33,6 +33,45 @@ SONI_URL = f"http://127.0.0.1:{SONI_PORT}"
 _proc: Optional[subprocess.Popen] = None
 _output_tail: collections.deque[str] = collections.deque(maxlen=100)
 _drain_thread: Optional[threading.Thread] = None
+_start_lock: Optional[asyncio.Lock] = None
+
+
+def _get_start_lock() -> asyncio.Lock:
+    global _start_lock
+    if _start_lock is None:
+        _start_lock = asyncio.Lock()
+    return _start_lock
+
+
+def _redact_home_paths(text: str) -> str:
+    try:
+        home = str(Path.home())
+        if home and home != "/":
+            return text.replace(home, "~")
+    except Exception:
+        pass
+    return text
+
+
+def _wait_and_reap(proc: subprocess.Popen, drain_thread: Optional[threading.Thread]) -> None:
+    """Reap child process and join output reader in worker thread off event loop."""
+    if proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            try:
+                proc.wait(timeout=2)
+            except subprocess.TimeoutExpired:
+                pass
+    if proc.stdout:
+        try:
+            proc.stdout.close()
+        except Exception:
+            pass
+    if drain_thread and drain_thread.is_alive():
+        drain_thread.join(timeout=2)
 
 
 def _drain_output(proc: subprocess.Popen, tail: collections.deque[str]) -> None:
@@ -163,67 +202,65 @@ async def install(progress_callback=None) -> dict:
 
 async def start() -> dict:
     """Start the SoniTranslate Gradio server as a subprocess."""
-    global _proc
-    if is_running():
-        return {"started": False, "reason": "already_running", **status()}
-
-    if not is_installed():
-        raise RuntimeError("SoniTranslate not installed. Call /engines/sonitranslate/install first.")
-
-    python = str(_venv_bin("python")) if is_venv_ready() else sys.executable
-
-    # Phase 1 AUTH-01/AUTH-04 + INST-12: env built via the shared
-    # `engine_env.build_engine_env()` helper. It resolves HF_TOKEN +
-    # YOUR_HF_TOKEN from the 3-source cascade, and on Windows it also
-    # injects TORCH_COMPILE_DISABLE=1 when the user enabled the Settings →
-    # Performance toggle (issue #65 workaround).
-    #
-    # The literal `token_resolver.resolve` + `env["HF_TOKEN"]` references
-    # in this block are sentinels for tests/backend/test_engine_spawn_token.py
-    # — they guard against a refactor silently reverting the AUTH-04 wiring.
-    from services import engine_env, token_resolver
-    resolved = token_resolver.resolve()
-    env = engine_env.build_engine_env()
-    # Belt-and-braces — engine_env already did this when a token resolved,
-    # but spelling the assignment out keeps the source-level test green and
-    # keeps the intent visible at the launcher seam:
-    from services.hf_auth import env_allows_token
-    if resolved and resolved.token and env_allows_token(env):
-        env["HF_TOKEN"] = resolved.token
-        env["YOUR_HF_TOKEN"] = resolved.token
-
-    global _proc, _output_tail, _drain_thread
-    _output_tail.clear()
-    logger.info("Starting SoniTranslate on port %d...", SONI_PORT)
-    _proc = subprocess.Popen(
-        [python, "app_rvc.py"],
-        cwd=str(SONI_DIR),
-        env=env,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-    )
-    _drain_thread = threading.Thread(
-        target=_drain_output,
-        args=(_proc, _output_tail),
-        daemon=True,
-        name="sonitranslate-stdout-drain",
-    )
-    _drain_thread.start()
-
-    # Wait up to 30s for it to be ready
-    for _ in range(60):
-        await asyncio.sleep(0.5)
+    async with _get_start_lock():
+        global _proc, _output_tail, _drain_thread
         if is_running():
-            logger.info("SoniTranslate started successfully")
-            return {"started": True, **status()}
-        if _proc.poll() is not None:
-            recent_logs = "\n".join(_output_tail)
-            await stop()
-            raise RuntimeError(f"SoniTranslate exited early: {recent_logs}")
+            return {"started": False, "reason": "already_running", **status()}
 
-    recent_logs = "\n".join(_output_tail)
-    await stop()
-    raise RuntimeError(f"SoniTranslate failed to start within 30s: {recent_logs}")
+        if not is_installed():
+            raise RuntimeError("SoniTranslate not installed. Call /engines/sonitranslate/install first.")
+
+        python = str(_venv_bin("python")) if is_venv_ready() else sys.executable
+
+        from services import engine_env, token_resolver
+        resolved = token_resolver.resolve()
+        env = engine_env.build_engine_env()
+        from services.hf_auth import env_allows_token
+        if resolved and resolved.token and env_allows_token(env):
+            env["HF_TOKEN"] = resolved.token
+            env["YOUR_HF_TOKEN"] = resolved.token
+
+        _output_tail.clear()
+        logger.info("Starting SoniTranslate on port %d...", SONI_PORT)
+        proc = subprocess.Popen(
+            [python, "app_rvc.py"],
+            cwd=str(SONI_DIR),
+            env=env,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+        )
+        _proc = proc
+        drain_thread = threading.Thread(
+            target=_drain_output,
+            args=(proc, _output_tail),
+            daemon=True,
+            name="sonitranslate-stdout-drain",
+        )
+        _drain_thread = drain_thread
+        drain_thread.start()
+
+        # Wait up to 30s for it to be ready
+        for _ in range(60):
+            await asyncio.sleep(0.5)
+            if is_running():
+                logger.info("SoniTranslate started successfully")
+                return {"started": True, **status()}
+            if proc.poll() is not None:
+                if _proc is proc:
+                    _proc = None
+                if _drain_thread is drain_thread:
+                    _drain_thread = None
+                await asyncio.to_thread(_wait_and_reap, proc, drain_thread)
+                recent_logs = _redact_home_paths("\n".join(_output_tail))
+                raise RuntimeError(f"SoniTranslate exited early: {recent_logs}")
+
+        if _proc is proc:
+            _proc = None
+        if _drain_thread is drain_thread:
+            _drain_thread = None
+        await asyncio.to_thread(_wait_and_reap, proc, drain_thread)
+        recent_logs = _redact_home_paths("\n".join(_output_tail))
+        raise RuntimeError(f"SoniTranslate failed to start within 30s: {recent_logs}")
 
 
 async def stop() -> dict:
@@ -233,20 +270,11 @@ async def stop() -> dict:
         return {"stopped": False, "reason": "not_running"}
 
     proc = _proc
+    drain_thread = _drain_thread
     _proc = None
-    proc.terminate()  # cross-platform (SIGTERM on POSIX, TerminateProcess on Windows)
-    try:
-        proc.wait(timeout=5)
-    except subprocess.TimeoutExpired:
-        proc.kill()
-    if proc.stdout:
-        try:
-            proc.stdout.close()
-        except Exception:
-            pass
-    if _drain_thread and _drain_thread.is_alive():
-        _drain_thread.join(timeout=2)
     _drain_thread = None
+
+    await asyncio.to_thread(_wait_and_reap, proc, drain_thread)
     logger.info("SoniTranslate stopped")
     return {"stopped": True}
 

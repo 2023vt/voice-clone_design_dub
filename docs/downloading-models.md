@@ -5,7 +5,10 @@ explains how downloads are made fast, how to read the progress, and what to do
 on slow or restricted networks.
 
 Unknown or user-managed cache layouts are allowed through so existing manual
-engine installs remain compatible.
+engine installs remain compatible. Installed revision markers are published
+atomically from a unique temporary file, including when concurrent installs
+share a dependency. A failed publication retains the previous revision marker
+and removes its temporary file.
 
 ## Download backend: legacy LFS by default (accurate progress)
 

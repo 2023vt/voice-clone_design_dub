@@ -11,10 +11,15 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
+- Concurrent installs preserve their model revision records
 
 ### Removed
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
+
+### Fixed
+
+- Model installs sharing a dependency no longer overwrite each other’s temporary revision markers or leave staging files after publication fails (#2804) — thanks @rudycelekli!
 
 ## [0.5.7] — 2026-10-13
 

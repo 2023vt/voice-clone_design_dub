@@ -135,6 +135,11 @@ def _valid_action(entry) -> bool:
     action = entry.get("action")
     if not isinstance(action, str) or action not in {"accepted", "withdrawn"}:
         return False
+    # Display fields are optional (legacy entries carry ``at: None``) but must
+    # be text when present: the licence dialog renders them directly.
+    if any(entry.get(field) is not None and not isinstance(entry.get(field), str)
+           for field in ("at", "app_version")):
+        return False
     fingerprint = entry.get("fingerprint")
     return (
         (action == "withdrawn" and fingerprint is None)

@@ -245,3 +245,33 @@ def test_malformed_acceptance_record_fails_closed_and_can_be_repaired(store, dam
         ma.ensure_accepted([repo_id])
     assert ma.accept(repo_id, fp)["accepted"] is True
     assert len(ma.details(repo_id)["history"]) == 1
+
+
+@pytest.mark.parametrize("field", ["at", "app_version"])
+@pytest.mark.parametrize("value", [{}, 5, ["x"]])
+@pytest.mark.parametrize("where", ["last", "history"])
+def test_non_text_display_fields_fail_closed(store, field, value, where):
+    repo_id = "Supertone/supertonic-3"
+    fp = ma.status(repo_id)["fingerprint"]
+    ma.accept(repo_id, fp)
+    record = json.loads(store[ma._key(repo_id)])
+    entry = {**record["last"], field: value}
+    if where == "last":
+        record["last"] = entry
+    else:
+        record["history"] = [entry]
+    store[ma._key(repo_id)] = json.dumps(record)
+    assert ma.status(repo_id)["state"] == "not_accepted"
+    assert ma.details(repo_id)["history"] == []
+    assert ma.accept(repo_id, fp)["accepted"] is True
+
+
+def test_missing_or_null_display_fields_stay_readable(store):
+    repo_id = "Supertone/supertonic-3"
+    fp = ma.status(repo_id)["fingerprint"]
+    ma.accept(repo_id, fp)
+    record = json.loads(store[ma._key(repo_id)])
+    record["last"].pop("app_version", None)
+    record["last"]["at"] = None
+    store[ma._key(repo_id)] = json.dumps(record)
+    assert ma.status(repo_id)["accepted"] is True

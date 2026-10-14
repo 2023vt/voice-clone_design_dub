@@ -665,22 +665,92 @@ def test_outetts_reference_uses_shared_decoder_and_downmixes(monkeypatch, sample
     assert resampled == ([] if sample_rate == 24000 else [(48000, 24000, 0)])
 
 
-def test_mlx_audio_outetts_receives_reference_as_array(monkeypatch):
-    # mlx-audio's OuteTTS crashes on a file path (UnboundLocalError: resampled_audio).
+def _outetts_backend(seen):
     backend = tts_backend.MLXAudioBackend()
     backend._model_id = backend.CURATED_MODELS["outetts"]
     backend._ensure_loaded = lambda: None
-    loaded = object()
-    monkeypatch.setattr(tts_backend, "_outetts_reference_array", lambda path: (path, loaded))
-    seen = {}
 
     def _fake_generate(**kw):
         seen.update(kw)
         return iter([types.SimpleNamespace(audio=[0.0, 0.0])])
 
     backend._model = types.SimpleNamespace(generate=_fake_generate)
-    backend.generate("hello", ref_audio="/tmp/ref.wav")
-    assert seen["ref_audio"] == ("/tmp/ref.wav", loaded)
+    return backend
+
+
+def test_mlx_audio_outetts_receives_a_saved_speaker_not_the_clip(monkeypatch):
+    # mlx-audio crashes on a file path and downloads Whisper in the worker (#2700).
+    monkeypatch.setattr(tts_backend, "_outetts_speaker_file", lambda path: f"{path}.json")
+    seen = {}
+    _outetts_backend(seen).generate("hello", ref_audio="/tmp/ref.wav")
+    assert seen["voice"] == "/tmp/ref.wav.json"
+    assert "ref_audio" not in seen
+
+
+def _fake_outetts_processor(monkeypatch, built):
+    import json
+
+    module = types.ModuleType("mlx_audio.tts.models.outetts.audio_processor")
+
+    class AudioProcessor:
+        def create_speaker_from_whisper(self, audio, whisper_model):
+            built.append((audio, whisper_model))
+            return {"text": "hi", "words": [], "global_features": {}}
+
+        def save_speaker(self, speaker, path):
+            with open(path, "w") as f:
+                json.dump(speaker, f)
+
+    module.AudioProcessor = AudioProcessor
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    monkeypatch.setattr(tts_backend, "_outetts_reference_array", lambda path: ("array", path))
+
+
+def test_outetts_speaker_is_built_once_from_the_local_whisper(monkeypatch, tmp_path):
+    built = []
+    _fake_outetts_processor(monkeypatch, built)
+    monkeypatch.setattr(tts_backend, "_outetts_speaker_dir", lambda: str(tmp_path))
+    monkeypatch.setattr(tts_backend, "_outetts_whisper_dir", lambda: "/local/whisper")
+    ref = tmp_path / "ref.wav"
+    ref.write_bytes(b"a")
+    first = tts_backend._outetts_speaker_file(str(ref))
+    assert tts_backend._outetts_speaker_file(str(ref)) == first
+    assert built == [(("array", str(ref)), "/local/whisper")]
+    assert sorted(p.name for p in tmp_path.iterdir()) == sorted(["ref.wav", os.path.basename(first)])
+
+    ref.write_bytes(b"changed clip")
+    assert tts_backend._outetts_speaker_file(str(ref)) != first
+    assert len(built) == 2
+
+
+def test_outetts_missing_whisper_fails_fast_without_downloading(monkeypatch, tmp_path):
+    import huggingface_hub
+
+    calls = []
+
+    def snapshot(repo, **kw):
+        calls.append((repo, kw))
+        raise huggingface_hub.errors.LocalEntryNotFoundError("not cached")
+
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", snapshot)
+    monkeypatch.setattr(tts_backend, "_outetts_speaker_dir", lambda: str(tmp_path))
+    ref = tmp_path / "ref.wav"
+    ref.write_bytes(b"a")
+    with pytest.raises(RuntimeError, match="Model Catalogue"):
+        tts_backend._outetts_speaker_file(str(ref))
+    from services.hf_revisions import revision_for
+
+    repo = tts_backend._OUTETTS_WHISPER_REPO
+    assert calls == [(repo, {"revision": revision_for(repo), "local_files_only": True})]
+    assert [p.name for p in tmp_path.iterdir()] == ["ref.wav"]
+
+
+def test_outetts_whisper_is_in_the_catalogue():
+    import yaml
+
+    with open(os.path.join("backend", "config", "models.yaml")) as f:
+        repos = {m["repo_id"] for m in yaml.safe_load(f)["models"]}
+    assert tts_backend._OUTETTS_WHISPER_REPO in repos
 
 
 def test_mlx_audio_eos_ids_accept_single_int_from_transformers_5(monkeypatch):

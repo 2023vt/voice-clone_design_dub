@@ -489,6 +489,19 @@ class SubprocessBackend(TTSBackend):
 
     # ── lifecycle ──────────────────────────────────────────────────────────
 
+    def _join_stderr_thread(self, proc: Optional[subprocess.Popen] = None, timeout: float = 1.0) -> None:
+        """Close stderr pipe and join the background drain reader thread."""
+        if proc is not None and getattr(proc, "stderr", None) is not None:
+            try:
+                proc.stderr.close()
+            except Exception:
+                pass
+        thread = getattr(self, "_stderr_thread", None)
+        if thread is not None:
+            if thread.is_alive():
+                thread.join(timeout=timeout)
+            self._stderr_thread = None
+
     def _spawn(self) -> None:
         """Launch the sidecar if not already running. Blocks on the ready
         handshake. Caller must hold self._lock."""
@@ -498,6 +511,8 @@ class SubprocessBackend(TTSBackend):
             )
         if self._proc is not None and self._proc.poll() is None:
             return  # already up
+
+        self._join_stderr_thread(self._proc)
 
         # Env forwarding contract (Locked Decision D5):
         #   - Inherit the parent's full env via os.environ.copy().
@@ -734,12 +749,14 @@ class SubprocessBackend(TTSBackend):
                         pass
         finally:
             self._proc = None
+            self._join_stderr_thread(proc)
             self._retry_timeout_cleanup()
 
     def _force_kill(self) -> None:
         """Internal: kill a sidecar that never reached the ready state."""
         proc = self._proc
         if proc is None:
+            self._join_stderr_thread(None)
             return
         try:
             proc.kill()
@@ -751,6 +768,7 @@ class SubprocessBackend(TTSBackend):
             pass
         finally:
             self._proc = None
+            self._join_stderr_thread(proc)
 
     # ── health check + generate ────────────────────────────────────────────
 
@@ -1073,11 +1091,13 @@ class SubprocessBackend(TTSBackend):
                 with self._timeout_quarantine_lock:
                     if not any(item is proc for item in self._timeout_quarantine):
                         self._timeout_quarantine.append(proc)
+                self._join_stderr_thread(proc)
                 return
         with self._timeout_quarantine_lock:
             self._timeout_quarantine = [
                 item for item in self._timeout_quarantine if item is not proc
             ]
+        self._join_stderr_thread(proc)
 
     def _retry_timeout_cleanup(self) -> bool:
         """Retry bounded cleanup, retaining every owner that could still be live."""
@@ -1120,6 +1140,12 @@ class SubprocessBackend(TTSBackend):
                         tail.append(line)
         except Exception as exc:
             logger.debug("[%s] stderr drain ended: %s", self.id, scrub_text(str(exc)))
+        finally:
+            if proc is not None and getattr(proc, "stderr", None) is not None:
+                try:
+                    proc.stderr.close()
+                except Exception:
+                    pass
 
 
 # ── helpers ────────────────────────────────────────────────────────────────

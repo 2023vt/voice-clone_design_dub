@@ -3,12 +3,45 @@
 Electron is the only maintained desktop distribution. Tauri ended at v0.5.3;
 its signed updater feeds and installers are immutable compatibility assets.
 
+Shared store inputs and platform handoffs are defined in
+[`STORE-PUBLISHING.md`](STORE-PUBLISHING.md). Microsoft Store, Snap Store and
+Mac App Store are not maintained release channels until each has completed its
+first verified production publication.
+
+Snap Store packaging is rehearsed separately through
+`.github/workflows/snap-store.yml`; it is build-only until the owner reserves
+the package name and supplies scoped credentials. Follow the
+[`Snap Store runbook`](store-publishing/snap-store.md) for confinement checks,
+candidate verification, evidence and rollback. Do not add a Snap to the
+maintained-channel table below until its stable listing is independently
+install-verified.
+
+Microsoft Store EXE preparation uses the owner-dispatched
+`microsoft-store.yml` workflow and the
+[`Microsoft Store runbook`](store/microsoft-store.md). It builds a distinct
+Store installer without changing direct-download artifacts. Staging its
+immutable versioned URL requires owner approval; Partner Center submission and
+publication remain manual owner actions.
+
+Mac App Store preparation uses the manual, private `mac-app-store.yml` workflow
+and the [`Mac App Store runbook`](../store/mac-app-store.md). The workflow cannot
+build while the bundled-runtime compliance gate is unresolved and never uploads
+to App Store Connect. MAS packages use App Store updates; direct macOS packages
+keep the existing application updater and Developer ID notarization path.
+
 ## Credentials
 
 Electron publication uses these GitHub Actions secrets:
 
 - `ELECTRON_MACOS_CSC_LINK` and `ELECTRON_MACOS_CSC_KEY_PASSWORD` for the
   Developer ID Application `.p12` certificate and its password.
+- `ELECTRON_MAC_APP_STORE_CSC_LINK`,
+  `ELECTRON_MAC_APP_STORE_CSC_KEY_PASSWORD`,
+  `ELECTRON_MAC_APP_STORE_INSTALLER_LINK`,
+  `ELECTRON_MAC_APP_STORE_INSTALLER_KEY_PASSWORD` and
+  `ELECTRON_MAC_APP_STORE_PROVISIONING_PROFILE` for private MAS packaging.
+  These are separate from Developer ID credentials and do not authorize upload
+  or publication.
 - `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD` (not the Apple ID login password)
   and `APPLE_TEAM_ID` for macOS notarization and stapling.
 - `ELECTRON_WINDOWS_CSC_LINK` and `ELECTRON_WINDOWS_CSC_KEY_PASSWORD` for
@@ -84,6 +117,7 @@ its feed is checked only when it was published), validates packaged startup and 
 updates a draft, and uploads:
 
 - Electron installers and platform-specific `electron-stable-*.yml` feeds
+- per-platform `store-artifact-manifest-*.json` provenance records
 - `SHA256SUMS.txt`
 - authored CHANGELOG release notes
 - immutable copies of the final Tauri updater feeds for old clients
@@ -109,14 +143,14 @@ release tags are never built from a tag push, and `:latest` only ever tracks
 
 After publication, verify each maintained channel:
 
-| Channel | Workflow | Verification |
-|---|---|---|
-| GitHub Release | `electron-release.yml` | Linux x64, Windows x64 (+ ARM64 when its leg passed), macOS arm64 and x64 installers, updater feeds, checksums, CHANGELOG notes, retained v0.5.3 Tauri feeds |
-| GHCR CUDA | `docker.yml` (release published) | `:X.Y.Z`, `:X.Y`, `:stable` manifests |
-| GHCR ROCm | `docker.yml` (release published) | `:X.Y.Z-rocm`, `:X.Y-rocm`, `:stable-rocm` manifests |
-| Docker Hub | `docker.yml` (release published) | Matching CUDA/ROCm tags |
-| Docker Hub overview | `docker.yml` | Read the `Update Docker Hub description` step log; the step may continue after a 403 |
-| Rolling containers | `docker.yml` on `main` pushes only | `:latest`, `:main`, and `:rocm` timestamps move; a release never moves them |
+| Channel             | Workflow                           | Verification                                                                                                                                                 |
+| ------------------- | ---------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| GitHub Release      | `electron-release.yml`             | Linux x64, Windows x64 (+ ARM64 when its leg passed), macOS arm64 and x64 installers, updater feeds, checksums, CHANGELOG notes, retained v0.5.3 Tauri feeds |
+| GHCR CUDA           | `docker.yml` (release published)   | `:X.Y.Z`, `:X.Y`, `:stable` manifests                                                                                                                        |
+| GHCR ROCm           | `docker.yml` (release published)   | `:X.Y.Z-rocm`, `:X.Y-rocm`, `:stable-rocm` manifests                                                                                                         |
+| Docker Hub          | `docker.yml` (release published)   | Matching CUDA/ROCm tags                                                                                                                                      |
+| Docker Hub overview | `docker.yml`                       | Read the `Update Docker Hub description` step log; the step may continue after a 403                                                                         |
+| Rolling containers  | `docker.yml` on `main` pushes only | `:latest`, `:main`, and `:rocm` timestamps move; a release never moves them                                                                                  |
 
 A missing channel is a release bug. There are no RC tags and no preview update
 channel; previews are builds from `main` (the `electron-build.yml` artifacts or

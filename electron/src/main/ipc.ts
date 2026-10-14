@@ -43,12 +43,9 @@ import { inspectDataRelocation, relocateDataDirectory } from './data-relocation'
 import { createUninstallPlan, scanUninstallTargets, type UninstallRoots } from './uninstall-data';
 import { scheduleUninstallCleanup } from './uninstall-cleanup';
 import { sendToLiveWindow } from './window-safety';
-import { activateProLicense, deactivateProLicense, proLicenseStatus } from './pro-license';
+import { securityScopedDialogOptions, withSecurityScopedBookmark } from './security-scoped-files';
 
 export const CHANNELS = {
-  proStatus: 'pro:status',
-  proActivate: 'pro:activate',
-  proDeactivate: 'pro:deactivate',
   permissionsGetState: 'permissions:getState',
   permissionsOpenSettings: 'permissions:openSettings',
   filesAuthorizeMediaTool: 'files:authorizeMediaTool',
@@ -339,19 +336,6 @@ export function registerIpc(
   } | null = null;
   supervisor.subscribe((status: BackendStatus) => broadcast(CHANNELS.backendStatus, status));
 
-  ipcMain.handle(CHANNELS.proStatus, (event) => {
-    assertTrustedMainFrame(event, getMainWindow());
-    return proLicenseStatus();
-  });
-  ipcMain.handle(CHANNELS.proActivate, (event, key: unknown) => {
-    assertTrustedMainFrame(event, getMainWindow());
-    return activateProLicense(key);
-  });
-  ipcMain.handle(CHANNELS.proDeactivate, (event) => {
-    assertTrustedMainFrame(event, getMainWindow());
-    return deactivateProLicense();
-  });
-
   ipcMain.handle(CHANNELS.permissionsGetState, (event) => {
     const owner = getMainWindow();
     assertTrustedMainFrame(event, owner);
@@ -582,10 +566,10 @@ export function registerIpc(
     assertTrustedMainFrame(event, owner);
     const req = assertSaveAudioRequest(raw);
     const source = resolveBackendDownloadUrl(req.url, supervisor.baseUrl);
-    const options: Electron.SaveDialogOptions = {
+    const options = securityScopedDialogOptions<Electron.SaveDialogOptions>({
       defaultPath: req.suggestedName,
       filters: saveFiltersFor(req.suggestedName),
-    };
+    });
     const picked = owner
       ? await dialog.showSaveDialog(owner, options)
       : await dialog.showSaveDialog(options);
@@ -596,7 +580,9 @@ export function registerIpc(
       bypassCustomProtocolHandlers: true,
     });
     if (!res.ok) throw new Error(await downloadFailureMessage(res));
-    await replaceFile(picked.filePath, Buffer.from(await res.arrayBuffer()));
+    await withSecurityScopedBookmark(picked.bookmark, async () =>
+      replaceFile(picked.filePath, Buffer.from(await res.arrayBuffer())),
+    );
     return { canceled: false, path: picked.filePath };
   });
 
@@ -604,12 +590,15 @@ export function registerIpc(
     const owner = windowFor(event) ?? getMainWindow();
     assertTrustedMainFrame(event, owner);
     const req = assertSaveDataRequest(raw);
-    const picked = await dialog.showSaveDialog(owner, {
-      defaultPath: req.suggestedName,
-      filters: saveFiltersFor(req.suggestedName),
-    });
+    const picked = await dialog.showSaveDialog(
+      owner,
+      securityScopedDialogOptions<Electron.SaveDialogOptions>({
+        defaultPath: req.suggestedName,
+        filters: saveFiltersFor(req.suggestedName),
+      }),
+    );
     if (picked.canceled || !picked.filePath) return { canceled: true };
-    await replaceFile(picked.filePath, req.data);
+    await withSecurityScopedBookmark(picked.bookmark, () => replaceFile(picked.filePath, req.data));
     return { canceled: false, path: picked.filePath };
   });
 

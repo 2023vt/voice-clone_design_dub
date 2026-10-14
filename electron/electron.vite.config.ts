@@ -9,6 +9,7 @@ import {
   DEFAULT_ELECTRON_PROXY_PORT,
   PRODUCT_NAME,
 } from '../config/app-config.mjs';
+import { DISTRIBUTION_TARGET } from '../config/distributions.mjs';
 
 // The app version is single-sourced from the root package.json (CLAUDE.md,
 // Versioning). Nothing in electron/ mirrors it: the renderer reads it through
@@ -19,13 +20,8 @@ const frontendPkg = JSON.parse(readFileSync(resolve(__dirname, '../package.json'
 
 const define = {
   __APP_VERSION__: JSON.stringify(frontendPkg.version),
+  __DISTRIBUTION_TARGET__: JSON.stringify(DISTRIBUTION_TARGET),
   __WEB_DEPLOYMENT__: false,
-  __PRO_STORE_ID__: JSON.stringify(process.env.VOICESTUDIO_PRO_STORE_ID ?? ''),
-  __PRO_PRODUCT_ID__: JSON.stringify(process.env.VOICESTUDIO_PRO_PRODUCT_ID ?? ''),
-  __PRO_YEARLY_VARIANT_ID__: JSON.stringify(process.env.VOICESTUDIO_PRO_YEARLY_VARIANT_ID ?? ''),
-  __PRO_LIFETIME_VARIANT_ID__: JSON.stringify(
-    process.env.VOICESTUDIO_PRO_LIFETIME_VARIANT_ID ?? '',
-  ),
   // Keep the renderer and its managed Python backend on one analytics project.
   __POSTHOG_PROJECT_TOKEN__: JSON.stringify(
     process.env.VITE_POSTHOG_KEY ?? process.env.POSTHOG_PROJECT_TOKEN ?? '',

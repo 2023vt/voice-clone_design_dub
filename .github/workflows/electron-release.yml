@@ -179,6 +179,7 @@ jobs:
           fi
           node tests/packaging-contract.mjs --artifact
           node tests/update-package-contract.mjs --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
+          node ../scripts/create_store_artifact_manifest.mjs --platform=${{ matrix.platform }} --arch=${{ matrix.arch }}
       - name: Verify macOS signing and notarization before publication
         if: inputs.publish == true && inputs.allow_unsigned != true && matrix.platform == 'darwin'
         run: |
@@ -216,6 +217,7 @@ jobs:
           path: |
             electron/release/VoiceStudio-Electron-*
             electron/release/electron-*.yml
+            electron/release/store-artifact-manifest-*.json
 
   release:
     needs: package

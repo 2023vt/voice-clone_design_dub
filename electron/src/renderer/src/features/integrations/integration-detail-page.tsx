@@ -26,7 +26,10 @@ import './integrations-page.css';
 
 function openExternal(url: string) {
   const bridge = getBridge();
-  if (bridge) void bridge.files.openExternal(url);
+  if (bridge)
+    void Promise.resolve(bridge.files.openExternal(url)).catch((error) =>
+      toast.error(describeError(error)),
+    );
   else window.open(url, '_blank', 'noopener,noreferrer');
 }
 

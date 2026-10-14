@@ -48,7 +48,11 @@ const channel = option(
   process.env.VOICESTUDIO_UPDATE_CHANNEL || `electron-stable-${platform}-${arch}`,
 );
 const releaseDir = resolve(electronRoot, option('release', 'release'));
-assert.equal(channel, `electron-stable-${platform}-${arch}`, 'Stable is the only update channel');
+const expectedChannel =
+  process.env.VOICESTUDIO_DISTRIBUTION === 'microsoft-store'
+    ? `electron-microsoft-store-stable-${platform}-${arch}`
+    : `electron-stable-${platform}-${arch}`;
+assert.equal(channel, expectedChannel, 'Distribution uses its dedicated stable update channel');
 
 assert(['win32', 'darwin', 'linux'].includes(platform), `Supported platform: ${platform}`);
 assert(['x64', 'arm64'].includes(arch), `Supported architecture: ${arch}`);
@@ -98,8 +102,12 @@ const hashes = await fileHashes(artifactPath, platform === 'linux');
 assert.equal(hashes.sha512, fileSha, 'Update metadata SHA-512 matches artifact bytes');
 
 const osToken = platform === 'win32' ? 'win' : platform === 'darwin' ? 'mac' : 'linux';
+const artifactBrand =
+  process.env.VOICESTUDIO_DISTRIBUTION === 'microsoft-store'
+    ? 'VoiceStudio-MicrosoftStore'
+    : 'VoiceStudio-Electron';
 assert(
-  fileUrl.startsWith(`VoiceStudio-Electron-${expectedVersion}-${osToken}-${arch}.`),
+  fileUrl.startsWith(`${artifactBrand}-${expectedVersion}-${osToken}-${arch}.`),
   'Update artifact preserves the branded version/platform/architecture name',
 );
 

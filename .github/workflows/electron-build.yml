@@ -114,6 +114,7 @@ jobs:
           fi
           node tests/packaging-contract.mjs --artifact
           node tests/update-package-contract.mjs --platform ${{ matrix.platform }} --arch ${{ matrix.arch }}
+          node ../scripts/create_store_artifact_manifest.mjs --platform=${{ matrix.platform }} --arch=${{ matrix.arch }}
       - name: Packaged startup smoke test
         working-directory: electron
         run: |
@@ -145,3 +146,4 @@ jobs:
           path: |
             electron/release/VoiceStudio-Electron-*
             electron/release/electron-*.yml
+            electron/release/store-artifact-manifest-*.json

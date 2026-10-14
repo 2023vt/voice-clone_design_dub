@@ -47,7 +47,7 @@ def local_inventory(monkeypatch):
         SimpleNamespace(id="sherpa-whisper-tiny", kind="offline-whisper", label="Whisper Tiny"),
         SimpleNamespace(id="sherpa-parakeet-tdt-v3", kind="offline-transducer", label="Parakeet v3"),
     ])
-    monkeypatch.setattr(translation_engines, "is_ready", lambda engine: False)
+    monkeypatch.setattr(translation_engines, "is_ready", lambda engine, **_kw: False)
     monkeypatch.setattr(diarization_runtime, "installed_backends", lambda: set())
     selections = {family: {"engine": "inactive", "model": None} for family in profiles._PERFORMANCE_FAMILIES}
     selections["tts"] = {"engine": "kittentts", "model": "kittentts"}
@@ -115,7 +115,7 @@ def test_preserves_selected_omnivoice_isolation(local_inventory, runtime, monkey
 def test_preserves_working_nllb_language_coverage(local_inventory, monkeypatch):
     from services import translation_engines
     local_inventory["translation"] = {"engine": "nllb", "model": "facebook/nllb-200-distilled-600M"}
-    monkeypatch.setattr(translation_engines, "is_ready", lambda engine: engine in {"argos", "nllb"})
+    monkeypatch.setattr(translation_engines, "is_ready", lambda engine, **_kw: engine in {"argos", "nllb"})
     entry = inventory.profile_plan("fast", {}, local_inventory)["families"]["translation"]
     assert entry["reason"] == "kept"
     assert entry["selection"]["engine"] == "nllb"

@@ -912,6 +912,42 @@ async def _deferred_startup(app: FastAPI) -> None:
         os._exit(1)
 
 
+# Same lifecycle markers as Phase A: cancelling the task cannot stop the thread
+# already importing engine runtimes, so shutdown waits (bounded) for it rather
+# than let interpreter teardown race a native import (#1000 class).
+_profile_reconcile_started = threading.Event()
+_profile_reconcile_finished = threading.Event()
+
+
+def _reconcile_profile_blocking():
+    _profile_reconcile_started.set()
+    try:
+        from services.performance_profiles import reconcile_active_profile
+
+        return reconcile_active_profile()
+    finally:
+        _profile_reconcile_finished.set()
+
+
+async def _reconcile_profile_in_background() -> None:
+    """Reapply the saved performance profile off the startup critical path."""
+    try:
+        recovered = await asyncio.to_thread(_reconcile_profile_blocking)
+        if recovered:
+            logger.info("Startup performance selections reconciled: %s", recovered)
+    except asyncio.CancelledError:
+        raise
+    except Exception:
+        logger.exception("Performance-profile reconciliation failed (non-fatal).")
+
+
+async def _await_profile_reconcile(app: FastAPI) -> None:
+    """Let model warm-ups wait for reconciliation without inheriting its failure."""
+    task = getattr(app.state, "profile_reconcile_task", None)
+    if task is not None:
+        await asyncio.wait({task})
+
+
 async def _phase_b(app: FastAPI) -> None:
     """The old lifespan startup body: DB init + background services. Handles
     land on app.state so the shutdown block (which may run after a startup
@@ -951,18 +987,6 @@ async def _phase_b(app: FastAPI) -> None:
     record_startup_voices_root()
 
     _startup_progress.begin_step("services_start")
-    # Reapply an explicitly saved speed/quality profile after the local model
-    # inventory is available. Older builds saved the slider but could leave
-    # ASR/Dictation pointing at missing models even when compatible weights
-    # were already installed. This path is local-cache-only and download-free.
-    try:
-        from services.performance_profiles import reconcile_active_profile
-
-        recovered = reconcile_active_profile()
-        if recovered:
-            logger.info("Startup performance selections reconciled: %s", recovered)
-    except Exception:
-        logger.exception("Performance-profile reconciliation failed (non-fatal).")
     # Phase 1 Wave 3 — macOS Gatekeeper quarantine probe (#54). Informational
     # only; we never auto-run `xattr -cr`.
     try:
@@ -989,16 +1013,36 @@ async def _phase_b(app: FastAPI) -> None:
     model_loads_reset_shutdown()
     from services.model_manager import begin_watermark_pool_lifecycle
     begin_watermark_pool_lifecycle()
+    # Reapply an explicitly saved speed/quality profile after the local model
+    # inventory is available. Older builds saved the slider but could leave
+    # ASR/Dictation pointing at missing models even when compatible weights
+    # were already installed. This path is local-cache-only and download-free.
+    # The inventory probes import translation/ASR/TTS runtimes (tens of seconds
+    # on a cold disk), and nothing the first screen shows depends on the result,
+    # so it runs in the background instead of holding /health at 503. The model
+    # warm-ups below await it, so they still load the reconciled selections.
+    app.state.profile_reconcile_task = asyncio.create_task(_reconcile_profile_in_background())
+    if _EAGER:
+        # Eager boots (pytest, OMNIVOICE_EAGER_INIT=1) promise the classic
+        # synchronous startup: callers read engines the moment the lifespan
+        # opens, and a reconcile importing runtimes beside them races those
+        # imports. The deferral is for the served app.
+        await _await_profile_reconcile(app)
     app.state.idle_task = asyncio.create_task(idle_worker())
     app.state.worker_task = asyncio.create_task(task_manager.worker())
     # Warm the TTS model in the background so first /generate is instant.
-    app.state.preload_task = asyncio.create_task(preload_model())
+    async def _preload_after_reconcile():
+        await _await_profile_reconcile(app)
+        await preload_model()
+
+    app.state.preload_task = asyncio.create_task(_preload_after_reconcile())
     # Dictation v2: capture ASR warms in the background BY DEFAULT (~30s
     # post-boot, skipped under 4 GB free RAM at warm time).
     app.state.capture_preload_task = None  # only assigned when it runs (#1000 class)
     if _env_flag("OMNIVOICE_PRELOAD_CAPTURE_ASR", default=True):
         async def _preload_capture_asr():
             await asyncio.sleep(_capture_preload_delay_s())
+            await _await_profile_reconcile(app)
             if not _capture_preload_ram_ok():
                 logger.info(
                     "Capture ASR preload skipped: <4GB free RAM; "
@@ -1208,6 +1252,8 @@ async def lifespan(app: FastAPI):
     # before Phase A began pays nothing.
     if _phase_a_started.is_set() and not _phase_a_finished.is_set():
         await asyncio.to_thread(_phase_a_finished.wait, 20.0)
+    if _profile_reconcile_started.is_set() and not _profile_reconcile_finished.is_set():
+        await asyncio.to_thread(_profile_reconcile_finished.wait, 20.0)
     try:
         from services.telephony import gateway as telephony_gateway
         await telephony_gateway.stop()
@@ -1260,6 +1306,7 @@ async def lifespan(app: FastAPI):
     await _cancel_and_await_tasks(
         getattr(app.state, "idle_task", None),
         getattr(app.state, "worker_task", None),
+        getattr(app.state, "profile_reconcile_task", None),
         getattr(app.state, "preload_task", None),
         getattr(app.state, "capture_preload_task", None),
         getattr(app.state, "watermark_preload_task", None),

@@ -285,21 +285,6 @@ export interface UninstallTarget {
 
 export interface VoiceStudioBridge {
   browser: import('../shared/site-browser').SiteBrowserBridge;
-  pro: {
-    status(): Promise<{
-      active: boolean;
-      configured: boolean;
-      error?: 'offline' | 'invalid' | 'storage';
-    }>;
-    activate(
-      key: string,
-    ): Promise<{ active: boolean; configured: boolean; error?: 'offline' | 'invalid' | 'storage' }>;
-    deactivate(): Promise<{
-      active: boolean;
-      configured: boolean;
-      error?: 'offline' | 'invalid' | 'storage';
-    }>;
-  };
   repair: {
     /** Cached for a short TTL; `refresh` rescans for CLIs installed since. */
     list(options?: { refresh?: boolean }): Promise<RepairAgentInfo[]>;

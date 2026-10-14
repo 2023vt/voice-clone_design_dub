@@ -130,3 +130,7 @@ The VoiceStudio title links to `https://voicestudio.sh`. Hover or keyboard focus
 Website requests begin only after clicking. Remote pages use a sandboxed Electron WebContentsView with no preload, Node access, app bridge, or device permissions. Links and redirects stay restricted to HTTP(S); popup links reuse the same view. The browsing session is temporary and separate from app storage. The sidebar and workspace remain visible behind the modal. Its native page follows the modal bounds on resize and zoom, leaving the toolbar and surrounding workspace uncovered. **Back to Studio**, Escape, or clicking outside the modal disposes the embedded web contents, clears its session data, and restores the existing workspace and keyboard focus without navigating or remounting it. The browser can be reused for future cloud signup and other web flows; authentication callbacks are not implemented yet. Sites requiring device permissions or external authentication may need **Open in browser**. The browser list passes URLs as arguments to detected executables, never to a command shell.
 
 The Dubbing workspace keeps its existing `/dub` route and saved project format; the name change affects visible feature labels only.
+
+When setup retries a package download, progress clears that package’s previous
+bytes and rate estimate while retaining completed bytes from other packages.
+A new speed and remaining-time estimate appears after the retried transfer advances.

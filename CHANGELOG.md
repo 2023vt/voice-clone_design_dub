@@ -11,10 +11,15 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
+- Retrying a setup package download clears its stale progress and time estimate. (#2795) — thanks @rudycelekli!
 
 ### Removed
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
+
+### Fixed
+
+- Retrying a setup package download clears its stale progress and time estimate. (#2795) — thanks @rudycelekli!
 
 ## [0.5.7] — 2026-10-13
 

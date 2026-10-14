@@ -245,13 +245,35 @@ def _host_family() -> str:
         return "cpu"
 
 
+def _host_machine() -> str:
+    """This host's CPU architecture, lower-cased (``x86_64``, ``aarch64``…)."""
+    import platform
+    return platform.machine().lower()
+
+
+def _local_build_pins(spec: "SidecarSpec", suffix: str) -> list[str]:
+    """The spec's torch pins forced to one local build (``+cu128``/``+cpu``).
+
+    On Linux ARM64 only torch is forced: PyTorch's cu128 and CPU indexes ship
+    aarch64 torchaudio 2.7.0 without a local label, so a forced ``+cu128`` or
+    ``+cpu`` torchaudio pin cannot resolve. Left unlabelled, a pin still takes
+    the labelled build where one exists, since a local version sorts above the
+    plain one under unsafe-best-match.
+    """
+    arm_linux = sys.platform == "linux" and _host_machine() in ("aarch64", "arm64")
+    return [
+        pin if arm_linux and not pin.startswith("torch==") else f"{pin}{suffix}"
+        for pin in spec.torch_pins
+    ]
+
+
 def _torch_pin_args(spec: "SidecarSpec") -> list[str]:
     from core.torch_indexes import UV_PIP_CPU_ARGS, UV_PIP_CU128_ARGS
 
     if _host_family() == "cuda":
-        return [f"{pin}+cu128" for pin in spec.torch_pins] + list(UV_PIP_CU128_ARGS)
+        return _local_build_pins(spec, "+cu128") + list(UV_PIP_CU128_ARGS)
     if sys.platform in ("win32", "linux"):
-        return [f"{pin}+cpu" for pin in spec.torch_pins] + list(UV_PIP_CPU_ARGS)
+        return _local_build_pins(spec, "+cpu") + list(UV_PIP_CPU_ARGS)
     return list(spec.torch_pins)
 
 

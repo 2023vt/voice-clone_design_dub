@@ -164,16 +164,30 @@ function assertSaveDataRequest(value: unknown): SaveDataRequest {
   };
 }
 
+/**
+ * Verifies that an IPC event originates from the main window's top-level trusted frame.
+ */
+function isTrustedMainFrame(
+  event: IpcMainInvokeEvent | Electron.IpcMainEvent,
+  owner: BrowserWindow | null,
+): owner is BrowserWindow {
+  return Boolean(
+    owner &&
+    event.sender === owner.webContents &&
+    event.senderFrame === owner.webContents.mainFrame &&
+    isTrustedRenderer(event.senderFrame.url, process.env.ELECTRON_RENDERER_URL),
+  );
+}
+
+/**
+ * Asserts that an IPC invoke event originates from the main window's top-level trusted frame.
+ * Throws an Error if untrusted, which safely rejects the invoking promise in the renderer.
+ */
 function assertTrustedMainFrame(
   event: IpcMainInvokeEvent,
   owner: BrowserWindow | null,
 ): asserts owner is BrowserWindow {
-  if (
-    !owner ||
-    event.sender !== owner.webContents ||
-    event.senderFrame !== owner.webContents.mainFrame ||
-    !isTrustedRenderer(event.senderFrame.url, process.env.ELECTRON_RENDERER_URL)
-  ) {
+  if (!isTrustedMainFrame(event, owner)) {
     throw new Error('Untrusted main-frame request');
   }
 }
@@ -626,19 +640,22 @@ export function registerIpc(
   });
 
   ipcMain.on(CHANNELS.windowMinimize, (event) => {
-    assertTrustedMainFrame(event, getMainWindow());
-    (windowFor(event) ?? getMainWindow())?.minimize();
+    const owner = getMainWindow();
+    if (!isTrustedMainFrame(event, owner)) return;
+    (windowFor(event) ?? owner)?.minimize();
   });
   ipcMain.on(CHANNELS.windowToggleMaximize, (event) => {
-    assertTrustedMainFrame(event, getMainWindow());
-    const win = windowFor(event) ?? getMainWindow();
+    const owner = getMainWindow();
+    if (!isTrustedMainFrame(event, owner)) return;
+    const win = windowFor(event) ?? owner;
     if (!win) return;
     if (win.isMaximized()) win.unmaximize();
     else win.maximize();
   });
   ipcMain.on(CHANNELS.windowClose, (event) => {
-    assertTrustedMainFrame(event, getMainWindow());
-    (windowFor(event) ?? getMainWindow())?.close();
+    const owner = getMainWindow();
+    if (!isTrustedMainFrame(event, owner)) return;
+    (windowFor(event) ?? owner)?.close();
   });
   ipcMain.handle(CHANNELS.windowIsMaximized, (event) => {
     assertTrustedMainFrame(event, getMainWindow());

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const native = vi.hoisted(() => ({
   handlers: new Map<string, (event: unknown, raw: unknown) => Promise<unknown>>(),
+  listeners: new Map<string, (event: unknown) => void>(),
   openExternal: vi.fn(async () => {}),
   openPath: vi.fn(async () => ''),
 }));
@@ -10,7 +11,14 @@ const native = vi.hoisted(() => ({
 const owner = vi.hoisted(() => {
   const mainFrame = { url: 'app://voicestudio/index.html' };
   const webContents = { mainFrame };
-  return { webContents, isMaximized: () => false };
+  return {
+    webContents,
+    isMaximized: () => false,
+    minimize: vi.fn(),
+    unmaximize: vi.fn(),
+    maximize: vi.fn(),
+    close: vi.fn(),
+  };
 });
 
 vi.mock('electron', () => ({
@@ -23,7 +31,8 @@ vi.mock('electron', () => ({
   ipcMain: {
     handle: (channel: string, handler: (event: unknown, raw: unknown) => Promise<unknown>) =>
       native.handlers.set(channel, handler),
-    on: vi.fn(),
+    on: (channel: string, listener: (event: unknown) => void) =>
+      native.listeners.set(channel, listener),
   },
   net: { fetch: vi.fn() },
   shell: {
@@ -102,5 +111,35 @@ describe('files:openExternal IPC handler', () => {
     await expect(handler(untrustedEvent, 'https://example.com')).rejects.toThrow(
       'Untrusted main-frame request',
     );
+  });
+
+  it('window:* listeners ignore untrusted frames without throwing uncaught exceptions', () => {
+    const minimize = native.listeners.get(CHANNELS.windowMinimize)!;
+    const toggleMaximize = native.listeners.get(CHANNELS.windowToggleMaximize)!;
+    const close = native.listeners.get(CHANNELS.windowClose)!;
+
+    expect(() => minimize(untrustedEvent)).not.toThrow();
+    expect(owner.minimize).not.toHaveBeenCalled();
+
+    expect(() => toggleMaximize(untrustedEvent)).not.toThrow();
+    expect(owner.maximize).not.toHaveBeenCalled();
+
+    expect(() => close(untrustedEvent)).not.toThrow();
+    expect(owner.close).not.toHaveBeenCalled();
+  });
+
+  it('window:* listeners execute actions when invoked from trusted frame', () => {
+    const minimize = native.listeners.get(CHANNELS.windowMinimize)!;
+    const toggleMaximize = native.listeners.get(CHANNELS.windowToggleMaximize)!;
+    const close = native.listeners.get(CHANNELS.windowClose)!;
+
+    minimize(trustedEvent);
+    expect(owner.minimize).toHaveBeenCalledOnce();
+
+    toggleMaximize(trustedEvent);
+    expect(owner.maximize).toHaveBeenCalledOnce();
+
+    close(trustedEvent);
+    expect(owner.close).toHaveBeenCalledOnce();
   });
 });

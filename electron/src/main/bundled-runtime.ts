@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import { cp, mkdir, readFile, readdir, readlink, rename, rm, stat } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, readlink, rm, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve } from 'node:path';
+import { DIRECTORY_RENAME, renameWithRetry } from './rename-retry';
 
 export const BUNDLED_RUNTIME_MANIFEST = 'runtime-manifest.json';
 
@@ -110,15 +111,15 @@ export async function materializeBundledRuntime(
     await loadManifest(pending, platform, arch);
     let moved = false;
     try {
-      await rename(project, previous);
+      await renameWithRetry(project, previous, DIRECTORY_RENAME);
       moved = true;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
     }
     try {
-      await rename(pending, project);
+      await renameWithRetry(pending, project, DIRECTORY_RENAME);
     } catch (error) {
-      if (moved) await rename(previous, project);
+      if (moved) await renameWithRetry(previous, project, DIRECTORY_RENAME);
       throw error;
     }
     await rm(previous, { recursive: true, force: true });

@@ -192,3 +192,25 @@ def test_drain_stderr_closes_stderr_in_finally():
     backend._drain_stderr(mock_proc, tail)
 
     mock_stderr.close.assert_called_once()
+
+
+def test_spawn_reuses_healthy_running_sidecar_with_active_reader():
+    DummySidecar = _get_dummy_sidecar_class()
+    backend = DummySidecar()
+
+    mock_proc = MagicMock()
+    mock_proc.poll.return_value = None  # Process is running and healthy
+    backend._proc = mock_proc
+
+    mock_thread = MagicMock()
+    mock_thread.is_alive.return_value = True  # Reader is actively draining
+    backend._stderr_thread = mock_thread
+
+    # _retry_timeout_cleanup succeeds without interfering with active process/reader
+    assert backend._retry_timeout_cleanup() is True
+    assert backend._stderr_thread is mock_thread
+
+    # _spawn returns immediately without raising or killing
+    backend._spawn()
+    assert backend._proc is mock_proc
+    assert backend._stderr_thread is mock_thread

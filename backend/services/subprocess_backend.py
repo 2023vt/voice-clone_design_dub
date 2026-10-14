@@ -508,12 +508,13 @@ class SubprocessBackend(TTSBackend):
     def _spawn(self) -> None:
         """Launch the sidecar if not already running. Blocks on the ready
         handshake. Caller must hold self._lock."""
+        if self._proc is not None and self._proc.poll() is None:
+            return  # already up
+
         if not self._retry_timeout_cleanup():
             raise RuntimeError(
                 f"{self.id} sidecar is still stopping after a timeout; retry once it exits"
             )
-        if self._proc is not None and self._proc.poll() is None:
-            return  # already up
 
         self._join_stderr_thread(self._proc)
         if getattr(self, "_stderr_thread", None) is not None and self._stderr_thread.is_alive():
@@ -1112,17 +1113,23 @@ class SubprocessBackend(TTSBackend):
             pending = tuple(self._timeout_quarantine)
         for proc in pending:
             self._timeout_kill(proc)
-        thread = getattr(self, "_stderr_thread", None)
-        if thread is not None:
-            if thread.is_alive():
-                thread.join(timeout=0.1)
-            if not thread.is_alive():
-                self._stderr_thread = None
+        active_proc_running = self._proc is not None and self._proc.poll() is None
+        if not active_proc_running:
+            thread = getattr(self, "_stderr_thread", None)
+            if thread is not None:
+                if thread.is_alive():
+                    thread.join(timeout=0.1)
+                if not thread.is_alive():
+                    self._stderr_thread = None
         with self._timeout_quarantine_lock:
-            return not self._timeout_quarantine and (
-                getattr(self, "_stderr_thread", None) is None
-                or not self._stderr_thread.is_alive()
-            )
+            if not self._timeout_quarantine:
+                if active_proc_running:
+                    return True
+                return (
+                    getattr(self, "_stderr_thread", None) is None
+                    or not self._stderr_thread.is_alive()
+                )
+            return False
 
     # ── stderr drain ───────────────────────────────────────────────────────
 

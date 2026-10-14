@@ -86,3 +86,5 @@ def test_appx_commands_run_in_windows_powershell():
     )
     assert "Get-AppxPackageManifest" in install_step["run"]
     assert "shell:AppsFolder\\$aumid" in install_step["run"]
+    assert "UIAutomationClient" in install_step["run"]
+    assert "Install local runtime" in install_step["run"]

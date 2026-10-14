@@ -104,6 +104,7 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw "Test signing failed: $LASTEXITCODE" }
           $processName = $null
           try {
+            Add-Type -AssemblyName UIAutomationClient
             Add-AppxPackage -Path $testPackage
             $installed = Get-AppxPackage -Name $metadata.microsoftStore.identityName
             if ($null -eq $installed) { throw 'The test MSIX did not install' }
@@ -112,13 +113,33 @@ jobs:
             $processName = [System.IO.Path]::GetFileNameWithoutExtension($application.Executable)
             $aumid = "$($installed.PackageFamilyName)!$($application.Id)"
             Start-Process explorer.exe -ArgumentList "shell:AppsFolder\$aumid"
-            $deadline = (Get-Date).AddSeconds(30)
+            $deadline = (Get-Date).AddSeconds(60)
+            $setupControl = $null
+            $condition = [System.Windows.Automation.PropertyCondition]::new(
+              [System.Windows.Automation.AutomationElement]::NameProperty,
+              'Install local runtime'
+            )
             do {
               Start-Sleep -Seconds 1
               $launched = Get-Process -Name $processName -ErrorAction SilentlyContinue |
-                Select-Object -First 1
-            } until ($null -ne $launched -or (Get-Date) -gt $deadline)
-            if ($null -eq $launched) { throw "The installed MSIX did not launch: $aumid" }
+                Where-Object { $_.MainWindowHandle -ne 0 } | Select-Object -First 1
+              if ($null -ne $launched) {
+                try {
+                  $window = [System.Windows.Automation.AutomationElement]::FromHandle(
+                    [IntPtr]$launched.MainWindowHandle
+                  )
+                  $setupControl = $window.FindFirst(
+                    [System.Windows.Automation.TreeScope]::Descendants,
+                    $condition
+                  )
+                } catch {
+                  $setupControl = $null
+                }
+              }
+            } until ($null -ne $setupControl -or (Get-Date) -gt $deadline)
+            if ($null -eq $setupControl) {
+              throw "The installed MSIX did not render the setup screen: $aumid"
+            }
           } finally {
             if ($null -ne $processName) {
               Get-Process -Name $processName -ErrorAction SilentlyContinue |

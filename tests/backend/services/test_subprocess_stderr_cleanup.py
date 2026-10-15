@@ -152,6 +152,15 @@ def test_join_stderr_thread_with_real_pipe_writer_open_retains_alive_reader():
     mock_proc = MagicMock()
     mock_proc.stderr = r_file
 
+    entered_readline = threading.Event()
+    real_readline = r_file.readline
+
+    def signaling_readline(*args, **kwargs):
+        entered_readline.set()
+        return real_readline(*args, **kwargs)
+
+    r_file.readline = signaling_readline
+
     tail = collections.deque()
     thread = threading.Thread(
         target=backend._drain_stderr,
@@ -161,9 +170,11 @@ def test_join_stderr_thread_with_real_pipe_writer_open_retains_alive_reader():
     backend._stderr_thread = thread
     thread.start()
 
+    assert entered_readline.wait(timeout=1.0)
+
     try:
         # With writer still open and no data written, readline is blocked on Linux.
-        # A short join timeout (0.05s) will time out without thread exit.
+        # Reader is confirmed inside readline; short join timeout (0.05s) will time out without thread exit.
         backend._join_stderr_thread(mock_proc, timeout=0.05)
 
         # Thread is still alive because writer is open; _stderr_thread must NOT be cleared.
@@ -214,3 +225,39 @@ def test_spawn_reuses_healthy_running_sidecar_with_active_reader():
     backend._spawn()
     assert backend._proc is mock_proc
     assert backend._stderr_thread is mock_thread
+
+
+def test_spawn_rejects_reuse_when_process_is_quarantined():
+    import subprocess as sp
+
+    DummySidecar = _get_dummy_sidecar_class()
+    backend = DummySidecar()
+
+    mock_proc = MagicMock()
+    mock_proc.poll.return_value = None  # Running child
+    mock_proc.wait.side_effect = sp.TimeoutExpired(cmd="dummy", timeout=2)
+    backend._proc = mock_proc
+    with backend._timeout_quarantine_lock:
+        backend._timeout_quarantine.append(mock_proc)
+
+    with pytest.raises(RuntimeError, match="still stopping after a timeout"):
+        backend._spawn()
+
+
+def test_shutdown_quarantines_unreaped_child():
+    import subprocess as sp
+
+    DummySidecar = _get_dummy_sidecar_class()
+    backend = DummySidecar()
+
+    mock_proc = MagicMock()
+    mock_proc.poll.return_value = None
+    mock_proc.wait.side_effect = sp.TimeoutExpired(cmd="dummy", timeout=1)
+    backend._proc = mock_proc
+
+    backend.shutdown()
+
+    assert backend._proc is None
+    with backend._timeout_quarantine_lock:
+        assert mock_proc in backend._timeout_quarantine
+

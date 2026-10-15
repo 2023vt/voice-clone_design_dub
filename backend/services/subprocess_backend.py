@@ -508,10 +508,15 @@ class SubprocessBackend(TTSBackend):
     def _spawn(self) -> None:
         """Launch the sidecar if not already running. Blocks on the ready
         handshake. Caller must hold self._lock."""
-        if self._proc is not None and self._proc.poll() is None:
-            return  # already up
+        self._retry_timeout_cleanup()
+        with self._timeout_quarantine_lock:
+            quarantined = set(self._timeout_quarantine)
 
-        if not self._retry_timeout_cleanup():
+        if self._proc is not None and self._proc.poll() is None:
+            if self._proc not in quarantined:
+                return  # already up and healthy
+
+        if quarantined:
             raise RuntimeError(
                 f"{self.id} sidecar is still stopping after a timeout; retry once it exits"
             )
@@ -756,6 +761,10 @@ class SubprocessBackend(TTSBackend):
                     except Exception:
                         pass
         finally:
+            if proc is not None and proc.poll() is None:
+                with self._timeout_quarantine_lock:
+                    if not any(item is proc for item in self._timeout_quarantine):
+                        self._timeout_quarantine.append(proc)
             self._proc = None
             self._join_stderr_thread(proc)
             self._retry_timeout_cleanup()
@@ -775,8 +784,13 @@ class SubprocessBackend(TTSBackend):
         except Exception:
             pass
         finally:
+            if proc is not None and proc.poll() is None:
+                with self._timeout_quarantine_lock:
+                    if not any(item is proc for item in self._timeout_quarantine):
+                        self._timeout_quarantine.append(proc)
             self._proc = None
             self._join_stderr_thread(proc)
+            self._retry_timeout_cleanup()
 
     # ── health check + generate ────────────────────────────────────────────
 

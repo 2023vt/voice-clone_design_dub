@@ -230,7 +230,9 @@ def _read_input_audio(
         try:
             fd, _resolved = _open_under_base(audio_path, os.O_RDONLY)
         except ValueError as e:
-            return None, str(e)
+            from core.scrub import scrub_text
+
+            return None, scrub_text(str(e))
         except FileNotFoundError:
             from core.scrub import scrub_text
 
@@ -239,6 +241,7 @@ def _read_input_audio(
             from core.scrub import scrub_text
 
             return None, f"could not safely read {scrub_text(audio_path)!r}: {scrub_text(str(e))}"
+        handle = None
         try:
             info = os.fstat(fd)
             if not stat.S_ISREG(info.st_mode):
@@ -246,17 +249,19 @@ def _read_input_audio(
 
                 os.close(fd)
                 return None, f"{scrub_text(audio_path)!r} is not a regular file"
-            with os.fdopen(fd, "rb") as handle:
+            handle = os.fdopen(fd, "rb")
+            with handle:
                 if info.st_size > _MAX_INPUT_BYTES:
                     return None, too_big
                 raw = handle.read(_MAX_INPUT_BYTES + 1)
         except OSError as e:
             from core.scrub import scrub_text
 
-            try:
-                os.close(fd)
-            except OSError:
-                pass
+            if handle is None:
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
             return None, f"could not safely read {scrub_text(audio_path)!r}: {scrub_text(str(e))}"
         if len(raw) > _MAX_INPUT_BYTES:
             return None, too_big

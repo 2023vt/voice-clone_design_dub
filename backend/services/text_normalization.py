@@ -531,8 +531,16 @@ def _numbers_to_words(text: str, lang: str) -> str:
             return m.group(0)
         try:
             return render(m)
-        except Exception:  # noqa: BLE001 — conservative: never mangle
+        except Exception as exc:  # noqa: BLE001 — conservative: never mangle
+            from core.scrub import scrub_text
+
+            logger.debug(
+                "num2words verbalizer exception for %r (leaving untouched): %s",
+                m.group(0),
+                scrub_text(str(exc)),
+            )
             return m.group(0)
+
 
     if lang == "en":
         def _time(m: re.Match) -> str:
@@ -598,7 +606,7 @@ def _numbers_to_words(text: str, lang: str) -> str:
             # locale has no year form (sv).
             try:
                 return num2words(n, lang=lang, to="year")
-            except (NotImplementedError, ValueError, KeyError, TypeError) as exc:
+            except Exception as exc:  # noqa: BLE001 — fall back to cardinal
                 from core.scrub import scrub_text
 
                 logger.debug(
@@ -607,6 +615,7 @@ def _numbers_to_words(text: str, lang: str) -> str:
                     scrub_text(str(exc)),
                 )
         return num2words(n, lang=lang)
+
 
 
     return _INTEGER_RE.sub(lambda m: _safe(m, _integer), text)

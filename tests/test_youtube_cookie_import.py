@@ -98,7 +98,13 @@ def test_ingest_recognizes_desktop_proxy_marker(
     monkeypatch.setattr(dub_core, "check_public_url", lambda url: url)
     monkeypatch.setattr(dub_core, "_safe_job_dir", lambda _job: str(tmp_path))
     staged = []
-    monkeypatch.setattr(dub_core, "_stage_cookie_export", lambda text: staged.append(text))
+    cookie_path = str(tmp_path / "session.cookies.txt")
+
+    def stage_cookie_export(text):
+        staged.append(text)
+        return cookie_path
+
+    monkeypatch.setattr(dub_core, "_stage_cookie_export", stage_cookie_export)
     enqueue = AsyncMock()
     monkeypatch.setattr(dub_core.task_manager, "add_task", enqueue)
     request = SimpleNamespace(
@@ -113,6 +119,7 @@ def test_ingest_recognizes_desktop_proxy_marker(
         assert response.status_code == 202
         assert staged == [COOKIE_TEXT]
         enqueue.assert_awaited_once()
+        assert enqueue.await_args.args[5]["cookie_file"] == cookie_path
     else:
         with pytest.raises(HTTPException) as exc:
             asyncio.run(dub_core.dub_ingest_url(payload, request))

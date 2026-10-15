@@ -11,6 +11,12 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
+- Clone a voice from several samples, or straight from a video
+
+### Added
+
+- Save a voice from up to 8 recordings; they merge into one loudness-matched reference for a steadier clone (#2887) — thanks @tomasdesantadina-cmyk!
+- Use a video as a voice reference; only its audio track is kept (#2887) — thanks @tomasdesantadina-cmyk!
 
 ### Removed
 

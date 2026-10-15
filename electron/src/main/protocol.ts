@@ -1,6 +1,6 @@
 import { createReadStream } from 'node:fs';
 import { stat } from 'node:fs/promises';
-import { extname, join, resolve, sep } from 'node:path';
+import { extname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { Readable } from 'node:stream';
 import { net, protocol } from 'electron';
 
@@ -164,9 +164,10 @@ export async function serveStatic(root: string, pathname: string): Promise<Respo
   if (decoded.split(/[/\\]/).includes('..')) {
     return new Response('Forbidden', { status: 403, headers: { ...SECURITY_HEADERS } });
   }
-  const relative = decoded.replace(/^[/\\]+/, '');
-  const candidate = resolve(root, relative || 'index.html');
-  if (candidate !== root && !candidate.startsWith(root + sep)) {
+  const relPath = decoded.replace(/^[/\\]+/, '');
+  const candidate = resolve(root, relPath || 'index.html');
+  const rel = relative(root, candidate);
+  if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel)) {
     return new Response('Forbidden', { status: 403, headers: { ...SECURITY_HEADERS } });
   }
   const file = await fileResponse(candidate);

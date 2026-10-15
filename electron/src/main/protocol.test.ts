@@ -63,6 +63,12 @@ describe('protocol response headers and security boundaries', () => {
     expect(res.status).toBe(403);
     expect(res.headers.get('x-content-type-options')).toBe('nosniff');
     expect(res.headers.get('x-frame-options')).toBe('DENY');
+
+    const encoded = await serveStatic(tempDir, '/%2e%2e/secret');
+    expect(encoded.status).toBe(403);
+
+    const backslash = await serveStatic(tempDir, '/..%5Csecret');
+    expect(backslash.status).toBe(403);
   });
 
   it('serveStatic serves root index.html and assets with defensive headers', async () => {

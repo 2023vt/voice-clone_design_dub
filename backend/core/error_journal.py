@@ -130,7 +130,8 @@ def _coarse_stage(route: str) -> str:
         if parts and parts[0] == "api":
             parts = parts[1:]
         return (parts[0] if parts else "")[:40]
-    except Exception:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Failed parsing coarse stage from route: %s", scrub_text(str(exc)))
         return ""
 
 
@@ -186,8 +187,11 @@ def _persist_locked() -> bool:
                 f.write(json.dumps(entry, ensure_ascii=False) + "\n")
         os.replace(tmp, JOURNAL_PATH)
         return True
-    except Exception:
-        logger.warning("Error journal persistence failed; entries remain available in memory")
+    except Exception as exc:
+        logger.warning(
+            "Error journal persistence failed (%s); entries remain available in memory",
+            scrub_text(str(exc)),
+        )
         return False
 
 
@@ -202,14 +206,21 @@ def _hydrate() -> None:
                     fp = entry.get("fingerprint")
                     if fp:
                         _entries[fp] = entry
-                except Exception:
+                except Exception as exc:
+                    logger.debug(
+                        "Skipping malformed error journal entry: %s",
+                        scrub_text(str(exc)),
+                    )
                     continue
         while len(_entries) > _MAX_ENTRIES:
             _entries.popitem(last=False)
     except FileNotFoundError:
         pass
-    except Exception:
-        logger.warning("Error journal could not be loaded; starting with an empty in-memory journal")
+    except Exception as exc:
+        logger.warning(
+            "Error journal could not be loaded (%s); starting with an empty in-memory journal",
+            scrub_text(str(exc)),
+        )
 
 
 _hydrate()
@@ -258,10 +269,17 @@ def record(exc: BaseException, route: str = "", trace: str = "") -> dict:
             from core import analytics
 
             analytics.record_error_event(error_class, fp, stage=_coarse_stage(route))
-        except Exception:
-            pass
+        except Exception as exc:
+            logger.debug(
+                "Analytics error event recording skipped: %s",
+                scrub_text(str(exc)),
+            )
         return entry
-    except Exception:
+    except Exception as exc:
+        logger.debug(
+            "Error journal recording failed: %s",
+            scrub_text(str(exc)),
+        )
         return {"error_class": "UNKNOWN", "type": type(exc).__name__, "count": 1}
 
 
@@ -280,8 +298,11 @@ def clear() -> bool:
         except FileNotFoundError:
             # Idempotent clear: an already-absent durable mirror is success.
             logger.debug("Error journal mirror already absent during clear")
-        except OSError:
-            logger.warning("Error journal could not be cleared; keeping entries available for retry")
+        except OSError as exc:
+            logger.warning(
+                "Error journal could not be cleared (%s); keeping entries available for retry",
+                scrub_text(str(exc)),
+            )
             return False
         _entries.clear()
         return True

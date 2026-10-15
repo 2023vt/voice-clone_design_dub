@@ -128,3 +128,88 @@ def test_clear_is_idempotent_when_durable_mirror_is_already_absent(tmp_path, mon
     error_journal._entries["entry"] = {"fingerprint": "entry"}
     assert error_journal.clear() is True
     assert recent() == []
+
+
+def test_hydrate_malformed_entry_logs_debug_and_scrubs(tmp_path, monkeypatch, caplog):
+    secret_path = "/home/sensitive_user/secret.json"
+    journal_file = tmp_path / "journal_malformed.jsonl"
+    journal_file.write_text(f'{{"fingerprint": "valid"}}\nmalformed_json_at_{secret_path}\n', encoding="utf-8")
+    monkeypatch.setattr(error_journal, "JOURNAL_PATH", str(journal_file))
+
+    with caplog.at_level("DEBUG", logger="omnivoice.error_journal"):
+        error_journal._hydrate()
+
+    assert "Skipping malformed error journal entry" in caplog.text
+    assert "sensitive_user" not in caplog.text
+
+
+def test_coarse_stage_exception_logs_debug(caplog):
+    class BadRoute:
+        def split(self, *args):
+            raise RuntimeError("Route parsing failed at /home/sensitive_user/route")
+
+    with caplog.at_level("DEBUG", logger="omnivoice.error_journal"):
+        stage = error_journal._coarse_stage(BadRoute())
+
+    assert stage == ""
+    assert "Failed parsing coarse stage from route" in caplog.text
+    assert "sensitive_user" not in caplog.text
+
+
+def test_analytics_recording_failure_logs_debug_and_scrubs(monkeypatch, caplog):
+    import core
+    secret = "/home/sensitive_user/analytics.token"
+    mock_analytics = type("MockAnalytics", (), {
+        "record_error_event": staticmethod(lambda *args, **kwargs: (_ for _ in ()).throw(RuntimeError(f"Token read error at {secret}"))),
+    })
+    monkeypatch.setattr(core, "analytics", mock_analytics, raising=False)
+
+    with caplog.at_level("DEBUG", logger="omnivoice.error_journal"):
+        entry = record(ValueError("test error"))
+
+    assert entry["type"] == "ValueError"
+    assert "Analytics error event recording skipped" in caplog.text
+    assert "sensitive_user" not in caplog.text
+
+
+def test_record_internal_exception_logs_debug_and_scrubs(monkeypatch, caplog):
+    secret = "/home/sensitive_user/internal.db"
+    monkeypatch.setattr(
+        error_journal,
+        "classify_exception",
+        lambda *args: (_ for _ in ()).throw(RuntimeError(f"Internal crash at {secret}")),
+    )
+
+    with caplog.at_level("DEBUG", logger="omnivoice.error_journal"):
+        entry = record(ValueError("test error"))
+
+    assert entry["error_class"] == "UNKNOWN"
+    assert "Error journal recording failed" in caplog.text
+    assert "sensitive_user" not in caplog.text
+
+
+def test_persistence_failure_logs_scrubbed_warning(monkeypatch, caplog):
+    secret_path = "/home/sensitive_user/cannot_write.jsonl"
+    monkeypatch.setattr(error_journal, "JOURNAL_PATH", secret_path)
+
+    with caplog.at_level("WARNING", logger="omnivoice.error_journal"):
+        record(ValueError("sample error"))
+
+    assert "Error journal persistence failed" in caplog.text
+    assert "sensitive_user" not in caplog.text
+
+
+def test_clear_failure_logs_scrubbed_warning(monkeypatch, caplog):
+    secret_path = "/home/sensitive_user/cannot_delete.jsonl"
+    monkeypatch.setattr(
+        error_journal.os,
+        "remove",
+        lambda _path: (_ for _ in ()).throw(PermissionError(f"Denied {secret_path}")),
+    )
+
+    with caplog.at_level("WARNING", logger="omnivoice.error_journal"):
+        res = error_journal.clear()
+
+    assert res is False
+    assert "Error journal could not be cleared" in caplog.text
+    assert "sensitive_user" not in caplog.text

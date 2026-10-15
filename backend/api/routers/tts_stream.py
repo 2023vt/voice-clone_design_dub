@@ -115,7 +115,7 @@ def resolve_emotion_clip(value: object) -> str:
 
             logger.debug(
                 "Failed resolving emo audio path in %s: %s",
-                root,
+                scrub_text(str(root)),
                 scrub_text(str(e)),
             )
             continue
@@ -498,7 +498,7 @@ async def ws_tts(websocket: WebSocket):
                 if licence is None:
                     from core.scrub import scrub_text
 
-                    logger.exception("TTS streaming failed: %s", scrub_text(str(e)))
+                    logger.error("TTS streaming failed: %s", scrub_text(str(e)))
                 else:
                     logger.info("TTS stream refused: model licence not accepted")
                 try:

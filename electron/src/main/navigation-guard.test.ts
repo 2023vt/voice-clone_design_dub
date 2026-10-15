@@ -56,6 +56,12 @@ describe('isAllowedFrameUrl', () => {
     expect(isAllowedFrameUrl('https://malicious.org/embed', false)).toBe(false);
     expect(isAllowedFrameUrl('http://forms.gle/insecure', false)).toBe(false);
     expect(isAllowedFrameUrl('file:///tmp/leak.html', false)).toBe(false);
+    // Non-form Google services rejected in subframe
+    expect(isAllowedFrameUrl('https://sites.google.com/view/phish', false)).toBe(false);
+    expect(isAllowedFrameUrl('https://docs.google.com/document/d/123', false)).toBe(false);
+    expect(isAllowedFrameUrl('https://drive.google.com/file', false)).toBe(false);
+    // Google accounts authentication allowed for form login
+    expect(isAllowedFrameUrl('https://accounts.google.com/ServiceLogin', false)).toBe(true);
   });
 });
 
@@ -176,11 +182,11 @@ describe('attachNavigationGuards', () => {
     expect(mainFrameSponsorEvent.preventDefault).toHaveBeenCalledOnce();
     expect(mockOpenOutside).toHaveBeenCalledWith('https://forms.gle/2PYCvd39hbwijzX37');
 
-    // Untrusted iframe navigation blocked and opened outside
+    // Untrusted iframe navigation blocked without opening outside
     mockOpenOutside.mockClear();
     const externalFrameEvent = { preventDefault: vi.fn(), url: 'https://evil.com/iframe', isMainFrame: false };
     emitWillFrameNavigate(externalFrameEvent);
     expect(externalFrameEvent.preventDefault).toHaveBeenCalledOnce();
-    expect(mockOpenOutside).toHaveBeenCalledWith('https://evil.com/iframe');
+    expect(mockOpenOutside).not.toHaveBeenCalled();
   });
 });

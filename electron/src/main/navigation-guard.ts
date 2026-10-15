@@ -19,7 +19,7 @@ export async function openOutside(url: string): Promise<void> {
   }
 }
 
-const ALLOWED_EMBED_HOSTS = new Set(['forms.gle', 'docs.google.com']);
+const ALLOWED_FORM_HOSTS = new Set(['forms.gle']);
 
 export function isAllowedFrameUrl(
   url: string,
@@ -30,10 +30,11 @@ export function isAllowedFrameUrl(
   if (isMainFrame) return false;
   try {
     const parsed = new URL(url);
-    return (
-      parsed.protocol === 'https:' &&
-      (ALLOWED_EMBED_HOSTS.has(parsed.hostname) || parsed.hostname.endsWith('.google.com'))
-    );
+    if (parsed.protocol !== 'https:') return false;
+    if (ALLOWED_FORM_HOSTS.has(parsed.hostname)) return true;
+    if (parsed.hostname === 'docs.google.com' && parsed.pathname.startsWith('/forms/')) return true;
+    if (parsed.hostname === 'accounts.google.com') return true;
+    return false;
   } catch {
     return false;
   }
@@ -65,6 +66,8 @@ export function attachNavigationGuards(
   contents.on('will-frame-navigate', (event) => {
     if (isAllowedFrameUrl(event.url, event.isMainFrame, devUrl)) return;
     event.preventDefault();
-    void openOutsideFn(event.url);
+    if (event.isMainFrame) {
+      void openOutsideFn(event.url);
+    }
   });
 }

@@ -849,12 +849,11 @@ def _local_models(base_url: str, api_key: str):
         client = OpenAI(api_key=api_key, base_url=base_url, max_retries=0)
         return sorted(m.id for m in client.models.list(timeout=5))
     except Exception as exc:  # noqa: BLE001
-        from core.scrub import scrub_text
+        from core.scrub import scrub_provider_error
 
         logger.debug(
-            "Failed to list local models for %s: %s",
-            base_url,
-            scrub_text(str(exc)),
+            "Failed to list local models: %s",
+            scrub_provider_error(exc, api_key),
         )
         return None
 

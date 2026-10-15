@@ -51,6 +51,7 @@ def test_local_models_failure_logs_debug_and_returns_none(
     from api.routers import settings
 
     mock_openai = types.ModuleType("openai")
+    test_token = "sk-test-secret-token-12345"
 
     class MockClient:
         def __init__(self, **kwargs):
@@ -59,19 +60,20 @@ def test_local_models_failure_logs_debug_and_returns_none(
         @property
         def models(self):
             mock_models = MagicMock()
-            mock_models.list.side_effect = RuntimeError(f"remote connection reset at {raw_path}")
+            mock_models.list.side_effect = RuntimeError(
+                f"remote connection reset for key {test_token} at {raw_path}"
+            )
             return mock_models
 
     mock_openai.OpenAI = MockClient
     monkeypatch.setitem(sys.modules, "openai", mock_openai)
 
-    test_token = "sk-test-secret-token-12345"
     with caplog.at_level(logging.DEBUG, logger="omnivoice.api.settings"):
         res = settings._local_models("http://127.0.0.1:11434/v1", test_token)
 
     assert res is None
     assert any(
-        "Failed to list local models for http://127.0.0.1:11434/v1" in r.message
+        "Failed to list local models: " in r.message
         for r in caplog.records
     )
     assert forbidden_prefix not in caplog.text

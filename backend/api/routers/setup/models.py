@@ -117,8 +117,13 @@ def _current_platform_tags() -> list[str]:
             # working ROCm host.
             if getattr(torch.version, "hip", None):
                 tags.append("rocm")
-    except Exception:
-        pass
+    except Exception as exc:
+        from core.scrub import scrub_text
+
+        logger.debug(
+            "Torch platform acceleration probe skipped or unavailable: %s",
+            scrub_text(str(exc)),
+        )
     is_apple_silicon = sys.platform == "darwin" and arch == "arm64"
     if not has_gpu and not is_apple_silicon:
         tags.append("cpu")
@@ -195,7 +200,14 @@ def disk_free_bytes(path: "str | None" = None) -> int:
                 break
             p = parent
         return int(shutil.disk_usage(str(p)).free)
-    except Exception:
+    except Exception as exc:
+        from core.scrub import scrub_text
+
+        logger.debug(
+            "Disk free bytes probe failed for %s: %s",
+            scrub_text(str(path)),
+            scrub_text(str(exc)),
+        )
         return 0
 
 
@@ -299,12 +311,31 @@ def snapshot_has_weights(snapshot_path: str) -> bool:
     one. `getsize` follows symlinks, so HF's snapshot→blob links resolve correctly;
     a broken link (missing blob) raises OSError and is skipped, i.e. counts as absent.
     """
+    walk_failed = False
+
+    def _walk_error(err: OSError) -> None:
+        nonlocal walk_failed
+        walk_failed = True
+        from core.scrub import scrub_text
+
+        logger.debug(
+            "Directory walk error in snapshot weight check for %s: %s",
+            scrub_text(str(snapshot_path)),
+            scrub_text(str(err)),
+        )
+
     try:
-        for root, _dirs, files in os.walk(snapshot_path, followlinks=True):
+        for root, _dirs, files in os.walk(snapshot_path, followlinks=True, onerror=_walk_error):
             for f in files:
                 try:
                     size = os.path.getsize(os.path.join(root, f))
-                except OSError:
+                except OSError as err:
+                    from core.scrub import scrub_text
+
+                    logger.debug(
+                        "File stat error in snapshot weight check: %s",
+                        scrub_text(str(err)),
+                    )
                     continue
                 ext = os.path.splitext(f)[1].lower()
                 floor = _WEIGHT_FLOORS.get(ext)
@@ -312,7 +343,16 @@ def snapshot_has_weights(snapshot_path: str) -> bool:
                     return True
                 if size >= _MIN_WEIGHT_BYTES:
                     return True
-    except OSError:
+        if walk_failed:
+            return True
+    except OSError as exc:
+        from core.scrub import scrub_text
+
+        logger.debug(
+            "Snapshot weight inspection failed for %s: %s",
+            scrub_text(str(snapshot_path)),
+            scrub_text(str(exc)),
+        )
         return True  # can't inspect — don't mislabel as truncated
     return False
 
@@ -328,7 +368,14 @@ def _snapshot_dirs(repo_id: str) -> list[str]:
                 rev_dir = os.path.join(snaps, rev)
                 if os.path.isdir(rev_dir):
                     dirs.append(rev_dir)
-        except OSError:
+        except OSError as exc:
+            from core.scrub import scrub_text
+
+            logger.debug(
+                "Could not list snapshot directory %s: %s",
+                scrub_text(str(snaps)),
+                scrub_text(str(exc)),
+            )
             continue
     return dirs
 
@@ -350,7 +397,14 @@ def snapshot_is_complete(model: dict, snapshot_path: str) -> bool:
             for name in required
         )
         return present and (config_only or snapshot_has_weights(snapshot_path))
-    except OSError:
+    except OSError as exc:
+        from core.scrub import scrub_text
+
+        logger.debug(
+            "Failed verifying snapshot completeness for %s: %s",
+            model.get("repo_id"),
+            scrub_text(str(exc)),
+        )
         return False
 
 
@@ -427,7 +481,14 @@ def _is_cached_on_disk(repo_id: str) -> bool:
                     with os.scandir(rev_dir) as it:
                         if any(it):
                             return True
-        except OSError:
+        except OSError as exc:
+            from core.scrub import scrub_text
+
+            logger.debug(
+                "Could not scan snapshot revisions in %s: %s",
+                scrub_text(str(snaps)),
+                scrub_text(str(exc)),
+            )
             continue
     return False
 
@@ -439,7 +500,14 @@ def _scan_cache_on_disk() -> dict[str, dict]:
     for root in _hub_cache_roots():
         try:
             names = os.listdir(root)
-        except OSError:
+        except OSError as exc:
+            from core.scrub import scrub_text
+
+            logger.debug(
+                "Could not list hub cache root %s: %s",
+                scrub_text(str(root)),
+                scrub_text(str(exc)),
+            )
             continue
         for name in names:
             if not name.startswith("models--"):
@@ -457,9 +525,14 @@ def _scan_cache_on_disk() -> dict[str, dict]:
                     try:
                         size += os.path.getsize(os.path.join(dirpath, f))
                         nb += 1
-                    except OSError:
-                        # Skip files we can't stat (broken symlink, permission) —
-                        # the count is best-effort for the UI's "installed" badge.
+                    except OSError as err:
+                        from core.scrub import scrub_text
+
+                        logger.debug(
+                            "Could not stat cached file %s: %s",
+                            scrub_text(os.path.join(dirpath, f)),
+                            scrub_text(str(err)),
+                        )
                         continue
             if nb > 0:
                 out[repo_id] = {"size_on_disk": size, "last_accessed": None, "nb_files": nb}

@@ -154,3 +154,25 @@ def test_overlapping_starts_do_not_spawn_duplicate_child(monkeypatch):
     asyncio.run(_run())
 
 
+def test_stop_cancels_startup_task_without_cancelled_error():
+    sonitranslate = _get_sonitranslate()
+
+    async def _run():
+        started = asyncio.Event()
+
+        async def slow_start():
+            started.set()
+            await asyncio.sleep(10)
+
+        task = asyncio.create_task(slow_start())
+        sonitranslate._startup_task = task
+
+        await started.wait()
+        res = await sonitranslate.stop()
+        assert res["stopped"] is True
+        assert task.cancelled() or task.done()
+
+    asyncio.run(_run())
+
+
+

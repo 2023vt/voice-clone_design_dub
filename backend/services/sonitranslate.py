@@ -298,8 +298,14 @@ async def stop() -> dict:
             task.cancel()
             try:
                 await task
-            except Exception:
+            except (asyncio.CancelledError, Exception):
                 pass
+
+        if proc is None and _proc is not None:
+            proc = _proc
+            drain_thread = _drain_thread
+            _proc = None
+            _drain_thread = None
 
         if proc is not None:
             await asyncio.to_thread(_wait_and_reap, proc, drain_thread)

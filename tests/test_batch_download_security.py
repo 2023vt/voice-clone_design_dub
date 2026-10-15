@@ -130,14 +130,15 @@ def test_download_batch_output_validates_job_state(batch_env):
     assert exc_info.value.status_code == 404
 
 
-def test_download_batch_output_supports_symlinked_data_dir(tmp_path, monkeypatch):
+def test_download_batch_output_supports_symlinked_data_dir(tmp_path, monkeypatch, symlink_or_skip):
     import os
     from api.routers import batch
 
     real_data = tmp_path / "real_data"
     real_data.mkdir(parents=True, exist_ok=True)
     sym_data = tmp_path / "sym_data"
-    os.symlink(str(real_data), str(sym_data))
+    symlink_or_skip(str(sym_data), str(real_data), target_is_directory=True)
+
 
     monkeypatch.setattr(batch, "DATA_DIR", str(sym_data))
     monkeypatch.setattr(batch, "_jobs", {})

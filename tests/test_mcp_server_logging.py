@@ -83,6 +83,15 @@ def test_read_input_audio_read_oserror_cleans_up_without_double_close(mcp_server
     valid_file.write_bytes(b"RIFFdummydata")
 
     original_fdopen = os.fdopen
+    handle_close_calls = []
+
+    class TrackingHandle:
+        def __init__(self, raw_handle):
+            self._handle = raw_handle
+
+        def close(self):
+            handle_close_calls.append(True)
+            self._handle.close()
 
     class FailingHandle:
         def __init__(self, raw_handle):
@@ -97,12 +106,6 @@ def test_read_input_audio_read_oserror_cleans_up_without_double_close(mcp_server
         def read(self, *args, **kwargs):
             raise OSError("I/O failure during read /home/sensitive_user/read_error")
 
-    def mock_fdopen(fd, mode="r", *args, **kwargs):
-        real_handle = original_fdopen(fd, mode, *args, **kwargs)
-        return FailingHandle(real_handle)
-
-    monkeypatch.setattr(os, "fdopen", mock_fdopen)
-
     close_calls = []
     original_close = os.close
 
@@ -110,14 +113,22 @@ def test_read_input_audio_read_oserror_cleans_up_without_double_close(mcp_server
         close_calls.append(fd)
         return original_close(fd)
 
-    monkeypatch.setattr(os, "close", tracking_close)
+    def mock_fdopen(fd, mode="r", *args, **kwargs):
+        # Track raw os.close calls only after os.fdopen takes ownership
+        monkeypatch.setattr(os, "close", tracking_close)
+        real_handle = original_fdopen(fd, mode, *args, **kwargs)
+        return FailingHandle(TrackingHandle(real_handle))
+
+    monkeypatch.setattr(os, "fdopen", mock_fdopen)
 
     raw, err = mcp_server_module._read_input_audio(None, str(valid_file), label="ref_audio")
     assert raw is None
     assert "could not safely read" in err
     assert "sensitive_user" not in err
-    # os.close should be called exactly once by the handle context, NOT a second time by except block
-    assert len(close_calls) == 1
+    # The wrapped handle was closed by the with-block
+    assert len(handle_close_calls) == 1
+    # No raw os.close call was made by the except block after fdopen ownership transfer
+    assert close_calls == []
 
 
 def test_allowed_hosts_warning_scrubs_exception(mcp_server_module, caplog, monkeypatch):

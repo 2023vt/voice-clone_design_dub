@@ -5,13 +5,13 @@ import uuid
 
 import pytest
 
-from core import job_store
-from core.db import init_db
-from core.tasks import TaskManager
-
 
 @pytest.mark.parametrize("kind", ["sync", "coroutine", "stream"])
 def test_cancelled_pending_task_never_executes_and_persists_cancelled(kind):
+    from core import job_store
+    from core.db import init_db
+    from core.tasks import TaskManager
+
     init_db()
     manager = TaskManager()
     task_id = uuid.uuid4().hex
@@ -54,6 +54,8 @@ def test_cancelled_pending_task_never_executes_and_persists_cancelled(kind):
 
 @pytest.mark.parametrize("status", ["done", "failed", "cancelled"])
 def test_cancellation_does_not_change_a_terminal_task(status):
+    from core.tasks import TaskManager
+
     manager = TaskManager()
     manager.active_tasks["finished"] = {"status": status, "cancelled": False}
     assert manager.cancel_task("finished") is False
@@ -74,6 +76,9 @@ def _drain(manager, task_id):
 
 
 def test_on_cancel_releases_resources_of_a_task_cancelled_before_start():
+    from core.db import init_db
+    from core.tasks import TaskManager
+
     init_db()
     manager = TaskManager()
     task_id = uuid.uuid4().hex
@@ -93,6 +98,9 @@ def test_on_cancel_releases_resources_of_a_task_cancelled_before_start():
 
 
 def test_on_cancel_failure_does_not_wedge_the_worker():
+    from core.db import init_db
+    from core.tasks import TaskManager
+
     init_db()
     manager = TaskManager()
     first, second = uuid.uuid4().hex, uuid.uuid4().hex
@@ -114,6 +122,9 @@ def test_on_cancel_failure_does_not_wedge_the_worker():
 
 
 def test_on_cancel_is_not_called_for_a_task_that_runs():
+    from core.db import init_db
+    from core.tasks import TaskManager
+
     init_db()
     manager = TaskManager()
     task_id = uuid.uuid4().hex
@@ -132,6 +143,8 @@ def test_on_cancel_is_not_called_for_a_task_that_runs():
 
 def test_abort_cannot_land_between_the_cancel_check_and_dispatch():
     """cancel_task and the worker's check-then-run share one lock."""
+    from core.tasks import TaskManager
+
     manager = TaskManager()
     manager.active_tasks["t"] = {"status": "pending", "cancelled": False}
     with manager._state_lock:

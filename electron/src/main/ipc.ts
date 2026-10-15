@@ -43,6 +43,7 @@ import { inspectDataRelocation, relocateDataDirectory } from './data-relocation'
 import { createUninstallPlan, scanUninstallTargets, type UninstallRoots } from './uninstall-data';
 import { scheduleUninstallCleanup } from './uninstall-cleanup';
 import { sendToLiveWindow } from './window-safety';
+import { securityScopedDialogOptions, withSecurityScopedBookmark } from './security-scoped-files';
 
 export const CHANNELS = {
   permissionsGetState: 'permissions:getState',
@@ -565,10 +566,10 @@ export function registerIpc(
     assertTrustedMainFrame(event, owner);
     const req = assertSaveAudioRequest(raw);
     const source = resolveBackendDownloadUrl(req.url, supervisor.baseUrl);
-    const options: Electron.SaveDialogOptions = {
+    const options = securityScopedDialogOptions<Electron.SaveDialogOptions>({
       defaultPath: req.suggestedName,
       filters: saveFiltersFor(req.suggestedName),
-    };
+    });
     const picked = owner
       ? await dialog.showSaveDialog(owner, options)
       : await dialog.showSaveDialog(options);
@@ -579,7 +580,9 @@ export function registerIpc(
       bypassCustomProtocolHandlers: true,
     });
     if (!res.ok) throw new Error(await downloadFailureMessage(res));
-    await replaceFile(picked.filePath, Buffer.from(await res.arrayBuffer()));
+    await withSecurityScopedBookmark(picked.bookmark, async () =>
+      replaceFile(picked.filePath, Buffer.from(await res.arrayBuffer())),
+    );
     return { canceled: false, path: picked.filePath };
   });
 
@@ -587,12 +590,15 @@ export function registerIpc(
     const owner = windowFor(event) ?? getMainWindow();
     assertTrustedMainFrame(event, owner);
     const req = assertSaveDataRequest(raw);
-    const picked = await dialog.showSaveDialog(owner, {
-      defaultPath: req.suggestedName,
-      filters: saveFiltersFor(req.suggestedName),
-    });
+    const picked = await dialog.showSaveDialog(
+      owner,
+      securityScopedDialogOptions<Electron.SaveDialogOptions>({
+        defaultPath: req.suggestedName,
+        filters: saveFiltersFor(req.suggestedName),
+      }),
+    );
     if (picked.canceled || !picked.filePath) return { canceled: true };
-    await replaceFile(picked.filePath, req.data);
+    await withSecurityScopedBookmark(picked.bookmark, () => replaceFile(picked.filePath, req.data));
     return { canceled: false, path: picked.filePath };
   });
 

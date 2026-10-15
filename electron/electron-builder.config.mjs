@@ -8,20 +8,81 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { packageNativeHelper } from './native-helper-build.mjs';
+import { repairSnapArtifacts } from './snap-template-payload.mjs';
 import { APP_ID, PRODUCT_NAME } from '../config/app-config.mjs';
+import { DISTRIBUTION_PROFILE, DISTRIBUTION_TARGET } from '../config/distributions.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const { version } = JSON.parse(readFileSync(resolve(here, '../package.json'), 'utf-8'));
-const artifactPrefix = `${PRODUCT_NAME.replace(/[^A-Za-z0-9]+/g, '-')}-Electron`;
+const storeMetadata = JSON.parse(readFileSync(resolve(here, '../store/metadata.json'), 'utf-8'));
+const storeIdentity = storeMetadata.identity;
+const isMacAppStore = DISTRIBUTION_TARGET === 'mac-app-store';
+const artifactLabel =
+  {
+    'microsoft-store': 'MicrosoftStore',
+    'mac-app-store': 'MacAppStore',
+  }[DISTRIBUTION_TARGET] ?? 'Electron';
+const artifactPrefix = `${PRODUCT_NAME.replace(/[^A-Za-z0-9]+/g, '-')}-${artifactLabel}`;
 // Stable is the only Electron update feed: there is no `preview` release to
 // point at. Packaging rehearsals from main are stamped stable too; they are
 // review artifacts and are never published.
 const updateChannel =
   process.env.VOICESTUDIO_UPDATE_CHANNEL || `electron-stable-${process.platform}-${process.arch}`;
-if (!/^electron-stable-(?:win32|darwin|linux)-(?:x64|arm64)$/.test(updateChannel)) {
+if (
+  !/^electron-(?:microsoft-store-)?stable-(?:win32|darwin|linux)-(?:x64|arm64)$/.test(updateChannel)
+) {
   throw new Error(`Unsupported Electron update channel: ${updateChannel}`);
 }
 const updateUrl = 'https://github.com/debpalash/VoiceStudio/releases/latest/download';
+
+export function distributionPackaging(target = DISTRIBUTION_TARGET) {
+  if (target === 'snap-store') {
+    return {
+      linuxTargets: ['snap'],
+      linuxExecutableName: 'voicestudio',
+      snapcraft: {
+        // Core 22 uses electron-builder's reproducible Electron snap template;
+        // strict confinement is explicit so a future default cannot weaken it.
+        base: 'core22',
+        core22: {
+          confinement: 'strict',
+          grade: 'stable',
+          title: PRODUCT_NAME,
+          summary: storeMetadata.listing.shortDescription,
+          description: storeMetadata.listing.description,
+          allowNativeWayland: true,
+          plugs: [
+            { 'browser-support': { interface: 'browser-support', 'allow-sandbox': false } },
+            'desktop',
+            'desktop-legacy',
+            'home',
+            'x11',
+            'wayland',
+            'unity7',
+            'network',
+            'network-bind',
+            'gsettings',
+            'audio-playback',
+            'audio-record',
+            'pulseaudio',
+            'opengl',
+          ],
+        },
+      },
+      publish: { provider: 'snapStore' },
+    };
+  }
+  return {
+    linuxTargets: ['AppImage', 'deb'],
+    publish: {
+      provider: 'generic',
+      url: updateUrl,
+      channel: updateChannel,
+    },
+  };
+}
+
+const packaging = distributionPackaging();
 
 const defaultRustTarget =
   {
@@ -44,19 +105,30 @@ const bundledUvResources =
   uvSource && existsSync(uvSource) && statSync(uvSource).size > 0
     ? [{ from: uvSource, to: `tools/uv${uvExtension}` }]
     : [];
-const notarizeMac = Boolean(
-  process.env.CSC_LINK &&
-  process.env.CSC_KEY_PASSWORD &&
-  process.env.APPLE_ID &&
-  process.env.APPLE_APP_SPECIFIC_PASSWORD &&
-  process.env.APPLE_TEAM_ID,
-);
+const notarizeMac =
+  !isMacAppStore &&
+  Boolean(
+    process.env.CSC_LINK &&
+    process.env.CSC_KEY_PASSWORD &&
+    process.env.APPLE_ID &&
+    process.env.APPLE_APP_SPECIFIC_PASSWORD &&
+    process.env.APPLE_TEAM_ID,
+  );
 
 /** @type {import('electron-builder').Configuration} */
 export default {
   appId: APP_ID,
   productName: PRODUCT_NAME,
-  extraMetadata: { version, productName: PRODUCT_NAME, desktopName: PRODUCT_NAME },
+  extraMetadata: {
+    version,
+    productName: PRODUCT_NAME,
+    desktopName: PRODUCT_NAME,
+    voicestudioDistribution: DISTRIBUTION_TARGET,
+    voicestudioUpdateOwner: DISTRIBUTION_PROFILE.applicationUpdates,
+    ...(DISTRIBUTION_TARGET === 'microsoft-store'
+      ? { author: { name: storeIdentity.publisherLegalName, email: 'hi@voicestudio.sh' } }
+      : {}),
+  },
   directories: { output: 'release', buildResources: 'build' },
   artifactName: `${artifactPrefix}-\${version}-\${os}-\${arch}.\${ext}`,
   // The default FUSE2 runtime cannot start on distros without libfuse.so.2.
@@ -99,6 +171,9 @@ export default {
   ],
   asar: true,
   afterPack: packageNativeHelper,
+  ...(DISTRIBUTION_TARGET === 'snap-store'
+    ? { afterAllArtifactBuild: ({ artifactPaths }) => repairSnapArtifacts(artifactPaths) }
+    : {}),
   win: {
     icon: 'build/icons/icon.ico',
     // The CLI matrix selects one architecture per runner and updater feed
@@ -118,7 +193,7 @@ export default {
     entitlementsInherit: 'build/entitlements.mac.plist',
     // Keep unsigned artifact rehearsals at their existing signing defaults;
     // a Developer ID certificate and Apple credentials enable both together.
-    hardenedRuntime: notarizeMac,
+    hardenedRuntime: isMacAppStore ? false : notarizeMac,
     notarize: notarizeMac,
     extendInfo: {
       NSMicrophoneUsageDescription: readFileSync(resolve(here, 'build/Info.plist'), 'utf8')
@@ -126,20 +201,25 @@ export default {
         .replaceAll('__APP_PRODUCT_NAME__', PRODUCT_NAME),
     },
     // The CLI matrix selects one architecture per runner and updater feed.
-    target: ['dmg', 'zip'],
+    target: isMacAppStore ? ['mas'] : ['dmg', 'zip'],
     category: 'public.app-category.productivity',
+  },
+  mas: {
+    entitlements: 'build/entitlements.mas.plist',
+    entitlementsInherit: 'build/entitlements.mas.inherit.plist',
+    ...(process.env.VOICESTUDIO_MAS_PROVISIONING_PROFILE
+      ? { provisioningProfile: process.env.VOICESTUDIO_MAS_PROVISIONING_PROFILE }
+      : {}),
   },
   linux: {
     // Linux targets rewrite ${arch} to x86_64/amd64; feeds use Node's x64.
     artifactName: `${artifactPrefix}-\${version}-linux-x64.\${ext}`,
     icon: 'build/icons/icon.png',
     syncDesktopName: true,
-    target: ['AppImage', 'deb'],
+    target: packaging.linuxTargets,
+    ...(packaging.linuxExecutableName ? { executableName: packaging.linuxExecutableName } : {}),
     category: 'Audio',
   },
-  publish: {
-    provider: 'generic',
-    url: updateUrl,
-    channel: updateChannel,
-  },
+  ...(packaging.snapcraft ? { snapcraft: packaging.snapcraft } : {}),
+  publish: packaging.publish,
 };

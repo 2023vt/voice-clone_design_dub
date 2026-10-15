@@ -13,9 +13,19 @@ metadata and the backend fallback mirror it.
 - An optional agent example can search and fetch web sources with Parallel Search MCP, then send selected excerpts to local speech (#2742) — thanks @georgeatparallel!
 - The open-source app no longer contains a licence-key client
 
+### Changed
+
+- The expanded sidebar shows the installed app version beneath VoiceStudio and clearly marks development builds (#2894)
+
 ### Removed
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
+
+### Fixed
+
+- Snap packages follow Canonical’s strict-confinement approach to launch without manual Chromium sandbox setup (#2893) — thanks @velixio!
+- Snap launches explain missing sandbox permissions instead of crashing before startup (#2889)
+- Snap packages expand the Electron desktop runtime so they launch after installation (#2858)
 
 ## [0.5.7] — 2026-10-13
 

@@ -62,3 +62,22 @@ def test_available_memory_returns_values_on_success(monkeypatch):
     assert result["ram_total_gb"] == 16.0
     assert result["vram_free_gb"] == 4.0
     assert result["vram_total_gb"] == 8.0
+
+
+def test_available_memory_logs_redacts_sensitive_paths(caplog, monkeypatch):
+    import sys
+    from services import memory_budget
+
+    mock_psutil = MagicMock()
+    mock_psutil.virtual_memory.side_effect = RuntimeError("failed at /Users/developer/secret.txt")
+    monkeypatch.setitem(sys.modules, "psutil", mock_psutil)
+
+    with caplog.at_level(logging.DEBUG, logger="omnivoice.memory_budget"):
+        result = memory_budget.available_memory()
+        assert "ram_available_gb" not in result
+        assert any(
+            "System RAM query failed" in record.message
+            and "/Users/developer" not in record.message
+            for record in caplog.records
+        )
+

@@ -1,6 +1,8 @@
 // @vitest-environment node
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { expect, it, vi } from 'vitest';
-import { sendToLiveWindow } from './window-safety';
+import { quitOnWindowClose, sendToLiveWindow } from './window-safety';
 
 function fixture(options: { windowDestroyed?: boolean; contentsDestroyed?: boolean } = {}) {
   const send = vi.fn();
@@ -58,4 +60,30 @@ it('consumes a teardown race but preserves unrelated send failures', () => {
     throw new Error('Could not serialize payload');
   });
   expect(() => sendToLiveWindow(broken.window, 'status')).toThrow('serialize');
+});
+
+it.each(['darwin', 'linux', 'win32'])('quits when the main window closes on %s', (platform) => {
+  vi.spyOn(process, 'platform', 'get').mockReturnValue(platform as NodeJS.Platform);
+  let onClose: (event: { preventDefault(): void }) => void = () => {};
+  const quit = vi.fn();
+  let quitting = false;
+  quitOnWindowClose({ on: (_event, listener) => (onClose = listener) }, () => quitting, quit);
+
+  const first = { preventDefault: vi.fn() };
+  onClose(first);
+  expect(first.preventDefault).toHaveBeenCalledOnce();
+  expect(quit).toHaveBeenCalledOnce();
+
+  quitting = true;
+  const second = { preventDefault: vi.fn() };
+  onClose(second);
+  expect(second.preventDefault).not.toHaveBeenCalled();
+  expect(quit).toHaveBeenCalledOnce();
+  vi.restoreAllMocks();
+});
+
+it('the entrypoint has no macOS-only window-close path', () => {
+  const entrypoint = readFileSync(resolve(process.cwd(), 'src/main/index.ts'), 'utf8');
+  expect(entrypoint).not.toMatch(/platform\s*!==\s*'darwin'\)\s*app\.quit/);
+  expect(entrypoint).toContain('quitOnWindowClose(');
 });

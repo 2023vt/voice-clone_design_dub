@@ -18,6 +18,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
+- Closing the window with the red button quits VoiceStudio on macOS, as on Windows and Linux (#PR)
 - Snap launches explain missing sandbox permissions instead of crashing before startup (#2889)
 - Snap packages expand the Electron desktop runtime so they launch after installation (#2858)
 

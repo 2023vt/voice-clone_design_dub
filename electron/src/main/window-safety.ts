@@ -43,10 +43,27 @@ export function sendToLiveWindow(
   } catch (error) {
     // webContents can disappear between the guards and send(). Consume only
     // that normal close/reload race; keep unrelated IPC faults visible.
-    if (
-      !isLiveWindow(window) || isDestroyedFailure(error)
-    )
-      return false;
+    if (!isLiveWindow(window) || isDestroyedFailure(error)) return false;
     throw error;
   }
+}
+
+type ClosableWindow = {
+  on(event: 'close', listener: (event: { preventDefault(): void }) => void): unknown;
+};
+
+/**
+ * Closing the main window quits the app on every platform (macOS included),
+ * so the backend, tray and capture never linger after the user closes it.
+ */
+export function quitOnWindowClose(
+  window: ClosableWindow,
+  isQuitting: () => boolean,
+  quit: () => void,
+): void {
+  window.on('close', (event) => {
+    if (isQuitting()) return;
+    event.preventDefault();
+    quit();
+  });
 }

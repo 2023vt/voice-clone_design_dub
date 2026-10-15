@@ -21,7 +21,7 @@ import {
   MainErrorJournal,
   observeMainProcessTask,
 } from './main-error-journal';
-import { activateLiveWindow, isLiveWindow } from './window-safety';
+import { activateLiveWindow, isLiveWindow, quitOnWindowClose } from './window-safety';
 import { installAppIdentity, installMacApplicationMenu } from './app-identity';
 import { APP_ID, DEFAULT_ELECTRON_PROXY_PORT, PRODUCT_NAME } from '../../../config/app-config.mjs';
 
@@ -151,24 +151,14 @@ function createWindow(): BrowserWindow {
   });
 
   win.on('ready-to-show', () => activateLiveWindow(win));
-  win.on('close', (event) => {
-    if (quitting) return;
-    event.preventDefault();
-    if (process.platform === 'darwin') {
-      observeMainProcessTask(
-        flushRendererPersistence().finally(() => {
-          if (!win.isDestroyed()) win.destroy();
-        }),
-        mainErrors,
-        'Window persistence flush',
-      );
-      return;
-    }
-    observeMainProcessTask(beginOrderlyQuit(), mainErrors, 'Orderly quit');
-  });
+  quitOnWindowClose(
+    win,
+    () => quitting,
+    () => observeMainProcessTask(beginOrderlyQuit(), mainErrors, 'Orderly quit'),
+  );
   win.on('closed', () => {
     if (mainWindow === win) mainWindow = null;
-    if (process.platform !== 'darwin' && !quitting) app.quit();
+    if (!quitting) app.quit();
   });
   wireWindowMaximizeEvents(win);
   installBlankWindowGuard(
@@ -330,9 +320,7 @@ if (process.env.VOICESTUDIO_ALLOW_MULTIPLE_INSTANCES !== '1' && !app.requestSing
       app.exit(1);
     });
 
-  app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit();
-  });
+  app.on('window-all-closed', () => app.quit());
 
   // The first pass gives renderer persistence a bounded chance to settle, then
   // tears native resources down. The second pass exits without re-entering.

@@ -122,3 +122,50 @@ def test_onsets_cache_read_exception_logs_debug_and_scrubs_path(
     )
     assert forbidden_prefix not in caplog.text
     assert "~" in caplog.text
+
+
+def test_dub_download_early_failure_after_subtitle_creation_cleans_up_subtitle_file(
+    tmp_path, monkeypatch
+):
+    import os
+    from api.routers import dub_export
+
+    job_dir = tmp_path / "job-early-fail"
+    exports_dir = job_dir / "exports"
+    exports_dir.mkdir(parents=True)
+    vid_file = job_dir / "source.mp4"
+    vid_file.write_bytes(b"dummy video")
+    track_file = job_dir / "track.wav"
+    track_file.write_bytes(b"dummy audio")
+
+    job = {
+        "video_path": str(vid_file),
+        "input_type": "video",
+        "dubbed_tracks": {"es": {"path": str(track_file), "language": "Spanish"}},
+        "segments": [{"id": 0, "start": 0.0, "end": 1.0, "text": "hola"}],
+    }
+
+    created_subs = []
+    real_write_burn_srt = dub_export._write_burn_srt
+
+    def mock_write_burn_srt(*args, **kwargs):
+        path = real_write_burn_srt(*args, **kwargs)
+        created_subs.append(path)
+        assert os.path.exists(path)
+        return path
+
+    monkeypatch.setattr(dub_export, "_job_dir_or_400", lambda jid: str(job_dir))
+    monkeypatch.setattr(dub_export, "_get_job", lambda jid: job)
+    monkeypatch.setattr(dub_export, "_dub_artifact", lambda p, j, **kw: p)
+    monkeypatch.setattr(dub_export, "_write_burn_srt", mock_write_burn_srt)
+
+    async def _failing_preserved_bg(*args, **kwargs):
+        raise RuntimeError("early background mix failure")
+
+    monkeypatch.setattr(dub_export, "_preserved_background", _failing_preserved_bg)
+
+    with pytest.raises(RuntimeError, match="early background mix failure"):
+        asyncio.run(dub_export.dub_download("job-early-fail", burn_subs=True, include_tracks="", default_track=""))
+
+    assert len(created_subs) == 1
+    assert not os.path.exists(created_subs[0]), f"Subtitle {created_subs[0]} was left behind after early failure!"

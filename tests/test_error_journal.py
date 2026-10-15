@@ -139,7 +139,8 @@ def test_hydrate_malformed_entry_logs_debug_and_scrubs(tmp_path, monkeypatch, ca
     with caplog.at_level("DEBUG", logger="omnivoice.error_journal"):
         error_journal._hydrate()
 
-    assert "Skipping malformed error journal entry" in caplog.text
+    assert "Skipping malformed error journal entry: " in caplog.text
+    assert "JSONDecodeError" in caplog.text or "Expecting value" in caplog.text
     assert "sensitive_user" not in caplog.text
 
 
@@ -152,7 +153,8 @@ def test_coarse_stage_exception_logs_debug(caplog):
         stage = error_journal._coarse_stage(BadRoute())
 
     assert stage == ""
-    assert "Failed parsing coarse stage from route" in caplog.text
+    assert "Failed parsing coarse stage from route: Route parsing failed at " in caplog.text
+    assert "~/route" in caplog.text
     assert "sensitive_user" not in caplog.text
 
 
@@ -168,7 +170,8 @@ def test_analytics_recording_failure_logs_debug_and_scrubs(monkeypatch, caplog):
         entry = record(ValueError("test error"))
 
     assert entry["type"] == "ValueError"
-    assert "Analytics error event recording skipped" in caplog.text
+    assert "Analytics error event recording skipped: Token read error at " in caplog.text
+    assert "~/analytics.token" in caplog.text
     assert "sensitive_user" not in caplog.text
 
 
@@ -181,10 +184,13 @@ def test_record_internal_exception_logs_debug_and_scrubs(monkeypatch, caplog):
     )
 
     with caplog.at_level("DEBUG", logger="omnivoice.error_journal"):
-        entry = record(ValueError("test error"))
+        entry = record(TypeError("original type must be preserved"))
 
+    # Crucial test: original exception type (TypeError) is preserved rather than shadowed by internal RuntimeError
     assert entry["error_class"] == "UNKNOWN"
-    assert "Error journal recording failed" in caplog.text
+    assert entry["type"] == "TypeError"
+    assert "Error journal recording failed: Internal crash at " in caplog.text
+    assert "~/internal.db" in caplog.text
     assert "sensitive_user" not in caplog.text
 
 
@@ -195,7 +201,8 @@ def test_persistence_failure_logs_scrubbed_warning(monkeypatch, caplog):
     with caplog.at_level("WARNING", logger="omnivoice.error_journal"):
         record(ValueError("sample error"))
 
-    assert "Error journal persistence failed" in caplog.text
+    assert "Error journal persistence failed (" in caplog.text
+    assert "~/cannot_write.jsonl" in caplog.text
     assert "sensitive_user" not in caplog.text
 
 
@@ -211,5 +218,25 @@ def test_clear_failure_logs_scrubbed_warning(monkeypatch, caplog):
         res = error_journal.clear()
 
     assert res is False
-    assert "Error journal could not be cleared" in caplog.text
+    assert "Error journal could not be cleared (Denied " in caplog.text
+    assert "~/cannot_delete.jsonl" in caplog.text
     assert "sensitive_user" not in caplog.text
+
+
+def test_safe_str_handles_broken_str():
+    class BrokenException(Exception):
+        def __str__(self):
+            raise RuntimeError("broken string representation")
+
+    broken = BrokenException()
+    assert error_journal._safe_str(broken) == "BrokenException"
+
+
+def test_record_with_broken_str_exception_does_not_crash():
+    class BrokenException(Exception):
+        def __str__(self):
+            raise RuntimeError("broken string representation")
+
+    entry = record(BrokenException())
+    assert entry["error_class"] == "UNKNOWN"
+    assert entry["type"] == "BrokenException"

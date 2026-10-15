@@ -46,6 +46,14 @@ _lock = threading.Lock()
 _entries: "OrderedDict[str, dict]" = OrderedDict()
 
 
+def _safe_str(err: BaseException) -> str:
+    """Safely format and scrub exception text without raising on invalid __str__."""
+    try:
+        return scrub_text(str(err))
+    except Exception:
+        return type(err).__name__
+
+
 # Ordered: first match wins, most specific patterns up top.
 _CLASS_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("GPU_OOM", (
@@ -131,7 +139,7 @@ def _coarse_stage(route: str) -> str:
             parts = parts[1:]
         return (parts[0] if parts else "")[:40]
     except Exception as exc:  # noqa: BLE001
-        logger.debug("Failed parsing coarse stage from route: %s", scrub_text(str(exc)))
+        logger.debug("Failed parsing coarse stage from route: %s", _safe_str(exc))
         return ""
 
 
@@ -190,7 +198,7 @@ def _persist_locked() -> bool:
     except Exception as exc:
         logger.warning(
             "Error journal persistence failed (%s); entries remain available in memory",
-            scrub_text(str(exc)),
+            _safe_str(exc),
         )
         return False
 
@@ -209,7 +217,7 @@ def _hydrate() -> None:
                 except Exception as exc:
                     logger.debug(
                         "Skipping malformed error journal entry: %s",
-                        scrub_text(str(exc)),
+                        _safe_str(exc),
                     )
                     continue
         while len(_entries) > _MAX_ENTRIES:
@@ -219,7 +227,7 @@ def _hydrate() -> None:
     except Exception as exc:
         logger.warning(
             "Error journal could not be loaded (%s); starting with an empty in-memory journal",
-            scrub_text(str(exc)),
+            _safe_str(exc),
         )
 
 
@@ -272,15 +280,20 @@ def record(exc: BaseException, route: str = "", trace: str = "") -> dict:
         except Exception as exc:
             logger.debug(
                 "Analytics error event recording skipped: %s",
-                scrub_text(str(exc)),
+                _safe_str(exc),
             )
         return entry
-    except Exception as exc:
+    except Exception as recording_exc:
         logger.debug(
             "Error journal recording failed: %s",
-            scrub_text(str(exc)),
+            _safe_str(recording_exc),
         )
-        return {"error_class": "UNKNOWN", "type": type(exc).__name__, "count": 1}
+        safe_type = "UNKNOWN"
+        try:
+            safe_type = type(exc).__name__
+        except Exception:
+            pass
+        return {"error_class": "UNKNOWN", "type": safe_type, "count": 1}
 
 
 def recent(limit: int = 20) -> list[dict]:
@@ -301,7 +314,7 @@ def clear() -> bool:
         except OSError as exc:
             logger.warning(
                 "Error journal could not be cleared (%s); keeping entries available for retry",
-                scrub_text(str(exc)),
+                _safe_str(exc),
             )
             return False
         _entries.clear()

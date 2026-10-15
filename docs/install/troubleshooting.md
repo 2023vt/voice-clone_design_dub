@@ -520,7 +520,9 @@ cookie database automatically, never saves the export in your project, and
 never uploads it anywhere except to your own VoiceStudio backend. Use an export
 limited to YouTube where your browser extension supports domain filtering.
 For a backend on another machine, the picker is enabled only over HTTPS; plain
-HTTP is accepted solely on the desktop app's loopback connection.
+HTTP is accepted solely on the desktop app's loopback connection. Electron's
+main process supplies a desktop-origin transport marker for both packaged and
+development requests; renderer-supplied origins and markers are discarded.
 Remote backends must also use `OMNIVOICE_API_KEY` as the bearer key and remain
 restricted to a private tailnet; see [API authentication](../api-auth.md).
 

@@ -1088,8 +1088,9 @@ def download_batch_output(job_id: str, lang: str):
         raise HTTPException(404, f"No output for language '{lang}'")
 
     batch_root = os.path.realpath(os.path.join(DATA_DIR, "batch"))
+    real_path = os.path.realpath(path)
     try:
-        resolved_path = resolve_within(batch_root, path)
+        resolved_path = resolve_within(batch_root, real_path)
     except UnsafePath:
         raise HTTPException(400, "Invalid batch output file path")
 

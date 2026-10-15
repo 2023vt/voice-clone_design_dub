@@ -128,3 +128,62 @@ def test_download_batch_output_validates_job_state(batch_env):
     with pytest.raises(HTTPException) as exc_info:
         batch.download_batch_output("job-done-no-lang", "es")
     assert exc_info.value.status_code == 404
+
+
+def test_download_batch_output_supports_symlinked_data_dir(tmp_path, monkeypatch):
+    import os
+    from api.routers import batch
+
+    real_data = tmp_path / "real_data"
+    real_data.mkdir(parents=True, exist_ok=True)
+    sym_data = tmp_path / "sym_data"
+    os.symlink(str(real_data), str(sym_data))
+
+    monkeypatch.setattr(batch, "DATA_DIR", str(sym_data))
+    monkeypatch.setattr(batch, "_jobs", {})
+
+    job_id = "job-symlink-test"
+    job_dir = sym_data / "batch" / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+    out_file = job_dir / "output_es.mp4"
+    out_file.write_bytes(b"symlink mp4 data")
+
+    batch._jobs[job_id] = {
+        "status": "done",
+        "filename": "sym_video.mp4",
+        "outputs": {"es": str(out_file)},
+    }
+
+    res = batch.download_batch_output(job_id, "es")
+    assert isinstance(res, FileResponse)
+    assert os.path.realpath(res.path) == os.path.realpath(str(out_file))
+
+
+def test_download_batch_output_supports_relative_data_dir(tmp_path, monkeypatch):
+    import os
+    from api.routers import batch
+
+    cwd = os.getcwd()
+    rel_data = os.path.relpath(str(tmp_path), cwd)
+
+    monkeypatch.setattr(batch, "DATA_DIR", rel_data)
+    monkeypatch.setattr(batch, "_jobs", {})
+
+    job_id = "job-rel-test"
+    job_dir = tmp_path / "batch" / job_id
+    job_dir.mkdir(parents=True, exist_ok=True)
+    out_file = job_dir / "output_es.mp4"
+    out_file.write_bytes(b"rel mp4 data")
+
+    stored_rel_path = os.path.join(rel_data, "batch", job_id, "output_es.mp4")
+
+    batch._jobs[job_id] = {
+        "status": "done",
+        "filename": "rel_video.mp4",
+        "outputs": {"es": stored_rel_path},
+    }
+
+    res = batch.download_batch_output(job_id, "es")
+    assert isinstance(res, FileResponse)
+    assert os.path.realpath(res.path) == os.path.realpath(str(out_file))
+

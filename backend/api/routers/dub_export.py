@@ -264,7 +264,15 @@ async def stream_task(task_id: str, after_seq: int = 0):
         # 1) Replay any persisted events after the client's last-seen seq.
         try:
             persisted = job_store.events_since(task_id, after_seq=after_seq)
-        except Exception:
+        except Exception as exc:
+            from core.scrub import scrub_text
+
+            logger.debug(
+                "Failed to replay persisted events for task %s (after_seq=%s): %s",
+                task_id,
+                after_seq,
+                scrub_text(str(exc)),
+            )
             persisted = []
         for evt in persisted:
             yield evt["payload"]
@@ -1067,7 +1075,16 @@ async def dub_download(
             try:
                 os.remove(retime_decision.file_path)
             except OSError as e:
-                logger.debug("cleanup remove failed: %s", e)
+                from core.scrub import scrub_text
+
+                logger.debug("cleanup remove failed: %s", scrub_text(str(e)))
+        if sub_path and os.path.exists(sub_path):
+            try:
+                os.remove(sub_path)
+            except OSError as e:
+                from core.scrub import scrub_text
+
+                logger.debug("cleanup remove failed: %s", scrub_text(str(e)))
 
     if not os.path.exists(output_path) or os.path.getsize(output_path) == 0:
         raise HTTPException(status_code=500, detail="ffmpeg mux produced no output file")
@@ -1385,7 +1402,9 @@ async def dub_preview_video(
                     os.remove(retime_decision.file_path)
                 except OSError as e:
                     # Best-effort scratch cleanup — never fail the export.
-                    logger.debug("retime intermediate cleanup failed: %s", e)
+                    from core.scrub import scrub_text
+
+                    logger.debug("retime intermediate cleanup failed: %s", scrub_text(str(e)))
 
         os.replace(mux_path, preview_path)
 
@@ -1468,8 +1487,10 @@ async def dub_get_onsets(job_id: str):
                 and isinstance(cached.get("peaks"), list)
             ):
                 return cached
-    except (OSError, ValueError):
-        pass  # unreadable/corrupt cache → recompute below
+    except (OSError, ValueError) as exc:
+        from core.scrub import scrub_text
+
+        logger.debug("onsets cache read failed, recomputing: %s", scrub_text(str(exc)))
 
     try:
         onsets, peaks = await asyncio.to_thread(_compute_timeline_sync, src_path)
@@ -1486,8 +1507,10 @@ async def dub_get_onsets(job_id: str):
         with open(tmp_path, "w", encoding="utf-8") as f:
             json.dump(payload, f)
         os.replace(tmp_path, cache_path)
-    except OSError:
-        logger.warning("onsets cache write failed")
+    except OSError as exc:
+        from core.scrub import scrub_text
+
+        logger.warning("onsets cache write failed: %s", scrub_text(str(exc)))
     return payload
 
 
@@ -1723,9 +1746,15 @@ async def dub_qc_pass(job_id: str, lang: str = Query(None), drift_threshold: flo
     try:
         from core import job_store
         job_store.append_event(job_id, f"data: {payload}\n\n")
-    except Exception:
+    except Exception as exc:
         # QC event fan-out is best-effort; the scores are already in the response.
-        logger.debug("QC event append failed")
+        from core.scrub import scrub_text
+
+        logger.debug(
+            "QC event append failed for job %s: %s",
+            job_id,
+            scrub_text(str(exc)),
+        )
 
     return {
         "engine": engine_id,

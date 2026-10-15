@@ -194,6 +194,10 @@ def test_atomic_write_preserves_existing_symlink_destination(tmp_path):
     assert target.read_text() == "KEY=fresh\n"
 
 
+@pytest.mark.skipif(
+    sys.platform == "win32",
+    reason="POSIX pathname substitution requires renaming an open file",
+)
 def test_private_settings_do_not_follow_a_replaced_temporary_path(tmp_path, monkeypatch):
     from core import user_env as active_user_env
 

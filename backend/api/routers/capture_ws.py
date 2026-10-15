@@ -339,8 +339,13 @@ async def ws_transcribe(websocket: WebSocket):
                 "message": asr_model_missing_detail(missing), **missing,
             })
             await websocket.close()
-        except Exception:  # noqa: BLE001 — client may already be gone
-            pass
+        except Exception as exc:  # noqa: BLE001 — client may already be gone
+            from core.scrub import scrub_text
+
+            logger.debug(
+                "Failed to send asr_model_missing error frame: %s",
+                scrub_text(str(exc)),
+            )
         return
     # Licence acceptance (#2689): a gated model the user has not accepted gets
     # a typed frame the client can turn into the acceptance dialog, before any
@@ -350,9 +355,15 @@ async def ws_transcribe(websocket: WebSocket):
         try:
             await websocket.send_json({"type": "error", "kind": licence["code"], **licence})
             await websocket.close()
-        except Exception:  # noqa: BLE001 — client may already be gone
-            pass
+        except Exception as exc:  # noqa: BLE001 — client may already be gone
+            from core.scrub import scrub_text
+
+            logger.debug(
+                "Failed to send licence error frame: %s",
+                scrub_text(str(exc)),
+            )
         return
+
     if spec is not None:
         from services.asr_backend import SherpaDictationBackend, capture_lease
         ok, _reason = SherpaDictationBackend.is_available()
@@ -464,8 +475,15 @@ async def ws_transcribe(websocket: WebSocket):
         try:
             await websocket.send_json(payload)
             return True
-        except Exception:
+        except Exception as exc:
+            from core.scrub import scrub_text
+
+            logger.debug(
+                "WebSocket send failed (client disconnected): %s",
+                scrub_text(str(exc)),
+            )
             return False
+
 
     async def process_partials():
         """Periodically transcribe the accumulated buffer for partial results."""

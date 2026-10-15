@@ -73,6 +73,10 @@ Inspect these workflow artifacts before installing:
 - `store-artifact-manifest-linux-x64.json`
 - `snap-store-assets/icon.png`, five screenshots and `listing-assets.json`
 
+The package verifier also requires electron-builder's desktop runtime scripts
+and libraries to be expanded at the Snap root. A nested template archive or a
+missing `desktop-init.sh` is a blocking packaging failure.
+
 The asset manifest derives only from `store/assets.json`; do not fork listing
 copy or image sources in the Snap dashboard.
 

@@ -64,7 +64,11 @@ def test_words_from_whisper_exception_logs_warning_and_scrubs_paths(
     )
     monkeypatch.setattr(dc, "offload_tts_for_asr", lambda *a, **k: None)
     monkeypatch.setattr(dc, "restore_tts_after_asr", lambda *a, **k: None)
-    monkeypatch.setattr(dc, "get_diarization_pipeline", lambda: None)
+    monkeypatch.setattr(
+        dc,
+        "get_diarization_pipeline",
+        lambda *a, **k: (None, None) if k.get("return_error") else None,
+    )
 
     # Inject exception with private user path into _words_from_whisper
     def _faulty_words_from_whisper(part):
@@ -89,5 +93,7 @@ def test_words_from_whisper_exception_logs_warning_and_scrubs_paths(
     assert any("word extraction skipped for chunk 0" in r.message for r in caplog.records)
     # Verify sensitive path was redacted
     assert "/Users/developer" not in caplog.text
-    # Verify stream did not crash
+    # Verify stream completed cleanly with final event and no error
     assert "event: segments" in body
+    assert "event: final" in body
+    assert "event: error" not in body

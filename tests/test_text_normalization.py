@@ -106,7 +106,7 @@ _CHANGE_CASES = [
     # EN runs the range through num2words afterwards, as it does any digit
     ("English", "It takes 20~30 seconds", "It takes twenty to thirty seconds"),
     # Universal safety filters (language-independent)
-    (None, "hello​ ‍world", "hello world"),
+    (None, "hello\u200b \u200dworld", "hello \u200dworld"),
     (None, "too   many\t spaces", "too many spaces"),
     (None, "wow!!!!!!!!", "wow!!!"),
     (None, "wait.........", "wait..."),

@@ -366,9 +366,17 @@ def _validate_snapshot_has_weights(repo_id: str, snapshot_path: str) -> None:
     if model.get("required_files"):
         required = ", ".join(model["required_files"])
         raise OSError(f"{repo_id}: required model files are missing or incomplete: {required}")
+    def _walk_error(err: OSError) -> None:
+        from core.scrub import scrub_text
+
+        logger.debug(
+            "Directory walk failed during snapshot weight verification: %s",
+            scrub_text(str(err)),
+        )
+
     biggest = 0
     try:
-        for root, _dirs, files in os.walk(snapshot_path, followlinks=True):
+        for root, _dirs, files in os.walk(snapshot_path, followlinks=True, onerror=_walk_error):
             for f in files:
                 try:
                     biggest = max(biggest, os.path.getsize(os.path.join(root, f)))

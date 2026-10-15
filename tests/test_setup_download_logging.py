@@ -65,7 +65,7 @@ def test_validate_snapshot_has_weights_oswalk_oserror_logs_debug_and_scrubs(down
     secret_dir = "/home/sensitive_user/snapshot"
 
     with patch.object(download_module, "snapshot_is_complete", return_value=False):
-        with patch("os.walk", side_effect=OSError(f"Permission denied on {secret_dir}")):
+        with patch("os.scandir", side_effect=OSError(f"Permission denied on {secret_dir}")):
             with caplog.at_level(logging.DEBUG, logger="omnivoice.setup.download"):
                 with pytest.raises(OSError, match="download finished but no model weights were found"):
                     download_module._validate_snapshot_has_weights("unknown/repo", str(tmp_path))

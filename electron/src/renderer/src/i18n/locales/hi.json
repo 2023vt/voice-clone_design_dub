@@ -1,7 +1,4 @@
 {
-  "snapLauncher": {
-    "permissionRequired": "अपना इंटरफ़ेस शुरू करने के लिए VoiceStudio को अनुमति चाहिए। टर्मिनल में यह कमांड चलाएँ, फिर VoiceStudio दोबारा खोलें:"
-  },
   "cloneQuality": {
     "title": "ऑडियो गुणवत्ता",
     "precision": "WAV परिशुद्धता",
@@ -1651,6 +1648,7 @@
     "toast_flush_failed": "फ्लश विफल: {{message}}",
     "name": "VoiceStudio",
     "version": "v{{version}}",
+    "version_dev": "v{{version}} · डेवलपमेंट",
     "tagline": "स्थानीय आवाज क्लोनिंग. आपकी मशीन से कुछ भी नहीं छूटता.",
     "coming_soon": "जल्द आ रहा है",
     "switch_to_light": "लाइट थीम पर स्विच करें",

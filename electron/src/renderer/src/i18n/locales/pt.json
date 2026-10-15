@@ -1,7 +1,4 @@
 {
-  "snapLauncher": {
-    "permissionRequired": "O VoiceStudio precisa de permissão para iniciar a interface. Execute este comando em um terminal e abra o VoiceStudio novamente:"
-  },
   "cloneQuality": {
     "title": "Qualidade do áudio",
     "precision": "Precisão WAV",
@@ -1653,6 +1650,7 @@
     "toast_flush_failed": "Falha na liberação: {{message}}",
     "name": "VoiceStudio",
     "version": "v{{version}}",
+    "version_dev": "v{{version}} · Desenvolvimento",
     "coming_soon": "Em breve",
     "switch_to_light": "Mudar para tema claro",
     "switch_to_dark": "Mudar para tema escuro",

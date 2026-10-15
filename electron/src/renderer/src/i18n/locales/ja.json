@@ -1,7 +1,4 @@
 {
-  "snapLauncher": {
-    "permissionRequired": "VoiceStudio の画面を起動するには権限が必要です。ターミナルで次のコマンドを実行してから、VoiceStudio を開き直してください："
-  },
   "cloneQuality": {
     "title": "音声品質",
     "precision": "WAV精度",
@@ -1651,6 +1648,7 @@
     "toast_flush_failed": "フラッシュに失敗しました: {{message}}",
     "name": "VoiceStudio",
     "version": "v{{version}}",
+    "version_dev": "v{{version}} · 開発",
     "tagline": "ローカル音声のクローン作成。マシンからは何も残りません。",
     "coming_soon": "近日公開",
     "switch_to_light": "ライトテーマに切り替える",

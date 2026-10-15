@@ -1,7 +1,4 @@
 {
-  "snapLauncher": {
-    "permissionRequired": "VoiceStudio heeft toestemming nodig om de interface te starten. Voer deze opdracht uit in een terminal en open VoiceStudio opnieuw:"
-  },
   "cloneQuality": {
     "title": "Audiokwaliteit",
     "precision": "WAV-precisie",
@@ -1651,6 +1648,7 @@
     "toast_flush_failed": "Spoelen mislukt: {{message}}",
     "name": "VoiceStudio",
     "version": "v{{version}}",
+    "version_dev": "v{{version}} · Ontwikkeling",
     "tagline": "Lokaal stemklonen. Niets verlaat uw machine.",
     "coming_soon": "Binnenkort beschikbaar",
     "switch_to_light": "Schakel over naar het lichtthema",

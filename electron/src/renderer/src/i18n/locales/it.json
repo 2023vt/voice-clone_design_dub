@@ -1,7 +1,4 @@
 {
-  "snapLauncher": {
-    "permissionRequired": "VoiceStudio richiede un’autorizzazione per avviare l’interfaccia. Esegui questo comando in un terminale, poi riapri VoiceStudio:"
-  },
   "cloneQuality": {
     "title": "Qualità audio",
     "precision": "Precisione WAV",
@@ -1653,6 +1650,7 @@
     "toast_flush_failed": "Eliminazione non riuscita: {{message}}",
     "name": "VoiceStudio",
     "version": "v{{version}}",
+    "version_dev": "v{{version}} · Sviluppo",
     "tagline": "Clonazione vocale locale. Niente lascia la tua macchina.",
     "coming_soon": "Prossimamente",
     "switch_to_light": "Passa al tema chiaro",

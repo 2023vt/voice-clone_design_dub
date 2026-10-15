@@ -1,7 +1,4 @@
 {
-  "snapLauncher": {
-    "permissionRequired": "VoiceStudio ต้องการสิทธิ์เพื่อเริ่มส่วนติดต่อผู้ใช้ เรียกใช้คำสั่งนี้ในเทอร์มินัล แล้วเปิด VoiceStudio อีกครั้ง:"
-  },
   "cloneQuality": {
     "title": "คุณภาพเสียง",
     "precision": "ความละเอียด WAV",
@@ -1651,6 +1648,7 @@
     "toast_flush_failed": "การฟลัชล้มเหลว: {{message}}",
     "name": "VoiceStudio",
     "version": "v{{version}}",
+    "version_dev": "v{{version}} · สำหรับพัฒนา",
     "tagline": "การโคลนเสียงท้องถิ่น ไม่มีอะไรเหลือจากเครื่องของคุณ",
     "coming_soon": "เร็วๆ นี้",
     "switch_to_light": "เปลี่ยนเป็นธีมสว่าง",

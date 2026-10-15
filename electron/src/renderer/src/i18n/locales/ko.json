@@ -1,7 +1,4 @@
 {
-  "snapLauncher": {
-    "permissionRequired": "VoiceStudio 인터페이스를 시작하려면 권한이 필요합니다. 터미널에서 다음 명령을 실행한 후 VoiceStudio를 다시 여세요:"
-  },
   "cloneQuality": {
     "title": "오디오 품질",
     "precision": "WAV 정밀도",
@@ -1651,6 +1648,7 @@
     "toast_flush_failed": "플러시 실패: {{message}}",
     "name": "VoiceStudio",
     "version": "v{{version}}",
+    "version_dev": "v{{version}} · 개발",
     "tagline": "로컬 음성 복제. 당신의 기계에는 아무것도 남지 않습니다.",
     "coming_soon": "곧 출시 예정",
     "switch_to_light": "밝은 테마로 전환",

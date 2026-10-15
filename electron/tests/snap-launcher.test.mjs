@@ -4,55 +4,64 @@ import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
-import { addSnapSandboxPreflight } from '../snap-launcher.mjs';
+import { configureSnapLauncher, verifySnapLauncher } from '../snap-launcher.mjs';
 
-function launch(status, locale = 'en_US.UTF-8', args = [], dialog = true) {
+const command = '#!/bin/bash -e\nexec "$SNAP/desktop-init.sh" "$SNAP/desktop-common.sh" "$SNAP/desktop-gnome-specific.sh" "$SNAP/voicestudio" "$@"';
+
+test('Snap launches without a sandbox permission probe and preserves desktop initialization and arguments', () => {
   const dir = mkdtempSync(join(tmpdir(), 'snap-launcher-'));
   try {
-    writeFileSync(join(dir, 'snapctl'), `#!/bin/sh\n[ "$*" = 'is-connected browser-support' ] || exit 99\nexit ${status}\n`, { mode: 0o755 });
-    if (dialog) writeFileSync(join(dir, 'zenity'), '#!/bin/sh\nprintf "dialog:%s\\n" "$*" >&2\n', { mode: 0o755 });
-    const script = addSnapSandboxPreflight('#!/bin/sh -e\nprintf "started:%s\\n" "$@"\n');
-    return spawnSync('/bin/sh', ['-c', script, 'launcher', ...args], {
-      env: { PATH: dir, LANG: locale }, encoding: 'utf8',
+    for (const script of ['desktop-init.sh', 'desktop-common.sh', 'desktop-gnome-specific.sh']) {
+      writeFileSync(join(dir, script), '#!/bin/sh\nexec "$@"\n', { mode: 0o755 });
+    }
+    writeFileSync(join(dir, 'voicestudio'), '#!/bin/sh\nprintf "%s\\n" "$@"\n', { mode: 0o755 });
+    const result = spawnSync('/bin/bash', ['-c', configureSnapLauncher(command), 'launcher', 'a b', '--example'], {
+      env: { SNAP: dir, PATH: dir }, encoding: 'utf8',
     });
+    assert.equal(result.status, 0, result.stderr);
+    assert.equal(result.stdout, '--no-sandbox\na b\n--example\n');
+    assert.equal(result.stderr, '');
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
-}
-
-test('disconnected sandbox stops Electron and explains the repair in terminal and dialog', () => {
-  const result = launch(1);
-  assert.equal(result.status, 1);
-  assert.equal(result.stdout, '');
-  assert.match(result.stderr, /sudo snap connect voicestudio:browser-support/);
-  assert.match(result.stderr, /dialog:/);
 });
 
-test('connected sandbox preserves launch arguments', () => {
-  const result = launch(0, 'en', ['a b', '--example']);
-  assert.equal(result.status, 0);
-  assert.equal(result.stdout, 'started:a b\nstarted:--example\n');
-  assert.equal(result.stderr, '');
+test('launcher configuration is idempotent', () => {
+  const configured = configureSnapLauncher(command);
+  assert.equal(configureSnapLauncher(configured), configured);
+  assert.doesNotThrow(() => verifySnapLauncher(configured));
 });
 
-test('connection probe errors also stop startup', () => {
-  assert.equal(launch(42).status, 1);
+test('rejects unexpected launch templates instead of silently shipping a broken Snap', () => {
+  assert.throws(() => configureSnapLauncher('exit 0'), /launcher/);
+  assert.throws(() => configureSnapLauncher(command.replace('voicestudio', 'other')), /launcher/);
+  assert.throws(() => verifySnapLauncher(command), /launcher/);
+  const configured = configureSnapLauncher(command);
+  assert.throws(() => verifySnapLauncher(`snapctl is-connected browser-support\n${configured}`), /launcher/);
 });
 
-test('uses translated messages and falls back for unknown locales', () => {
-  assert.match(launch(1, 'fr_FR.UTF-8').stderr, /autorisation/);
-  assert.match(launch(1, 'xx_YY').stderr, /needs permission/);
+test('comments cannot satisfy or bypass validation of the executed command', () => {
+  const comment = '# "$SNAP/voicestudio" --no-sandbox "$@"\n';
+  const [shebang, ...lines] = command.split('\n');
+  const commented = [shebang, comment.trimEnd(), ...lines].join('\n');
+  assert.throws(() => verifySnapLauncher(commented), /launcher/);
+  const configured = configureSnapLauncher(commented);
+  assert.match(configured, /^exec .*"\$SNAP\/voicestudio" --no-sandbox "\$@"$/m);
+  assert.equal(configureSnapLauncher(configured), configured);
+  assert.throws(() => verifySnapLauncher(`#!/bin/sh\n${comment}`), /launcher/);
 });
 
-test('packaging is idempotent and rejects invalid launchers', () => {
-  const script = addSnapSandboxPreflight('#!/bin/sh\nexit 0\n');
-  assert.equal(addSnapSandboxPreflight(script), script);
-  assert.throws(() => addSnapSandboxPreflight('exit 0'), /shebang/);
-});
-
-test('terminal instructions remain available without a dialog tool', () => {
-  const result = launch(1, 'en', [], false);
-  assert.equal(result.status, 1);
-  assert.match(result.stderr, /sudo snap connect voicestudio:browser-support/);
-  assert.doesNotMatch(result.stderr, /dialog:/);
+test('rejects missing, repeated or reordered desktop initialization scripts', () => {
+  const init = '"$SNAP/desktop-init.sh" ';
+  const common = '"$SNAP/desktop-common.sh" ';
+  const invalid = [
+    command.replace(init, ''),
+    command.replace(common, ''),
+    command.replace(init, init + init),
+    command.replace(init + common, common + init),
+  ];
+  for (const launcher of invalid) {
+    assert.throws(() => configureSnapLauncher(launcher), /launcher/);
+    assert.throws(() => verifySnapLauncher(launcher), /launcher/);
+  }
 });

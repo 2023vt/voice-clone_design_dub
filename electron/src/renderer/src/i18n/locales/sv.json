@@ -1,7 +1,4 @@
 {
-  "snapLauncher": {
-    "permissionRequired": "VoiceStudio behöver behörighet för att starta gränssnittet. Kör det här kommandot i en terminal och öppna sedan VoiceStudio igen:"
-  },
   "cloneQuality": {
     "title": "Ljudkvalitet",
     "precision": "WAV-precision",
@@ -1651,6 +1648,7 @@
     "toast_flush_failed": "Spolning misslyckades: {{message}}",
     "name": "VoiceStudio",
     "version": "v{{version}}",
+    "version_dev": "v{{version}} · Utveckling",
     "tagline": "Lokal röstkloning. Inget lämnar din maskin.",
     "coming_soon": "Kommer snart",
     "switch_to_light": "Byt till ljustema",

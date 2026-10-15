@@ -1,7 +1,7 @@
 import { execFileSync } from 'node:child_process';
 import { chmodSync, existsSync, mkdtempSync, readdirSync, renameSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
-import { addSnapSandboxPreflight, SNAP_PREFLIGHT_MARKER } from './snap-launcher.mjs';
+import { configureSnapLauncher } from './snap-launcher.mjs';
 
 export const REQUIRED_SNAP_RUNTIME_PATHS = [
   'desktop-init.sh',
@@ -46,7 +46,7 @@ export function repairSnapTemplatePayload(artifact) {
   try {
     verifySnapRuntimePayload(listing);
     const command = execFileSync('unsquashfs', ['-cat', artifact, 'command.sh'], { encoding: 'utf8' });
-    if (command.includes(SNAP_PREFLIGHT_MARKER)) return false;
+    if (configureSnapLauncher(command) === command) return false;
   } catch (error) {
     if (!listing.includes('squashfs-root/snap-template-electron-')) throw error;
   }
@@ -68,7 +68,7 @@ export function repairSnapTemplatePayload(artifact) {
       rmSync(archive);
     }
     const commandPath = resolve(extracted, 'command.sh');
-    writeFileSync(commandPath, addSnapSandboxPreflight(readFileSync(commandPath, 'utf8')));
+    writeFileSync(commandPath, configureSnapLauncher(readFileSync(commandPath, 'utf8')));
     chmodSync(commandPath, 0o755);
     for (const script of REQUIRED_SNAP_RUNTIME_PATHS.slice(0, 3)) {
       chmodSync(resolve(extracted, script), 0o755);
@@ -100,7 +100,7 @@ export function repairSnapTemplatePayload(artifact) {
 export function repairSnapArtifacts(artifactPaths) {
   for (const artifact of artifactPaths.filter((path) => path.endsWith('.snap'))) {
     if (repairSnapTemplatePayload(artifact)) {
-      console.log(`Prepared the desktop runtime and sandbox preflight in ${basename(artifact)}`);
+      console.log(`Prepared the desktop runtime and strict-confinement launcher in ${basename(artifact)}`);
     }
   }
   return [];

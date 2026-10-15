@@ -52,7 +52,7 @@ export function distributionPackaging(target = DISTRIBUTION_TARGET) {
           description: storeMetadata.listing.description,
           allowNativeWayland: true,
           plugs: [
-            { 'browser-support': { interface: 'browser-support', 'allow-sandbox': true } },
+            { 'browser-support': { interface: 'browser-support', 'allow-sandbox': false } },
             'desktop',
             'desktop-legacy',
             'home',

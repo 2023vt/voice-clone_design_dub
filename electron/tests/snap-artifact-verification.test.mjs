@@ -16,6 +16,10 @@ import { verifySnapMetadata } from '../../scripts/verify_snap_artifact.mjs';
 const snapYaml = `base: core22
 grade: stable
 confinement: strict
+plugs:
+  browser-support:
+    interface: browser-support
+    allow-sandbox: false
 name: voicestudio
 version: 0.5.7
 title: VoiceStudio
@@ -68,6 +72,8 @@ test('accepts canonical strict Snap metadata', () => {
 test('rejects weakened confinement, missing capabilities and broad removable access', () => {
   const expected = { ...metadata, version: '0.5.7' };
   assert.throws(() => verifySnapMetadata(snapYaml.replace('strict', 'classic'), expected));
+  assert.throws(() => verifySnapMetadata(snapYaml.replace('allow-sandbox: false', 'allow-sandbox: true'), expected));
+  assert.throws(() => verifySnapMetadata(snapYaml.replace('    allow-sandbox: false\n', ''), expected));
   assert.throws(() => verifySnapMetadata(snapYaml.replace('      - audio-record\n', ''), expected));
   assert.throws(() => verifySnapMetadata(`${snapYaml}      - removable-media\n`, expected));
 });
@@ -109,7 +115,7 @@ const hasSquashfsTools =
   spawnSync('unsquashfs', ['-version']).error === undefined;
 
 for (const nested of [true, false]) test(
-  `adds a preflight to a ${nested ? 'nested' : 'expanded'} Snap payload`,
+  `configures strict-confinement startup for a ${nested ? 'nested' : 'expanded'} Snap payload`,
   { skip: hasSquashfsTools ? false : 'squashfs-tools is not installed' },
   () => {
     const workDir = mkdtempSync(resolve(tmpdir(), 'voicestudio-snap-repair-test-'));
@@ -120,7 +126,7 @@ for (const nested of [true, false]) test(
     try {
       mkdirSync(source);
       mkdirSync(template);
-      writeFileSync(resolve(source, 'command.sh'), '#!/bin/sh\nexit 0\n');
+      writeFileSync(resolve(source, 'command.sh'), '#!/bin/sh\nexec \"$SNAP/desktop-init.sh\" \"$SNAP/desktop-common.sh\" \"$SNAP/desktop-gnome-specific.sh\" \"$SNAP/voicestudio\" \"$@\"\n');
       for (const script of ['desktop-init.sh', 'desktop-common.sh', 'desktop-gnome-specific.sh']) {
         writeFileSync(resolve(template, script), '#!/bin/sh\n');
       }
@@ -148,7 +154,7 @@ for (const nested of [true, false]) test(
         assert.equal(statSync(resolve(repaired, path)).mode & 0o111, 0o111);
       }
       assert.equal(existsSync(resolve(repaired, 'usr/lib/x86_64-linux-gnu/libnss3.so')), true);
-      assert.match(readFileSync(resolve(repaired, 'command.sh'), 'utf8'), /snapctl is-connected browser-support/);
+      assert.match(readFileSync(resolve(repaired, 'command.sh'), 'utf8'), /--no-sandbox/);
       assert.equal(statSync(resolve(repaired, 'command.sh')).mode & 0o111, 0o111);
       assert.equal(repairSnapTemplatePayload(artifact), false);
     } finally {

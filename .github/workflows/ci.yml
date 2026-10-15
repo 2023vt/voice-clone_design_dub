@@ -152,7 +152,7 @@ jobs:
         run: bun run check:electron
 
       - name: Snap artifact repair regression
-        run: node --test electron/tests/snap-artifact-verification.test.mjs electron/tests/snap-launcher.test.mjs
+        run: node --test electron/tests/snap-artifact-verification.test.mjs electron/tests/snap-launcher.test.mjs electron/tests/snap-store-packaging.test.mjs
 
       # Browser workflow smokes exercise the maintained Electron renderer after
       # the production build/typecheck/test contract above succeeds.

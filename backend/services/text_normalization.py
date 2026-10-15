@@ -598,9 +598,16 @@ def _numbers_to_words(text: str, lang: str) -> str:
             # locale has no year form (sv).
             try:
                 return num2words(n, lang=lang, to="year")
-            except Exception:  # noqa: BLE001
-                pass
+            except (NotImplementedError, ValueError, KeyError, TypeError) as exc:
+                from core.scrub import scrub_text
+
+                logger.debug(
+                    "Year conversion unavailable for lang=%s; falling back to cardinal: %s",
+                    lang,
+                    scrub_text(str(exc)),
+                )
         return num2words(n, lang=lang)
+
 
     return _INTEGER_RE.sub(lambda m: _safe(m, _integer), text)
 

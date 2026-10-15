@@ -12,6 +12,10 @@ metadata and the backend fallback mirror it.
 
 - The open-source app no longer contains a licence-key client
 
+### Added
+
+- Windows source installs can opt in to AMD's experimental PyTorch ROCm wheels with OMNIVOICE_TORCH_VARIANT=rocm and OMNIVOICE_ROCM_GFX (#2908)
+
 ### Changed
 
 - The expanded sidebar shows the installed app version beneath VoiceStudio and clearly marks development builds (#2894)

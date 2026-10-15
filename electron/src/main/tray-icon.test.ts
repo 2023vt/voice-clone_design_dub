@@ -53,6 +53,12 @@ it.each([
   expect(mocks.resized.setTemplateImage).toHaveBeenCalledWith(true);
 });
 
+it('rejects an unknown macOS tray state instead of showing the idle glyph', () => {
+  expect(() => createTrayIcon('tray-error.png', 'darwin')).toThrow(
+    'Unsupported macOS tray icon: tray-error.png',
+  );
+});
+
 it.each(['win32', 'linux'] as const)('preserves the existing %s tray image', (platform) => {
   mocks.createFromPath.mockClear();
   mocks.source.resize.mockClear();

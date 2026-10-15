@@ -2,8 +2,11 @@ import { nativeImage } from 'electron';
 import { basename, dirname, join } from 'node:path';
 
 function macOSTrayIconPath(path: string): string {
-  const file =
-    basename(path) === 'tray-recording.png' ? 'trayRecordingTemplate.png' : 'trayTemplate.png';
+  const file = {
+    '32x32.png': 'trayTemplate.png',
+    'tray-recording.png': 'trayRecordingTemplate.png',
+  }[basename(path)];
+  if (!file) throw new Error(`Unsupported macOS tray icon: ${basename(path)}`);
   return join(dirname(path), file);
 }
 

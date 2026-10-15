@@ -153,7 +153,13 @@ def _opened_file_is_confined(fd: int, resolved: str, base: str) -> bool:
         return _path_is_under_base(base, current) and os.path.samestat(
             os.fstat(fd), os.stat(current, follow_symlinks=False)
         )
-    except OSError:
+    except OSError as exc:
+        from core.scrub import scrub_text
+
+        logger.debug(
+            "Failed verifying fd against path under base: %s",
+            scrub_text(str(exc)),
+        )
         return False
 
 
@@ -226,16 +232,32 @@ def _read_input_audio(
         except ValueError as e:
             return None, str(e)
         except FileNotFoundError:
-            return None, f"no such file under OMNIVOICE_MCP_BASE_PATH: {audio_path!r}"
+            from core.scrub import scrub_text
+
+            return None, f"no such file under OMNIVOICE_MCP_BASE_PATH: {scrub_text(audio_path)!r}"
         except OSError as e:
-            return None, f"could not safely read {audio_path!r}: {e}"
-        with os.fdopen(fd, "rb") as handle:
-            info = os.fstat(handle.fileno())
+            from core.scrub import scrub_text
+
+            return None, f"could not safely read {scrub_text(audio_path)!r}: {scrub_text(str(e))}"
+        try:
+            info = os.fstat(fd)
             if not stat.S_ISREG(info.st_mode):
-                return None, f"{audio_path!r} is not a regular file"
-            if info.st_size > _MAX_INPUT_BYTES:
-                return None, too_big
-            raw = handle.read(_MAX_INPUT_BYTES + 1)
+                from core.scrub import scrub_text
+
+                os.close(fd)
+                return None, f"{scrub_text(audio_path)!r} is not a regular file"
+            with os.fdopen(fd, "rb") as handle:
+                if info.st_size > _MAX_INPUT_BYTES:
+                    return None, too_big
+                raw = handle.read(_MAX_INPUT_BYTES + 1)
+        except OSError as e:
+            from core.scrub import scrub_text
+
+            try:
+                os.close(fd)
+            except OSError:
+                pass
+            return None, f"could not safely read {scrub_text(audio_path)!r}: {scrub_text(str(e))}"
         if len(raw) > _MAX_INPUT_BYTES:
             return None, too_big
         if not raw:
@@ -474,7 +496,9 @@ def create_mcp_server(app=None):
             ]
             mcp.settings.transport_security.allowed_origins.extend(origins)
         except Exception as e:
-            logger.warning("OMNIVOICE_MCP_ALLOWED_HOSTS not applied (%s)", e)
+            from core.scrub import scrub_text
+
+            logger.warning("OMNIVOICE_MCP_ALLOWED_HOSTS not applied (%s)", scrub_text(str(e)))
 
     # ── Helpers ─────────────────────────────────────────────────────────
 
@@ -534,8 +558,13 @@ def create_mcp_server(app=None):
             req = mcp.get_context().request_context.request
             if req is not None:
                 return req.headers.get("x-omnivoice-client-id")
-        except Exception:
-            pass
+        except Exception as exc:
+            from core.scrub import scrub_text
+
+            logger.debug(
+                "Failed resolving client ID from MCP request context: %s",
+                scrub_text(str(exc)),
+            )
         return None
 
     @mcp.tool()
@@ -586,8 +615,10 @@ def create_mcp_server(app=None):
             resolved = mcp_bindings.resolve_voice(client_id, profile_id)
             profile_id = resolved.get("profile_id")
             mcp_bindings.touch_last_seen(client_id) if client_id else None
-        except Exception:
-            pass  # binding layer unavailable — use whatever was passed
+        except Exception as exc:
+            from core.scrub import scrub_text
+
+            logger.debug("MCP binding layer unavailable: %s", scrub_text(str(exc)))
 
         form = {
             "text": text,
@@ -778,7 +809,10 @@ def create_mcp_server(app=None):
             # structured error the agent expects, not a framework traceback.
             try:
                 detail = exc.response.json().get("detail")
-            except ValueError:
+            except ValueError as val_err:
+                from core.scrub import scrub_text
+
+                logger.debug("Failed parsing JSON detail from clone response: %s", scrub_text(str(val_err)))
                 detail = None
             return json.dumps({"error": str(detail or exc.response.text
                                              or f"HTTP {exc.response.status_code}")})
@@ -879,7 +913,10 @@ def create_mcp_server(app=None):
         except httpx.HTTPStatusError as exc:
             try:
                 detail = exc.response.json().get("detail")
-            except ValueError:
+            except ValueError as val_err:
+                from core.scrub import scrub_text
+
+                logger.debug("Failed parsing JSON detail from design response: %s", scrub_text(str(val_err)))
                 detail = None
             return json.dumps({"error": str(detail or exc.response.text
                                              or f"HTTP {exc.response.status_code}")})

@@ -254,20 +254,27 @@ def discard_reference_run(run_dir: Optional[str], job: Optional[dict] = None) ->
             return
         try:
             entries = list(os.scandir(run_dir))
-        except OSError:
+        except OSError as e:
+            from core.scrub import scrub_text
+
+            logger.debug("Failed scanning run_dir %s: %s", scrub_text(run_dir), scrub_text(str(e)))
             return
         for entry in entries:
             try:
                 if entry.is_file(follow_symlinks=False):
                     voice_leases.remove_if_unused(entry.path)
-            except OSError:
+            except OSError as e:
                 # Best effort: a file that vanished or is still locked stays for the next sweep.
-                pass
+                from core.scrub import scrub_text
+
+                logger.debug("Failed inspecting entry for lease removal: %s", scrub_text(str(e)))
         try:
             os.rmdir(run_dir)
-        except OSError:
+        except OSError as e:
             # Not empty yet (a leased file was kept) or already gone; either is fine.
-            pass
+            from core.scrub import scrub_text
+
+            logger.debug("Failed removing run_dir %s: %s", scrub_text(run_dir), scrub_text(str(e)))
 
 
 def job_dir_referenced_by_others(job_id: str) -> "list[str]":
@@ -300,7 +307,13 @@ def job_dir_referenced_by_others(job_id: str) -> "list[str]":
             rows = conn.execute(
                 "SELECT id, job_data FROM dub_history WHERE id != ?", (job_id,)
             ).fetchall()
-    except Exception:
+    except Exception as exc:
+        from core.scrub import scrub_text
+
+        logger.debug(
+            "Failed querying dub_history for referenced sources: %s",
+            scrub_text(str(exc)),
+        )
         return []  # no DB, nothing persisted can reference us
     for row in rows:
         data = row["job_data"] or ""
@@ -829,14 +842,24 @@ async def run_proc_streaming_stderr(
                     p.kill()
                 except ProcessLookupError:
                     pass
+                except Exception as exc:
+                    from core.scrub import scrub_text
+
+                    logger.debug("kill failed for process: %s", scrub_text(str(exc)))
                 try:
                     await asyncio.wait_for(p.wait(), timeout=5.0)
                 except asyncio.TimeoutError:
-                    pass
+                    logger.warning("Timed out waiting 5s for process to terminate")
+                except Exception as exc:
+                    from core.scrub import scrub_text
+
+                    logger.debug("wait failed for process: %s", scrub_text(str(exc)))
             try:
                 p.stdout.close()
-            except Exception:
-                pass
+            except Exception as exc:
+                from core.scrub import scrub_text
+
+                logger.debug("stdout close failed for process: %s", scrub_text(str(exc)))
     yield ("done", rc, b"".join(stderr_parts))
 
 
@@ -863,7 +886,10 @@ def _probe_codecs(path: str) -> tuple[str, str]:
         )
         acodec = (out.stdout or "").strip().lower()
         return vcodec, acodec
-    except Exception:
+    except Exception as exc:
+        from core.scrub import scrub_text
+
+        logger.debug("Failed probing codecs for %s: %s", scrub_text(path), scrub_text(str(exc)))
         return ("", "")
 
 
@@ -921,8 +947,14 @@ def _ensure_browser_playable_mp4(video_path: str) -> str:
     if rc == 0 and os.path.exists(target) and target != video_path:
         try:
             os.remove(video_path)
-        except OSError:
-            pass
+        except OSError as exc:
+            from core.scrub import scrub_text
+
+            logger.debug(
+                "Could not remove original video after transcoding %s: %s",
+                scrub_text(video_path),
+                scrub_text(str(exc)),
+            )
         return target
     if rc != 0:
         logger.warning(
@@ -990,8 +1022,14 @@ async def _ensure_browser_playable_mp4_for_job(job_id: str, video_path: str) -> 
     if rc == 0 and os.path.exists(target) and target != video_path:
         try:
             os.remove(video_path)
-        except OSError:
-            pass  # Best effort: the normalized target is already complete.
+        except OSError as exc:
+            from core.scrub import scrub_text
+
+            logger.debug(
+                "Could not remove original video after normalization %s: %s",
+                scrub_text(video_path),
+                scrub_text(str(exc)),
+            )
         return target
     logger.warning(
         "Could not transcode %s to browser-playable mp4 — the in-app "
@@ -1040,7 +1078,13 @@ def _with_target_facts(exc: BaseException, job_dir: str) -> BaseException:
             # Not every exception class takes a plain message (soundfile's
             # LibsndfileError wants an int code). Keep the text, drop the type.
             return RuntimeError(msg)
-    except Exception:
+    except Exception as outer_exc:
+        from core.scrub import scrub_text
+
+        logger.debug(
+            "Failed enriching disk-full error message: %s",
+            scrub_text(str(outer_exc)),
+        )
         return exc
 
 
@@ -1109,8 +1153,15 @@ def _delete_cookie_export(cookie_file: str | None) -> bool:
         return True
     try:
         os.unlink(cookie_file)
-    except OSError:
+    except OSError as exc:
         # Best effort: cleanup must never replace the download result.
+        from core.scrub import scrub_text
+
+        logger.debug(
+            "Failed removing cookie export file %s: %s",
+            scrub_text(cookie_file),
+            scrub_text(str(exc)),
+        )
         return False
     return True
 
@@ -1397,7 +1448,10 @@ def parse_vtt_segments(vtt_path: str) -> list[dict]:
     try:
         with open(vtt_path, "r", encoding="utf-8") as f:
             raw = f.read()
-    except OSError:
+    except OSError as exc:
+        from core.scrub import scrub_text
+
+        logger.debug("Failed opening WebVTT file %s: %s", scrub_text(vtt_path), scrub_text(str(exc)))
         return []
 
     def _ts(s: str) -> float:
@@ -1405,7 +1459,10 @@ def parse_vtt_segments(vtt_path: str) -> list[dict]:
         parts = s.strip().split(":")
         try:
             parts = [float(p.replace(",", ".")) for p in parts]
-        except ValueError:
+        except ValueError as exc:
+            from core.scrub import scrub_text
+
+            logger.debug("Invalid timestamp part in %s: %s", scrub_text(s), scrub_text(str(exc)))
             return 0.0
         if len(parts) == 3:
             h, m, sec = parts
@@ -1437,7 +1494,14 @@ def parse_vtt_segments(vtt_path: str) -> list[dict]:
             right = right.strip().split(" ")[0]
             start = _ts(left)
             end = _ts(right)
-        except Exception:
+        except Exception as exc:
+            from core.scrub import scrub_text
+
+            logger.debug(
+                "Skipping malformed WebVTT timestamp line %s: %s",
+                scrub_text(ts_line),
+                scrub_text(str(exc)),
+            )
             continue
         text = spoken_cue_text(" ".join(ln.strip() for ln in lines[1:]), webvtt=True)
         if text:
@@ -1526,7 +1590,10 @@ async def ingest_pipeline(
             filename = title or os.path.basename(video_path)
             try:
                 size = os.path.getsize(video_path)
-            except OSError:
+            except OSError as exc:
+                from core.scrub import scrub_text
+
+                logger.debug("Failed getting video file size %s: %s", scrub_text(video_path), scrub_text(str(exc)))
                 size = 0
             # Parse each downloaded .<lang>.vtt into a segment list we can
             # stash on the job. The router will merge this into the job dict
@@ -1615,7 +1682,14 @@ async def ingest_pipeline(
 
         try:
             dur = float(sf.info(audio_path).frames) / float(sf.info(audio_path).samplerate)
-        except Exception:
+        except Exception as exc:
+            from core.scrub import scrub_text
+
+            logger.debug(
+                "Audio duration probe failed for %s: %s",
+                scrub_text(audio_path),
+                scrub_text(str(exc)),
+            )
             dur = 0.0
 
         # URL downloads already pass through this guard in yt_download_sync.

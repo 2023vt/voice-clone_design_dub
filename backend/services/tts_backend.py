@@ -1461,6 +1461,16 @@ def _get_clone_prompt(
                     passage_file, ref_text
                 )
         if prompt is None:
+            # Passage selection and trimming are done: unload the installed
+            # recognizers now, because the model's own fallback may load another
+            # Whisper and two speech models must not be resident together on a
+            # memory-tight host. No-op outside a serialized sidecar pass.
+            try:
+                from services.asr_backend import release_reference_asr_now
+
+                release_reference_asr_now()
+            except Exception:  # noqa: BLE001 — best-effort memory hygiene
+                logger.debug("early reference-ASR release failed", exc_info=True)
             try:
                 # Encode outside the lock (slow). Mirrors exactly what generate()
                 # would do inline for this ref (omnivoice.py:964-978), so output is

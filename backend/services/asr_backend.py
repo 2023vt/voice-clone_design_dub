@@ -3401,6 +3401,23 @@ def release_reference_asr_after():
             _release_reference_backend(backend)
 
 
+def release_reference_asr_now() -> None:
+    """Unload what the enclosing ``release_reference_asr_after`` pass has used so far.
+
+    Called right before the TTS model builds its prompt: its own fallback may load
+    another recognizer, and two speech models must not be resident together on a
+    memory-tight host. A no-op outside such a pass (API process, tests).
+    """
+    state = _deferred_reference_release.get()
+    if state is None:
+        return
+    for backend in {id(b): b for b in state.used}.values():
+        _release_reference_backend(backend)
+    state.used.clear()
+    state.candidates = None  # a later transcribe in this pass rediscovers fresh ones
+    state.fallbacks = None
+
+
 def _transcribe_reference_candidates(
     candidates: list[ASRBackend], audio_path: str, *, release_after: bool = False,
 ) -> str:

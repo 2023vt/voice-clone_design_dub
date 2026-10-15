@@ -484,6 +484,38 @@ def test_overlapping_clones_do_not_release_each_others_recognizer(monkeypatch, t
     assert model._asr_pipe is None
 
 
+def test_recognizers_are_released_before_the_models_prompt_builder_runs(monkeypatch):
+    """When installed recognizers find no words the model falls back to its own
+    Whisper: the installed ones must already be gone, and must not be unloaded
+    a second time when the pass ends."""
+    from services import asr_backend as ab
+
+    events = []
+    backend = SimpleNamespace(
+        id="fresh", transcribe=Mock(return_value={"text": ""}), unload=Mock(side_effect=lambda: events.append("unload")),
+    )
+    monkeypatch.setattr(ab, "_ref_audio_fingerprint", lambda _: None)
+    monkeypatch.setattr(ab, "active_backend_id", lambda: "faster-whisper")
+    monkeypatch.setattr(
+        ab, "asr_model_missing_error",
+        lambda **kw: "missing" if kw.get("purpose") == "dictation" else None,
+    )
+    monkeypatch.setattr(ab, "load_active_asr_backend", lambda **_kw: backend)
+    monkeypatch.setattr(ab, "_installed_reference_fallbacks", lambda _: [])
+    with ab.release_reference_asr_after():
+        assert ab.transcribe_reference("window.wav") is None  # no words found
+        assert events == []  # still resident while ranking
+        ab.release_reference_asr_now()
+        events.append("model prompt builder")  # the model's fallback Whisper loads here
+    assert events == ["unload", "model prompt builder"]  # nothing unloaded again at exit
+
+
+def test_release_now_outside_a_pass_is_a_noop():
+    from services import asr_backend as ab
+
+    ab.release_reference_asr_now()  # API process / tests: must not raise or touch anything
+
+
 def test_diag_never_raises(monkeypatch):
     from omnivoice.models import omnivoice as ov
 

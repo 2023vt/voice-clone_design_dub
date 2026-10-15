@@ -84,3 +84,41 @@ def test_capture_ws_safe_send_logs_debug_and_returns_false(
     )
     assert forbidden_prefix not in caplog.text
     assert "~" in caplog.text
+
+
+@pytest.mark.parametrize(
+    "raw_path, forbidden_prefix",
+    [
+        ("/Users/audio/ws/sherpa.onnx", "/Users/audio"),
+        (r"C:\Users\audio\ws\sherpa.onnx", r"C:\Users\audio"),
+        ("C:/Users/audio/ws/sherpa.onnx", "C:/Users/audio"),
+    ],
+)
+def test_capture_ws_sherpa_probe_exception_logs_debug_and_falls_back(
+    monkeypatch, caplog, raw_path, forbidden_prefix
+):
+    import sys
+    import types
+    from api.routers import capture_ws
+
+    mock_sherpa = types.ModuleType("services.sherpa_dictation")
+
+    def _faulty_is_sherpa(model):
+        raise RuntimeError(f"failed to read sherpa model spec at {raw_path}")
+
+    mock_sherpa.is_sherpa_model = _faulty_is_sherpa
+    monkeypatch.setitem(sys.modules, "services.sherpa_dictation", mock_sherpa)
+
+    with caplog.at_level(logging.DEBUG, logger="omnivoice.capture_ws"):
+        # Without pcm or aec, if sherpa probe fails, returns None
+        rate = capture_ws._requested_pcm_sample_rate({"model": "sherpa-test"})
+
+
+    assert rate is None
+    assert any(
+        "Sherpa dictation probe failed for model=sherpa-test" in r.message
+        for r in caplog.records
+    )
+    assert forbidden_prefix not in caplog.text
+    assert "~" in caplog.text
+

@@ -156,12 +156,16 @@ def _requested_pcm_sample_rate(query_params) -> int | None:
         try:
             from services.sherpa_dictation import is_sherpa_model
             sherpa_pcm = is_sherpa_model(requested_model)
-        except Exception:  # noqa: BLE001
-            # A broken sherpa install must not decide the framing question —
-            # sherpa_pcm stays False and the session negotiates the
-            # MediaRecorder path; availability is re-probed (and reported)
-            # when the model is actually selected.
+        except Exception as exc:  # noqa: BLE001
+            from core.scrub import scrub_text
+
+            logger.debug(
+                "Sherpa dictation probe failed for model=%s: %s",
+                requested_model,
+                scrub_text(str(exc)),
+            )
             sherpa_pcm = False
+
     if not raw_pcm and not aec and not sherpa_pcm:
         return None
     return _bounded_sample_rate(query_params)

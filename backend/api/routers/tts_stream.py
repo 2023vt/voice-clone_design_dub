@@ -110,7 +110,14 @@ def resolve_emotion_clip(value: object) -> str:
     for root in (VOICES_DIR, OUTPUTS_DIR):
         try:
             candidate = resolve_within(root, value.strip())
-        except (OSError, UnsafePath):
+        except (OSError, UnsafePath) as e:
+            from core.scrub import scrub_text
+
+            logger.debug(
+                "Failed resolving emo audio path in %s: %s",
+                root,
+                scrub_text(str(e)),
+            )
             continue
         if candidate.is_file() and not candidate.is_symlink():
             return str(candidate)
@@ -165,7 +172,14 @@ def build_stream_kwargs(data: dict) -> dict:
                     kw["instruct"] = row["instruct"]
             else:
                 kw["voice"] = voice
-        except Exception:
+        except Exception as exc:
+            from core.scrub import scrub_text
+
+            logger.debug(
+                "Voice profile resolution failed for %s: %s",
+                scrub_text(str(voice)),
+                scrub_text(str(exc)),
+            )
             kw["voice"] = voice
     return kw
 
@@ -279,10 +293,9 @@ async def ws_tts(websocket: WebSocket):
     followed by a JSON completion message. The connection stays open for
     subsequent requests (conversational mode).
     """
-    await websocket.accept()
-    logger.info("TTS streaming WebSocket connected")
-
     try:
+        await websocket.accept()
+        logger.info("TTS streaming WebSocket connected")
         while True:
             # Wait for a text request from the client
             try:
@@ -290,7 +303,9 @@ async def ws_tts(websocket: WebSocket):
             except WebSocketDisconnect:
                 break
             except Exception as e:
-                logger.debug("WS receive ended: %s", e)
+                from core.scrub import scrub_text
+
+                logger.debug("WS receive ended: %s", scrub_text(str(e)))
                 break
 
             if not data or not data.get("text"):
@@ -321,8 +336,10 @@ async def ws_tts(websocket: WebSocket):
                     from services.memory_budget import log_if_low
 
                     log_if_low(f"TTS stream load ({engine_id or 'active engine'})")
-                except Exception:
-                    pass
+                except Exception as exc:
+                    from core.scrub import scrub_text
+
+                    logger.debug("Memory budget probe failed: %s", scrub_text(str(exc)))
                 backend = await _resolve_stream_backend(engine_id)
                 from services.tts_backend import engine_in_use
 
@@ -479,7 +496,9 @@ async def ws_tts(websocket: WebSocket):
 
                 licence = licence_required_detail(e)
                 if licence is None:
-                    logger.exception("TTS streaming failed: %s", e)
+                    from core.scrub import scrub_text
+
+                    logger.exception("TTS streaming failed: %s", scrub_text(str(e)))
                 else:
                     logger.info("TTS stream refused: model licence not accepted")
                 try:
@@ -489,7 +508,10 @@ async def ws_tts(websocket: WebSocket):
                         # code + models let the client open the acceptance dialog.
                         **({"code": licence["code"], "models": licence["models"]} if licence else {}),
                     })
-                except Exception:
+                except Exception as send_err:
+                    from core.scrub import scrub_text
+
+                    logger.debug("Failed sending error frame over websocket: %s", scrub_text(str(send_err)))
                     break
             finally:
                 engine_lease.close()
@@ -497,6 +519,8 @@ async def ws_tts(websocket: WebSocket):
     except WebSocketDisconnect:
         pass
     except Exception as e:
-        logger.debug("TTS WebSocket ended: %s", e)
+        from core.scrub import scrub_text
+
+        logger.debug("TTS WebSocket ended: %s", scrub_text(str(e)))
     finally:
         logger.info("TTS streaming WebSocket disconnected")

@@ -256,11 +256,16 @@ def _local_build_pins(spec: "SidecarSpec", suffix: str) -> list[str]:
 
     On Linux ARM64 only torch is forced: PyTorch's cu128 and CPU indexes ship
     aarch64 torchaudio 2.7.0 without a local label, so a forced ``+cu128`` or
-    ``+cpu`` torchaudio pin cannot resolve. Left unlabelled, a pin still takes
-    the labelled build where one exists, since a local version sorts above the
-    plain one under unsafe-best-match.
+    ``+cpu`` torchaudio pin cannot resolve. An unlabelled pin is still
+    satisfied by the labelled torch under PEP 440, but which index its wheel
+    comes from is not guaranteed: on a version tie uv may take PyPI's build.
+
+    This covers the cu128 and CPU branches only. The ROCm path forces its own
+    local tags in ``_rocm_pin_args`` and is not handled here.
     """
     arm_linux = sys.platform == "linux" and _host_machine() in ("aarch64", "arm64")
+    # Matches exact ``torch==`` pins only, the format every spec uses today; a
+    # looser specifier (``torch>=…``) would be left unlabelled on ARM64.
     return [
         pin if arm_linux and not pin.startswith("torch==") else f"{pin}{suffix}"
         for pin in spec.torch_pins

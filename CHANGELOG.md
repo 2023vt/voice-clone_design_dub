@@ -22,6 +22,8 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
+- Speech normalization preserves joiners in Persian, Urdu, Kurdish, Indic text and emoji (#2902) — thanks @mohednazari!
+
 - Snap packages follow Canonical’s strict-confinement approach to launch without manual Chromium sandbox setup (#2893) — thanks @velixio!
 - Snap launches explain missing sandbox permissions instead of crashing before startup (#2889)
 - Snap packages expand the Electron desktop runtime so they launch after installation (#2858)

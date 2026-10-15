@@ -82,11 +82,11 @@ jobs:
         with:
           bun-version: '1.4.2'
 
-      # apt install ffmpeg is ~30 s every run; cache the resolved .debs.
-      - name: System deps (ffmpeg)
+      # Cache the resolved .debs for media and Snap artifact tests.
+      - name: System deps (ffmpeg and squashfs-tools)
         uses: awalsh128/cache-apt-pkgs-action@553a35bb8ebd9fcabcb1c9451aa4c98e1b4ca8a9 # v1.6.3
         with:
-          packages: ffmpeg
+          packages: ffmpeg squashfs-tools
           version: 1.0
 
       - name: Install Python deps
@@ -150,6 +150,9 @@ jobs:
       # Keep this command shared with electron-release.yml through the root script.
       - name: Electron typecheck, tests and production contract
         run: bun run check:electron
+
+      - name: Snap artifact repair regression
+        run: node --test electron/tests/snap-artifact-verification.test.mjs electron/tests/snap-launcher.test.mjs electron/tests/snap-store-packaging.test.mjs
 
       # Browser workflow smokes exercise the maintained Electron renderer after
       # the production build/typecheck/test contract above succeeds.

@@ -332,7 +332,12 @@
     "search_failed": "Pencarian gagal. Coba lagi.",
     "search_empty": "Tidak ada gambar ditemukan. Coba nama lain atau unggah gambar.",
     "generation_failed": "Audio tidak dapat dibuat. Teks Anda masih ada; coba lagi.",
-    "details": "Detail teknis"
+    "details": "Detail teknis",
+    "extra_samples": "Sampel tambahan (opsional)",
+    "extra_samples_hint": "Tambahkan hingga {{n}} rekaman lain dari suara yang sama. Rekaman digabung menjadi satu referensi agar kloning lebih akurat, dan transkripnya dibuat otomatis.",
+    "add_samples": "Tambah sampel",
+    "remove_sample": "Hapus {{name}}",
+    "samples_limit": "Satu suara dapat menggabungkan paling banyak {{n}} sampel."
   },
   "synthesisState": {
     "preparing": "Menyiapkan…",
@@ -468,6 +473,7 @@
     "optional_details": "Detail opsional",
     "starting_recording": "Memulai…",
     "unsupported_audio": "Pilih berkas audio yang didukung: WAV, MP3, M4A, FLAC, OGG, AAC, atau WebM.",
+    "unsupported_media": "Pilih file audio atau video yang didukung: WAV, MP3, M4A, FLAC, OGG, AAC, WebM, MP4, MOV, atau MKV.",
     "saved_profiles": "Profil Tersimpan",
     "transcript": "Transkrip",
     "style": "Gaya",
@@ -477,7 +483,7 @@
     "cancel": "Batalkan",
     "synthesize": "Sintesis Audio",
     "synthesizing": "Mensintesis… ({{seconds}}s)",
-    "drop_audio": "Letakkan audio di sini — atau klik. WAV, MP3, M4A… 🎤",
+    "drop_audio": "Letakkan audio atau video di sini — atau klik. WAV, MP3, MP4, MOV…",
     "record": "Rekam",
     "cleaning": "Membersihkan…",
     "using_profile": "Menggunakan profil: {{name}}",

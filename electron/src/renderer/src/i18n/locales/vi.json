@@ -332,7 +332,12 @@
     "search_failed": "Tìm kiếm hình ảnh không thành công. Hãy thử lại.",
     "search_empty": "Không tìm thấy hình ảnh nào. Hãy thử tên khác hoặc tải lên một hình ảnh.",
     "generation_failed": "Không thể tạo âm thanh. Kịch bản của bạn vẫn còn ở đây; thử lại.",
-    "details": "Chi tiết kỹ thuật"
+    "details": "Chi tiết kỹ thuật",
+    "extra_samples": "Thêm mẫu (tùy chọn)",
+    "extra_samples_hint": "Thêm tối đa {{n}} bản ghi khác của cùng giọng. Chúng được ghép thành một tham chiếu để nhân bản chính xác hơn, và bản chép lời được tạo tự động.",
+    "add_samples": "Thêm mẫu",
+    "remove_sample": "Xóa {{name}}",
+    "samples_limit": "Một giọng có thể ghép tối đa {{n}} mẫu."
   },
   "synthesisState": {
     "preparing": "Đang chuẩn bị…",
@@ -468,6 +473,7 @@
     "optional_details": "Chi tiết tùy chọn",
     "starting_recording": "Đang bắt đầu…",
     "unsupported_audio": "Chọn tệp âm thanh được hỗ trợ: WAV, MP3, M4A, FLAC, OGG, AAC hoặc WebM.",
+    "unsupported_media": "Chọn tệp âm thanh hoặc video được hỗ trợ: WAV, MP3, M4A, FLAC, OGG, AAC, WebM, MP4, MOV hoặc MKV.",
     "saved_profiles": "Hồ sơ đã lưu",
     "transcript": "bảng điểm",
     "style": "phong cách",
@@ -477,7 +483,7 @@
     "cancel": "Hủy bỏ",
     "synthesize": "Tổng hợp âm thanh",
     "synthesizing": "Đang tổng hợp… ({{seconds}}s)",
-    "drop_audio": "Thả âm thanh vào đây — hoặc nhấp vào. WAV, MP3, M4A… 🎤",
+    "drop_audio": "Thả âm thanh hoặc video vào đây — hoặc nhấp. WAV, MP3, MP4, MOV…",
     "record": "Ghi lại",
     "cleaning": "Dọn dẹp…",
     "using_profile": "Sử dụng hồ sơ: {{name}}",

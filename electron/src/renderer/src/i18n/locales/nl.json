@@ -332,7 +332,12 @@
     "search_failed": "Zoeken mislukt. Probeer opnieuw.",
     "search_empty": "Geen afbeeldingen gevonden. Probeer een andere naam of upload een afbeelding.",
     "generation_failed": "Audio kon niet worden gemaakt. Je tekst staat er nog; probeer opnieuw.",
-    "details": "Technische details"
+    "details": "Technische details",
+    "extra_samples": "Meer samples (optioneel)",
+    "extra_samples_hint": "Voeg tot {{n}} extra opnamen van dezelfde stem toe. Ze worden gecombineerd tot één referentie voor een nauwkeurigere kloon, en de transcriptie wordt automatisch gemaakt.",
+    "add_samples": "Samples toevoegen",
+    "remove_sample": "{{name}} verwijderen",
+    "samples_limit": "Een stem kan maximaal {{n}} samples combineren."
   },
   "synthesisState": {
     "preparing": "Voorbereiden…",
@@ -468,6 +473,7 @@
     "optional_details": "Optionele details",
     "starting_recording": "Starten…",
     "unsupported_audio": "Kies een ondersteund audiobestand: WAV, MP3, M4A, FLAC, OGG, AAC of WebM.",
+    "unsupported_media": "Kies een ondersteund audio- of videobestand: WAV, MP3, M4A, FLAC, OGG, AAC, WebM, MP4, MOV of MKV.",
     "saved_profiles": "Opgeslagen profielen",
     "transcript": "Afschrift",
     "style": "Stijl",
@@ -477,7 +483,7 @@
     "cancel": "Annuleer",
     "synthesize": "Audio synthetiseren",
     "synthesizing": "Synthetiseren… ({{seconds}}s)",
-    "drop_audio": "Zet hier audio neer - of klik. WAV, MP3, M4A... 🎤",
+    "drop_audio": "Sleep audio of video hierheen — of klik. WAV, MP3, MP4, MOV…",
     "record": "Opnemen",
     "cleaning": "Schoonmaken…",
     "using_profile": "Profiel gebruiken: {{name}}",

@@ -75,3 +75,23 @@ it('sends profile edits with the clip so they save atomically', async () => {
   expect(form.get('language')).toBe('French');
   expect(form.get('personality')).toBeNull();
 });
+
+it('sends extra samples and leaves the composite transcript to the backend', async () => {
+  mock.json.mockResolvedValue({});
+  const extra = [
+    new File(['b'], 'two.wav', { type: 'audio/wav' }),
+    new File(['c'], 'three.m4a', { type: 'audio/mp4' }),
+  ];
+  await createCloneProfile({
+    name: 'Multi',
+    refAudio: new File(['a'], 'one.wav'),
+    refText: 'words of only the first clip',
+    extraSamples: extra,
+  });
+  const form = mock.json.mock.calls[0][1].body as FormData;
+  expect(form.getAll('extra_ref_audio').map((f) => (f as File).name)).toEqual([
+    'two.wav',
+    'three.m4a',
+  ]);
+  expect(form.get('ref_text')).toBe('');
+});

@@ -20,6 +20,10 @@ from core.scrub import scrub_text
 from core.personalities import get_personalities
 from omnivoice.utils.voice_design import heal_design_instruct, sanitize_instruct
 from core.media_types import media_upload_suffix
+from services.reference_media import (
+    extract_reference_audio as _extract_reference_audio,
+    is_video_reference as _is_video_reference,
+)
 from core.path_security import UnsafePath, resolve_within
 from core.profile_images import MAX_IMAGE_BYTES, normalize_portrait
 from starlette.datastructures import UploadFile as StarletteUploadFile
@@ -129,10 +133,16 @@ async def create_profile(
     kind: str = Form("clone"),
     vd_states: Optional[str] = Form(None),
     image: Optional[UploadFile] = File(None),
+    extra_ref_audio: Optional[list[UploadFile]] = File(None),
 ):
     """Create a voice profile (spec: docs/specs/voice-studio-unification.md §5).
 
     kind='clone'  — requires `ref_audio` (the user's reference recording).
+                    Optional `extra_ref_audio` adds more recordings of the
+                    same speaker; all are merged into one composite reference
+                    (services/reference_merge.py) and `ref_text` is ignored,
+                    because it describes only one of them — the composite is
+                    transcribed instead.
     kind='design' — requires `vd_states` (JSON of category picks); the server
                     renders a deterministic sample WAV (seed 42, same path as
                     archetype materialization) and stores it as the profile's
@@ -192,7 +202,18 @@ async def create_profile(
         portrait = normalize_portrait(await image.read(MAX_IMAGE_BYTES + 1))
     portrait_path = os.path.join(VOICES_DIR, f"{profile_id}.portrait.jpg")
 
-    if kind == "clone":
+    # Direct (non-HTTP) callers leave the File(None) marker in place.
+    extras = [
+        u for u in (extra_ref_audio if isinstance(extra_ref_audio, list) else [])
+        if isinstance(u, StarletteUploadFile)
+    ]
+    if kind == "clone" and extras:
+        audio_filename = f"{profile_id}.wav"
+        audio_path = os.path.join(VOICES_DIR, audio_filename)
+        await _merge_uploaded_samples([ref_audio, *extras], profile_id, audio_path)
+        ref_text = await _auto_transcribe_reference(audio_path)
+        used_seed = seed
+    elif kind == "clone":
         ext = media_upload_suffix(ref_audio.filename)
         if ext is None:
             raise HTTPException(status_code=415, detail="Choose an audio or video file.")
@@ -208,6 +229,15 @@ async def create_profile(
         from services.ffmpeg_utils import require_audio_stream
         try:
             await asyncio.to_thread(require_audio_stream, audio_path)
+            if _is_video_reference(ext):
+                video_path = audio_path
+                audio_filename = f"{profile_id}.wav"
+                audio_path = os.path.join(VOICES_DIR, audio_filename)
+                try:
+                    await _extract_reference_audio(video_path, audio_path)
+                finally:
+                    with contextlib.suppress(OSError):
+                        os.remove(video_path)
         except BaseException:
             with contextlib.suppress(OSError):
                 os.remove(audio_path)
@@ -620,6 +650,57 @@ async def _save_upload(upload: UploadFile, dest: str) -> int:
     return total
 
 
+async def _merge_uploaded_samples(
+    uploads: list[UploadFile], profile_id: str, out_path: str,
+) -> None:
+    """Merge several reference uploads into one WAV at ``out_path``.
+
+    Each upload is staged next to the voices, checked like a single
+    reference, and removed again whether or not the merge succeeds.
+    """
+    from services.ffmpeg_utils import require_audio_stream
+    from services.reference_merge import MAX_SAMPLES, ReferenceMergeError, merge_references
+
+    if len(uploads) > MAX_SAMPLES:
+        raise HTTPException(
+            status_code=422, detail=f"Use at most {MAX_SAMPLES} samples for one voice.",
+        )
+    os.makedirs(VOICES_DIR, exist_ok=True)
+    staged: list[str] = []
+    inputs: list[str] = []
+    try:
+        for index, upload in enumerate(uploads):
+            ext = media_upload_suffix(upload.filename)
+            if ext is None:
+                raise HTTPException(status_code=415, detail="Choose an audio or video file.")
+            path = os.path.join(VOICES_DIR, f".{profile_id}.sample{index}.part{ext}")
+            staged.append(path)
+            if await _save_upload(upload, path) < _MIN_REF_AUDIO_BYTES:
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"Sample {index + 1} is empty or too short.",
+                )
+            await asyncio.to_thread(require_audio_stream, path)
+            if _is_video_reference(ext):
+                wav = path[: -len(ext)] + ".wav"
+                staged.append(wav)
+                await _extract_reference_audio(path, wav)
+                path = wav
+            inputs.append(path)
+        try:
+            await asyncio.to_thread(merge_references, inputs, out_path)
+        except ReferenceMergeError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+    except BaseException:
+        with contextlib.suppress(OSError):
+            os.remove(out_path)
+        raise
+    finally:
+        for path in staged:
+            with contextlib.suppress(OSError):
+                os.remove(path)
+
+
 @router.put("/profiles/{profile_id}/audio")
 async def replace_profile_audio(
     profile_id: str,
@@ -649,12 +730,16 @@ async def replace_profile_audio(
     )
     if not _PROFILE_ID_RE.fullmatch(profile_id or ""):
         raise not_found
-    ext = os.path.splitext(ref_audio.filename or "")[1].lower()
-    if ext not in _REF_AUDIO_EXTS:
+    upload_ext = os.path.splitext(ref_audio.filename or "")[1].lower()
+    is_video = _is_video_reference(upload_ext)
+    if upload_ext not in _REF_AUDIO_EXTS and not is_video:
         raise HTTPException(
             status_code=415,
-            detail="Choose a supported audio file: WAV, MP3, M4A, FLAC, OGG, Opus, AAC, or WebM.",
+            detail="Choose a supported audio or video file: WAV, MP3, M4A, FLAC, OGG, Opus, "
+            "AAC, WebM, MP4, MOV, or MKV.",
         )
+    # A video's audio track is stored as WAV (see _extract_reference_audio).
+    ext = ".wav" if is_video else upload_ext
     edits = _replacement_fields(name, instruct, language, personality)
     lock = _replace_locks.get(profile_id)
     if lock is None:
@@ -679,13 +764,17 @@ async def replace_profile_audio(
         if new_path is None:  # profile_id is charset-checked above; belt and braces
             raise not_found
         os.makedirs(VOICES_DIR, exist_ok=True)
-        tmp_path = f"{new_path}.part"
+        tmp_path = f"{new_path}.part{upload_ext if is_video else ''}"
         try:
             if await _save_upload(ref_audio, tmp_path) < _MIN_REF_AUDIO_BYTES:
                 raise HTTPException(
                     status_code=422, detail="The reference recording is empty or too short.",
                 )
-            os.replace(tmp_path, new_path)
+            if is_video:
+                await _extract_reference_audio(tmp_path, new_path)
+                os.remove(tmp_path)
+            else:
+                os.replace(tmp_path, new_path)
             if not await _is_decodable_audio(new_path):
                 # A video-only WebM decodes to nothing because it has no audio
                 # stream at all; say that rather than "could not be read".

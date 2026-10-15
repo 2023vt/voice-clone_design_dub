@@ -11,12 +11,17 @@ import { referenceUsageNote } from '@/lib/reference-usage';
 import { setReferenceFile, type SetReferenceResult } from '@/lib/store/reference';
 import { cn } from '@/lib/utils';
 
-const ACCEPT = 'audio/*,.mp3,.wav,.m4a,.flac,.ogg,.aac,.webm';
-const AUDIO_EXT = /\.(mp3|wav|m4a|flac|ogg|aac|webm)$/i;
+// Videos are accepted too: the backend keeps only their audio track
+// (backend/services/reference_media.py).
+export const ACCEPT =
+  'audio/*,video/*,.mp3,.wav,.m4a,.flac,.ogg,.aac,.webm,.mp4,.mov,.m4v,.mkv,.avi';
+const AUDIO_EXT = /\.(mp3|wav|m4a|flac|ogg|aac|webm|mp4|mov|m4v|mkv|avi)$/i;
 const LEVEL_THRESHOLD = 0.025;
 
-function isAudioFile(file: File): boolean {
-  return file.type.startsWith('audio/') || AUDIO_EXT.test(file.name);
+export function isAudioFile(file: File): boolean {
+  return (
+    file.type.startsWith('audio/') || file.type.startsWith('video/') || AUDIO_EXT.test(file.name)
+  );
 }
 
 type IngestFn = (file: File | null) => Promise<void>;
@@ -51,7 +56,7 @@ function useIngest(onAccept?: AcceptReference, sharedPick?: PickToken): IngestFn
     if (!file) return;
     const pick = ++latestPick.current;
     if (!isAudioFile(file)) {
-      toast.error(t('clone.unsupported_audio'));
+      toast.error(t('clone.unsupported_media'));
       return;
     }
     const result: SetReferenceResult = onAccept

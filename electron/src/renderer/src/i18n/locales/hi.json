@@ -332,7 +332,12 @@
     "search_failed": "छवि खोज विफल रही। फिर प्रयास करें।",
     "search_empty": "कोई छवि नहीं मिली। दूसरा नाम आज़माएँ या छवि अपलोड करें।",
     "generation_failed": "ऑडियो नहीं बनाया जा सका। आपकी स्क्रिप्ट सुरक्षित है; फिर प्रयास करें।",
-    "details": "तकनीकी विवरण"
+    "details": "तकनीकी विवरण",
+    "extra_samples": "और नमूने (वैकल्पिक)",
+    "extra_samples_hint": "उसी आवाज़ की {{n}} तक और रिकॉर्डिंग जोड़ें। अधिक सटीक क्लोन के लिए इन्हें एक संदर्भ में मिलाया जाता है, और उसका ट्रांसक्रिप्ट अपने-आप बनता है।",
+    "add_samples": "नमूने जोड़ें",
+    "remove_sample": "{{name}} हटाएँ",
+    "samples_limit": "एक आवाज़ में अधिकतम {{n}} नमूने मिलाए जा सकते हैं।"
   },
   "synthesisState": {
     "preparing": "तैयारी हो रही है…",
@@ -468,6 +473,7 @@
     "optional_details": "वैकल्पिक विवरण",
     "starting_recording": "शुरू हो रहा है…",
     "unsupported_audio": "कोई समर्थित ऑडियो फ़ाइल चुनें: WAV, MP3, M4A, FLAC, OGG, AAC या WebM।",
+    "unsupported_media": "समर्थित ऑडियो या वीडियो फ़ाइल चुनें: WAV, MP3, M4A, FLAC, OGG, AAC, WebM, MP4, MOV या MKV।",
     "saved_profiles": "सहेजे गए प्रोफ़ाइल",
     "transcript": "प्रतिलिपि",
     "style": "अंदाज",
@@ -477,7 +483,7 @@
     "cancel": "रद्द करें",
     "synthesize": "ऑडियो का संश्लेषण करें",
     "synthesizing": "संश्लेषण... ({{seconds}}s)",
-    "drop_audio": "ऑडियो यहां छोड़ें - या क्लिक करें। WAV, MP3, M4A… 🎤",
+    "drop_audio": "ऑडियो या वीडियो यहाँ छोड़ें — या क्लिक करें। WAV, MP3, MP4, MOV…",
     "record": "अभिलेख",
     "cleaning": "सफ़ाई...",
     "using_profile": "प्रोफ़ाइल का उपयोग करना: {{name}}",

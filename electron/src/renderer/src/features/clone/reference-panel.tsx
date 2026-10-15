@@ -12,11 +12,13 @@ import {
   LoaderCircleIcon,
   MicIcon,
   PencilIcon,
+  PlusIcon,
   SaveIcon,
   XIcon,
 } from 'lucide-react';
-import { useEffect, useId, useState } from 'react';
+import { useEffect, useId, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { toast } from 'sonner';
 import { WaveformPlayer } from '@/components/waveform-player';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -25,11 +27,14 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { useProfiles, useCreateCloneProfile } from '@/hooks/use-profiles';
+import { REF_HARD_MAX_SECONDS } from '@/lib/api/generate';
+import { MAX_PROFILE_SAMPLES } from '@/lib/api/profiles';
+import { probeAudioDuration } from '@/lib/audio/probe';
 import { setCloneSetting, useCloneSetting } from '@/lib/store/clone-settings';
 import { selectCloneProfile, setReferenceFile, useReference } from '@/lib/store/reference';
 import { setWorkspace } from '@/lib/store/workspace';
 import { cn } from '@/lib/utils';
-import { ReferenceSourcePicker, ReferenceUsageNote } from './reference-input';
+import { ACCEPT, isAudioFile, ReferenceSourcePicker, ReferenceUsageNote } from './reference-input';
 
 interface SaveProfileFormProps {
   metadata?: { refText: string; instruct: string; language: string; seed: number | null };
@@ -52,6 +57,7 @@ export function SaveProfileForm({
   const language = useCloneSetting('language');
   const create = useCreateCloneProfile();
   const [image, setImage] = useState<File>();
+  const [extraSamples, setExtraSamples] = useState<File[]>([]);
   const [imageUrl, setImageUrl] = useState<string>();
   useEffect(() => {
     if (!image) {
@@ -79,6 +85,7 @@ export function SaveProfileForm({
           instruct: metadata?.instruct ?? instruct,
           language: metadata?.language ?? language,
           seed: metadata?.seed,
+          extraSamples,
         });
         if (selectOnSave) {
           // A saved profile becomes the one identity source. Release the raw
@@ -162,6 +169,7 @@ export function SaveProfileForm({
         <form.Subscribe selector={(state) => state.values.name}>
           {(name) => <PortraitSearch name={name} onSelect={setImage} />}
         </form.Subscribe>
+        <ExtraSamples samples={extraSamples} onChange={setExtraSamples} />
         <div className="flex items-center justify-end gap-2">
           <form.Subscribe selector={(state) => state.isSubmitting}>
             {(isSubmitting) => (
@@ -187,6 +195,104 @@ export function SaveProfileForm({
         </div>
       </div>
     </form>
+  );
+}
+
+/**
+ * More recordings of the same speaker, merged server-side with the main clip
+ * into one composite reference (backend/services/reference_merge.py).
+ */
+export function ExtraSamples({
+  samples,
+  onChange,
+}: {
+  samples: File[];
+  onChange: (samples: File[]) => void;
+}) {
+  const { t } = useTranslation();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const hintId = useId();
+  const room = MAX_PROFILE_SAMPLES - 1 - samples.length;
+
+  const add = async (picked: File[]) => {
+    const accepted: File[] = [];
+    for (const file of picked) {
+      if (!isAudioFile(file)) {
+        toast.error(t('clone.unsupported_media'));
+        continue;
+      }
+      const seconds = await probeAudioDuration(file);
+      if (seconds !== null && seconds > REF_HARD_MAX_SECONDS) {
+        toast.error(
+          t('tts_errors.too_long', { duration: Math.round(seconds), max: REF_HARD_MAX_SECONDS }),
+        );
+        continue;
+      }
+      accepted.push(file);
+    }
+    if (accepted.length > room) {
+      toast.error(t('profileIdentity.samples_limit', { n: MAX_PROFILE_SAMPLES }));
+    }
+    if (accepted.length) onChange([...samples, ...accepted.slice(0, Math.max(0, room))]);
+  };
+
+  return (
+    <div className="flex flex-col gap-2 rounded-lg bg-muted/30 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-[length:var(--text-label)] font-medium">
+          {t('profileIdentity.extra_samples')}
+        </span>
+        <Button
+          type="button"
+          variant="ghost"
+          size="xs"
+          disabled={room <= 0}
+          aria-describedby={hintId}
+          onClick={() => inputRef.current?.click()}
+        >
+          <PlusIcon data-icon="inline-start" />
+          {t('profileIdentity.add_samples')}
+        </Button>
+        <input
+          ref={inputRef}
+          type="file"
+          accept={ACCEPT}
+          multiple
+          hidden
+          data-testid="extra-samples-input"
+          onChange={(event) => {
+            const files = Array.from(event.target.files ?? []);
+            event.target.value = '';
+            void add(files);
+          }}
+        />
+      </div>
+      <p id={hintId} className="text-[length:var(--text-caption)] text-muted-foreground">
+        {t('profileIdentity.extra_samples_hint', { n: MAX_PROFILE_SAMPLES - 1 })}
+      </p>
+      {samples.length > 0 && (
+        <ul className="flex flex-col gap-1">
+          {samples.map((sample, index) => (
+            <li
+              key={`${sample.name}-${sample.lastModified}-${index}`}
+              className="flex items-center gap-2"
+            >
+              <FileAudioIcon className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
+              <span className="min-w-0 flex-1 truncate text-sm">{sample.name}</span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-xs"
+                aria-label={t('profileIdentity.remove_sample', { name: sample.name })}
+                onClick={() => onChange(samples.filter((_, i) => i !== index))}
+              >
+                <XIcon />
+              </Button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

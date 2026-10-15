@@ -14,6 +14,9 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('./portrait-search', () => ({ PortraitSearch: () => null }));
 vi.mock('./profile-image-editor', () => ({ ProfileImageEditor: () => null }));
 vi.mock('@/components/waveform-player', () => ({ WaveformPlayer: () => null }));
+vi.mock('@/lib/audio/probe', () => ({
+  probeAudioDuration: (file: File) => Promise.resolve(file.name.startsWith('long') ? 120 : 6),
+}));
 import { OptionalDetails, SaveProfileForm } from './reference-panel';
 
 afterEach(() => {
@@ -66,4 +69,29 @@ it('hands missing reference ASR to the app-operation repair flow without losing 
   fireEvent.click(screen.getByRole('button', { name: 'referenceAsr.retry' }));
   expect(retry).toHaveBeenCalledOnce();
   window.removeEventListener('voicestudio:repair-agent-open', listener);
+});
+
+it('saves extra samples with the clip and lets the user drop one', async () => {
+  const file = new File(['audio'], 'voice.wav', { type: 'audio/wav' });
+  mock.save.mockResolvedValue({ id: 'saved', name: 'Voice' });
+  const { container } = render(
+    <SaveProfileForm file={file} onDone={vi.fn()} selectOnSave={false} />,
+  );
+  const input = screen.getByTestId('extra-samples-input');
+  const two = new File(['b'], 'two.wav', { type: 'audio/wav' });
+  const three = new File(['c'], 'three.wav', { type: 'audio/wav' });
+  const tooLong = new File(['d'], 'long.wav', { type: 'audio/wav' });
+  await act(async () => {
+    fireEvent.change(input, { target: { files: [two, three, tooLong] } });
+  });
+  await screen.findByText('three.wav');
+  expect(screen.queryByText('long.wav')).toBeNull();
+  fireEvent.click(screen.getAllByRole('button', { name: 'profileIdentity.remove_sample' })[0]);
+  fireEvent.change(screen.getByLabelText('clone.profile_name'), { target: { value: 'Voice' } });
+  await act(async () => {
+    fireEvent.submit(container.querySelector('form')!);
+  });
+  await waitFor(() =>
+    expect(mock.save).toHaveBeenCalledWith(expect.objectContaining({ extraSamples: [three] })),
+  );
 });

@@ -332,7 +332,12 @@
     "search_failed": "Bildsökning misslyckades. Försök igen.",
     "search_empty": "Inga bilder hittades. Prova ett annat namn eller ladda upp en bild.",
     "generation_failed": "Det gick inte att skapa ljud. Ditt manus är fortfarande här; försök igen.",
-    "details": "Tekniska detaljer"
+    "details": "Tekniska detaljer",
+    "extra_samples": "Fler prover (valfritt)",
+    "extra_samples_hint": "Lägg till upp till {{n}} fler inspelningar av samma röst. De kombineras till en referens för en mer exakt klon, och transkriptionen skapas automatiskt.",
+    "add_samples": "Lägg till prover",
+    "remove_sample": "Ta bort {{name}}",
+    "samples_limit": "En röst kan kombinera högst {{n}} prover."
   },
   "synthesisState": {
     "preparing": "Förbereder…",
@@ -468,6 +473,7 @@
     "optional_details": "Valfria detaljer",
     "starting_recording": "Startar…",
     "unsupported_audio": "Välj en ljudfil som stöds: WAV, MP3, M4A, FLAC, OGG, AAC eller WebM.",
+    "unsupported_media": "Välj en ljud- eller videofil som stöds: WAV, MP3, M4A, FLAC, OGG, AAC, WebM, MP4, MOV eller MKV.",
     "saved_profiles": "Sparade profiler",
     "transcript": "Avskrift",
     "style": "Stil",
@@ -477,7 +483,7 @@
     "cancel": "Avbryt",
     "synthesize": "Syntetisera ljud",
     "synthesizing": "Syntetiserar... ({{seconds}}s)",
-    "drop_audio": "Släpp ljud här - eller klicka. WAV, MP3, M4A... 🎤",
+    "drop_audio": "Släpp ljud eller video här – eller klicka. WAV, MP3, MP4, MOV…",
     "record": "Spela in",
     "cleaning": "Rengör...",
     "using_profile": "Använder profilen: {{name}}",

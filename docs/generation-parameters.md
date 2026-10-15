@@ -61,6 +61,10 @@ Priority: `duration` > `speed`.
 > **Note — quiet recordings are safe.** Silence removal is adaptive: if trimming at the standard threshold would consume a quiet-but-real recording, progressively gentler thresholds are tried and, as a last resort, trimming is skipped — a quiet clip clones instead of erroring. Only a clip with genuinely no audio (empty or fully silent) is rejected, with guidance to re-record closer to the microphone.
 >
 > **Tip — reference-clip quality transfers.** Zero-shot cloning mirrors the acoustics of the reference clip, not just the voice: a clip recorded in an echoey room clones echoey. Record dry and close-mic for clean output. No effect preset adds reverb unless you choose one that declares it (Cinematic, Warm).
+>
+> **Tip — clone from several samples.** When saving a voice profile, **More samples** adds up to 7 more recordings of the same speaker. VoiceStudio cuts the clearest passage from each (on pauses, so words stay whole), matches their loudness, and joins them into one reference of at most 18 seconds, cleanest first. The engine then hears the voice across several takes instead of one, which steadies timbre and accent. The composite is transcribed automatically; a typed transcript is ignored because it only describes one clip. Engines still receive a single reference, so this is not speaker-embedding averaging. API: repeat the `extra_ref_audio` file field on `POST /profiles`.
+>
+> **Tip — a video works as a reference.** Upload an MP4, MOV, MKV or other video wherever a reference clip is accepted (saving a voice, More samples, replacing a voice's sample, or using a clip without saving). VoiceStudio keeps only the video's first audio track, stored as mono WAV; the video itself is not kept. A video with no sound is refused. The same 75-second limit applies, so trim long videos to the part where the speaker talks.
 
 For an in-app recording, choose the microphone and Auto, Mono, or Stereo in the Voice panel. While recording, the input meter confirms whether VoiceStudio is receiving a usable signal; monitoring is visual and never plays the microphone through the speakers.
 

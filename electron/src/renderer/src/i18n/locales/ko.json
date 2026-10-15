@@ -332,7 +332,12 @@
     "search_failed": "이미지 검색에 실패했습니다. 다시 시도하세요.",
     "search_empty": "이미지를 찾지 못했습니다. 다른 이름으로 검색하거나 이미지를 업로드하세요.",
     "generation_failed": "오디오를 만들지 못했습니다. 대본은 그대로 있습니다. 다시 시도하세요.",
-    "details": "기술 세부정보"
+    "details": "기술 세부정보",
+    "extra_samples": "추가 샘플 (선택)",
+    "extra_samples_hint": "같은 목소리의 녹음을 최대 {{n}}개 더 추가하세요. 더 정확한 복제를 위해 하나의 참조 음성으로 합쳐지며, 전사는 자동으로 생성됩니다.",
+    "add_samples": "샘플 추가",
+    "remove_sample": "{{name}} 제거",
+    "samples_limit": "하나의 목소리에는 최대 {{n}}개의 샘플을 합칠 수 있습니다."
   },
   "synthesisState": {
     "preparing": "준비 중…",
@@ -468,6 +473,7 @@
     "optional_details": "선택 사항",
     "starting_recording": "시작 중…",
     "unsupported_audio": "지원되는 오디오 파일을 선택하세요: WAV, MP3, M4A, FLAC, OGG, AAC 또는 WebM.",
+    "unsupported_media": "지원되는 오디오 또는 동영상 파일을 선택하세요: WAV, MP3, M4A, FLAC, OGG, AAC, WebM, MP4, MOV, MKV.",
     "saved_profiles": "저장된 프로필",
     "transcript": "전사본",
     "style": "스타일",
@@ -477,7 +483,7 @@
     "cancel": "취소",
     "synthesize": "오디오 합성",
     "synthesizing": "합성 중… ({{seconds}}s)",
-    "drop_audio": "여기에 오디오를 놓거나 클릭하세요. WAV, MP3, M4A… 🎤",
+    "drop_audio": "오디오나 동영상을 여기에 놓거나 클릭하세요. WAV, MP3, MP4, MOV…",
     "record": "녹음",
     "cleaning": "노이즈 제거 중…",
     "using_profile": "프로필 사용: {{name}}",

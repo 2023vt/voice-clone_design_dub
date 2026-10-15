@@ -340,7 +340,12 @@
     "search_failed": "فشل البحث عن الصور. حاول مجددًا.",
     "search_empty": "لم يتم العثور على صور. جرّب اسمًا آخر أو ارفع صورة.",
     "generation_failed": "تعذر إنشاء الصوت. النص لا يزال محفوظًا؛ حاول مجددًا.",
-    "details": "التفاصيل التقنية"
+    "details": "التفاصيل التقنية",
+    "extra_samples": "عينات إضافية (اختياري)",
+    "extra_samples_hint": "أضف حتى {{n}} تسجيلات إضافية للصوت نفسه. تُدمج في مرجع واحد لاستنساخ أدق، ويُنشأ النص المكتوب تلقائيًا.",
+    "add_samples": "إضافة عينات",
+    "remove_sample": "إزالة {{name}}",
+    "samples_limit": "يمكن للصوت دمج {{n}} عينات كحد أقصى."
   },
   "synthesisState": {
     "preparing": "جارٍ التحضير…",
@@ -476,6 +481,7 @@
     "optional_details": "تفاصيل اختيارية",
     "starting_recording": "جارٍ البدء…",
     "unsupported_audio": "اختر ملفًا صوتيًا مدعومًا: WAV أو MP3 أو M4A أو FLAC أو OGG أو AAC أو WebM.",
+    "unsupported_media": "اختر ملف صوت أو فيديو مدعومًا: WAV أو MP3 أو M4A أو FLAC أو OGG أو AAC أو WebM أو MP4 أو MOV أو MKV.",
     "saved_profiles": "الملفات الشخصية المحفوظة",
     "transcript": "نسخة",
     "style": "النمط",
@@ -485,7 +491,7 @@
     "cancel": "إلغاء",
     "synthesize": "توليف الصوت",
     "synthesizing": "Synthesizing… ({{seconds}}s)",
-    "drop_audio": "قم بإسقاط الصوت هنا - أو انقر. WAV، MP3، M4A… 🎤",
+    "drop_audio": "أفلت ملف صوت أو فيديو هنا — أو انقر. WAV، MP3، MP4، MOV…",
     "record": "سجل",
     "cleaning": "تنظيف…",
     "using_profile": "استخدام الملف الشخصي: {{name}}",

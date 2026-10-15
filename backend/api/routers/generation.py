@@ -1941,15 +1941,27 @@ async def generate_speech(
             if _cond["persist_ref_text"]:
                 persist_ref_text_profile_id = profile_id
     elif ref_audio is not None:
+        from services.reference_media import extract_reference_audio, is_video_reference
+
+        upload_ext = os.path.splitext(ref_audio.filename or "")[1].lower()
         try:
-            suffix = _ref_upload_suffix(ref_audio.filename)
+            suffix = upload_ext if is_video_reference(upload_ext) else _ref_upload_suffix(ref_audio.filename)
             with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as f:
                 f.write(await ref_audio.read())
                 ref_audio_path = f.name
-                cleanup_ref = True
-                ref_lease = _TempReferenceLease(ref_audio_path)
         except Exception as e:
             raise HTTPException(status_code=500, detail=str(e))
+        if is_video_reference(upload_ext):
+            # A one-shot video reference is used as its audio track, like a
+            # saved one (services/reference_media.py).
+            video_path, ref_audio_path = ref_audio_path, f"{os.path.splitext(ref_audio_path)[0]}.wav"
+            try:
+                await extract_reference_audio(video_path, ref_audio_path)
+            finally:
+                with contextlib.suppress(OSError):
+                    os.remove(video_path)
+        cleanup_ref = True
+        ref_lease = _TempReferenceLease(ref_audio_path)
 
     # #2281: an engine that picks the best passage of a long clip itself
     # (OmniVoice) cannot align a whole-clip transcript. A transcript typed on

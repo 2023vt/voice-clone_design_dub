@@ -332,7 +332,12 @@
     "search_failed": "圖片搜尋失敗，請重試。",
     "search_empty": "找不到圖片。請嘗試其他名稱或上傳圖片。",
     "generation_failed": "無法產生音訊。您的文稿仍已保留，請重試。",
-    "details": "技術詳情"
+    "details": "技術詳情",
+    "extra_samples": "更多樣本（選用）",
+    "extra_samples_hint": "最多再加入 {{n}} 段同一聲音的錄音。它們會合併成一個參考音訊，讓複製更準確，逐字稿會自動產生。",
+    "add_samples": "加入樣本",
+    "remove_sample": "移除 {{name}}",
+    "samples_limit": "一個聲音最多可合併 {{n}} 段樣本。"
   },
   "synthesisState": {
     "preparing": "準備中…",
@@ -468,6 +473,7 @@
     "optional_details": "選填詳細資料",
     "starting_recording": "正在啟動…",
     "unsupported_audio": "請選擇支援的音訊檔案：WAV、MP3、M4A、FLAC、OGG、AAC 或 WebM。",
+    "unsupported_media": "請選擇支援的音訊或影片檔案：WAV、MP3、M4A、FLAC、OGG、AAC、WebM、MP4、MOV 或 MKV。",
     "saved_profiles": "儲存的設定檔",
     "transcript": "成績單",
     "style": "風格",
@@ -477,7 +483,7 @@
     "cancel": "取消",
     "synthesize": "合成音訊",
     "synthesizing": "正在綜合... ({{seconds}}s)",
-    "drop_audio": "將音訊拖放到此處 - 或單擊。 WAV、MP3、M4A…🎤",
+    "drop_audio": "將音訊或影片拖曳到這裡，或點擊選擇。WAV、MP3、MP4、MOV…",
     "record": "記錄",
     "cleaning": "清潔…",
     "using_profile": "使用設定檔：{{name}}",

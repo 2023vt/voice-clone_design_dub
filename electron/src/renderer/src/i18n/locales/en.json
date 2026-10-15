@@ -371,8 +371,9 @@
     "ref_usage_long": "Longer than the recommended {{seconds}}s. The whole clip is sent to the engine.",
     "upload_audio": "Upload audio",
     "record": "Record",
-    "drop_audio": "Drop audio here — or click. WAV, MP3, M4A…",
+    "drop_audio": "Drop audio or video here — or click. WAV, MP3, MP4, MOV…",
     "unsupported_audio": "Choose a supported audio file: WAV, MP3, M4A, FLAC, OGG, AAC, or WebM.",
+    "unsupported_media": "Choose a supported audio or video file: WAV, MP3, M4A, FLAC, OGG, AAC, WebM, MP4, MOV, or MKV.",
     "starting_recording": "Starting…",
     "cleaning": "Cleaning…",
     "using_profile": "Using voice: {{name}}",
@@ -671,7 +672,12 @@
     "search_failed": "Image search failed. Try again.",
     "search_empty": "No images found. Try another name or upload an image.",
     "generation_failed": "Audio could not be created. Your script is still here; try again.",
-    "details": "Technical details"
+    "details": "Technical details",
+    "extra_samples": "More samples (optional)",
+    "extra_samples_hint": "Add up to {{n}} more recordings of the same voice. They are combined into one reference for a more accurate clone, and its transcript is generated automatically.",
+    "add_samples": "Add samples",
+    "remove_sample": "Remove {{name}}",
+    "samples_limit": "A voice can combine at most {{n}} samples."
   },
   "synthesisState": {
     "preparing": "Preparing…",

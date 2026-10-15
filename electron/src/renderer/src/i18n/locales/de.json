@@ -332,7 +332,12 @@
     "search_failed": "Bildersuche fehlgeschlagen. Versuche es erneut.",
     "search_empty": "Keine Bilder gefunden. Versuche einen anderen Namen oder lade ein Bild hoch.",
     "generation_failed": "Audio konnte nicht erstellt werden. Dein Text ist noch da; versuche es erneut.",
-    "details": "Technische Details"
+    "details": "Technische Details",
+    "extra_samples": "Weitere Aufnahmen (optional)",
+    "extra_samples_hint": "Füge bis zu {{n}} weitere Aufnahmen derselben Stimme hinzu. Sie werden zu einer Referenz kombiniert, damit der Klon genauer wird; das Transkript wird automatisch erstellt.",
+    "add_samples": "Aufnahmen hinzufügen",
+    "remove_sample": "{{name}} entfernen",
+    "samples_limit": "Eine Stimme kann höchstens {{n}} Aufnahmen kombinieren."
   },
   "synthesisState": {
     "preparing": "Vorbereitung…",
@@ -468,6 +473,7 @@
     "optional_details": "Optionale Details",
     "starting_recording": "Wird gestartet…",
     "unsupported_audio": "Wähle eine unterstützte Audiodatei: WAV, MP3, M4A, FLAC, OGG, AAC oder WebM.",
+    "unsupported_media": "Wähle eine unterstützte Audio- oder Videodatei: WAV, MP3, M4A, FLAC, OGG, AAC, WebM, MP4, MOV oder MKV.",
     "saved_profiles": "Gespeicherte Profile",
     "transcript": "Transkript",
     "style": "Stil",
@@ -477,7 +483,7 @@
     "cancel": "Abbrechen",
     "synthesize": "Audio synthetisieren",
     "synthesizing": "Synthetisieren… ({{seconds}}s)",
-    "drop_audio": "Fügen Sie Audio hier ein – oder klicken Sie. WAV, MP3, M4A… 🎤",
+    "drop_audio": "Audio oder Video hier ablegen – oder klicken. WAV, MP3, MP4, MOV…",
     "record": "Aufnahme",
     "cleaning": "Reinigung…",
     "using_profile": "Profil verwenden: {{name}}",

@@ -332,7 +332,12 @@
     "search_failed": "图片搜索失败，请重试。",
     "search_empty": "未找到图片。请尝试其他名称或上传图片。",
     "generation_failed": "无法生成音频。您的文稿仍已保留，请重试。",
-    "details": "技术详情"
+    "details": "技术详情",
+    "extra_samples": "更多样本（可选）",
+    "extra_samples_hint": "最多再添加 {{n}} 段同一声音的录音。它们会合并为一个参考音频，让克隆更准确，转写会自动生成。",
+    "add_samples": "添加样本",
+    "remove_sample": "移除 {{name}}",
+    "samples_limit": "一个声音最多可合并 {{n}} 段样本。"
   },
   "player": {
     "generated_audio": "生成的音频",
@@ -481,6 +486,7 @@
     "optional_details": "可选详情",
     "starting_recording": "正在启动…",
     "unsupported_audio": "请选择支持的音频文件：WAV、MP3、M4A、FLAC、OGG、AAC 或 WebM。",
+    "unsupported_media": "请选择支持的音频或视频文件：WAV、MP3、M4A、FLAC、OGG、AAC、WebM、MP4、MOV 或 MKV。",
     "saved_profiles": "已保存的配置",
     "transcript": "参考文本",
     "style": "风格",
@@ -490,7 +496,7 @@
     "cancel": "取消",
     "synthesize": "生成音频",
     "synthesizing": "生成中…（{{seconds}} 秒）",
-    "drop_audio": "拖放音频文件 — 或点击选择。支持 WAV、MP3、M4A… 🎤",
+    "drop_audio": "将音频或视频拖到这里，或点击选择。WAV、MP3、MP4、MOV…",
     "record": "录制",
     "cleaning": "清理中…",
     "using_profile": "正在使用配置：{{name}}",

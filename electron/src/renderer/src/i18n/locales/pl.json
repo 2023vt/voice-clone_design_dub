@@ -336,7 +336,12 @@
     "search_failed": "Wyszukiwanie obrazu nie powiodło się. Spróbuj ponownie.",
     "search_empty": "Nie znaleziono obrazów. Wypróbuj inną nazwę lub prześlij obraz.",
     "generation_failed": "Nie można utworzyć dźwięku. Twój skrypt nadal tu jest; spróbuj ponownie.",
-    "details": "Szczegóły techniczne"
+    "details": "Szczegóły techniczne",
+    "extra_samples": "Więcej próbek (opcjonalnie)",
+    "extra_samples_hint": "Dodaj do {{n}} kolejnych nagrań tego samego głosu. Zostaną połączone w jedno nagranie referencyjne, aby klon był dokładniejszy, a transkrypcja powstanie automatycznie.",
+    "add_samples": "Dodaj próbki",
+    "remove_sample": "Usuń {{name}}",
+    "samples_limit": "Jeden głos może łączyć najwyżej {{n}} próbek."
   },
   "synthesisState": {
     "preparing": "Przygotowywanie…",
@@ -472,6 +477,7 @@
     "optional_details": "Opcjonalne szczegóły",
     "starting_recording": "Uruchamianie…",
     "unsupported_audio": "Wybierz obsługiwany plik dźwiękowy: WAV, MP3, M4A, FLAC, OGG, AAC lub WebM.",
+    "unsupported_media": "Wybierz obsługiwany plik audio lub wideo: WAV, MP3, M4A, FLAC, OGG, AAC, WebM, MP4, MOV lub MKV.",
     "saved_profiles": "Zapisane profile",
     "transcript": "Transkrypcja",
     "style": "Styl",
@@ -481,7 +487,7 @@
     "cancel": "Anuluj",
     "synthesize": "Syntetyzuj dźwięk",
     "synthesizing": "Syntetyzowanie… ({{seconds}}s)",
-    "drop_audio": "Upuść dźwięk tutaj — lub kliknij. WAV, MP3, M4A… 🎤",
+    "drop_audio": "Upuść tu audio lub wideo — albo kliknij. WAV, MP3, MP4, MOV…",
     "record": "Nagraj",
     "cleaning": "Czyszczenie…",
     "using_profile": "Korzystanie z profilu: {{name}}",

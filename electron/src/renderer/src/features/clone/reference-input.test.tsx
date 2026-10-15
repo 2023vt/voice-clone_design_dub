@@ -121,3 +121,22 @@ it('drops a probe that finishes after the picker closes', async () => {
 
   expect(onAccept).not.toHaveBeenCalled();
 });
+
+it('accepts a video as a reference and refuses other files', async () => {
+  const onAccept = vi.fn();
+  const { container } = render(<UploadZone onAccept={onAccept} />);
+  const input = container.querySelector('input[type="file"]')!;
+  expect(input.getAttribute('accept')).toContain('video/*');
+
+  fireEvent.change(input, {
+    target: { files: [new File(['v'], 'talk.mov', { type: 'video/quicktime' })] },
+  });
+  await vi.waitFor(() => expect(mock.probes.has('talk.mov')).toBe(true));
+  mock.probes.get('talk.mov')!(8);
+  await vi.waitFor(() => expect(onAccept).toHaveBeenCalledOnce());
+
+  fireEvent.change(input, {
+    target: { files: [new File(['x'], 'notes.pdf', { type: 'application/pdf' })] },
+  });
+  await vi.waitFor(() => expect(mock.toastError).toHaveBeenCalledWith('clone.unsupported_media'));
+});

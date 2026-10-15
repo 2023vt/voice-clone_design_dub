@@ -332,7 +332,12 @@
     "search_failed": "画像検索に失敗しました。再試行してください。",
     "search_empty": "画像が見つかりません。別の名前で検索するか画像をアップロードしてください。",
     "generation_failed": "音声を作成できませんでした。原稿は保持されています。再試行してください。",
-    "details": "技術的な詳細"
+    "details": "技術的な詳細",
+    "extra_samples": "追加サンプル（任意）",
+    "extra_samples_hint": "同じ声の録音を最大{{n}}件追加できます。より正確なクローンのために1つの参照音声にまとめられ、書き起こしは自動で作成されます。",
+    "add_samples": "サンプルを追加",
+    "remove_sample": "{{name}}を削除",
+    "samples_limit": "1つの声にまとめられるサンプルは最大{{n}}件です。"
   },
   "synthesisState": {
     "preparing": "準備中…",
@@ -468,6 +473,7 @@
     "optional_details": "オプションの詳細",
     "starting_recording": "開始しています…",
     "unsupported_audio": "対応する音声ファイルを選択してください：WAV、MP3、M4A、FLAC、OGG、AAC、WebM。",
+    "unsupported_media": "対応する音声または動画ファイルを選んでください：WAV、MP3、M4A、FLAC、OGG、AAC、WebM、MP4、MOV、MKV。",
     "saved_profiles": "保存されたプロファイル",
     "transcript": "成績証明書",
     "style": "スタイル",
@@ -477,7 +483,7 @@
     "cancel": "キャンセル",
     "synthesize": "音声を合成する",
     "synthesizing": "合成中… ({{seconds}}s)",
-    "drop_audio": "ここに音声をドロップするか、クリックします。 WAV、MP3、M4A… 🎤",
+    "drop_audio": "音声または動画をここにドロップ、またはクリック。WAV、MP3、MP4、MOV…",
     "record": "記録",
     "cleaning": "ノイズ除去中…",
     "using_profile": "使用プロファイル: {{name}}",

@@ -332,7 +332,12 @@
     "search_failed": "Görsel arama başarısız oldu. Tekrar deneyin.",
     "search_empty": "Resim bulunamadı. Başka bir ad deneyin veya bir resim yükleyin.",
     "generation_failed": "Ses oluşturulamadı. Senaryonuz hâlâ burada; tekrar deneyin.",
-    "details": "Teknik detaylar"
+    "details": "Teknik detaylar",
+    "extra_samples": "Daha fazla örnek (isteğe bağlı)",
+    "extra_samples_hint": "Aynı sesin {{n}} kayda kadar ek kaydını ekleyin. Daha doğru bir klon için tek bir referansta birleştirilir ve transkripti otomatik oluşturulur.",
+    "add_samples": "Örnek ekle",
+    "remove_sample": "{{name}} kaldır",
+    "samples_limit": "Bir ses en fazla {{n}} örneği birleştirebilir."
   },
   "synthesisState": {
     "preparing": "Hazırlanıyor…",
@@ -468,6 +473,7 @@
     "optional_details": "İsteğe bağlı ayrıntılar",
     "starting_recording": "Başlatılıyor…",
     "unsupported_audio": "Desteklenen bir ses dosyası seçin: WAV, MP3, M4A, FLAC, OGG, AAC veya WebM.",
+    "unsupported_media": "Desteklenen bir ses veya video dosyası seçin: WAV, MP3, M4A, FLAC, OGG, AAC, WebM, MP4, MOV veya MKV.",
     "saved_profiles": "Kayıtlı Profiller",
     "transcript": "Transkript",
     "style": "Stil",
@@ -477,7 +483,7 @@
     "cancel": "İptal",
     "synthesize": "Sesi Sentezle",
     "synthesizing": "Sentezleniyor… ({{seconds}}s)",
-    "drop_audio": "Sesi buraya bırakın veya tıklayın. WAV, MP3, M4A… 🎤",
+    "drop_audio": "Sesi veya videoyu buraya bırakın ya da tıklayın. WAV, MP3, MP4, MOV…",
     "record": "Kayıt",
     "cleaning": "Temizlik…",
     "using_profile": "Profil kullanılıyor: {{name}}",

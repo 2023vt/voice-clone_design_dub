@@ -11,7 +11,16 @@ export interface CreateCloneProfileInput {
   refText?: string;
   instruct?: string;
   language?: string;
+  /**
+   * More recordings of the same speaker. The backend merges them with
+   * `refAudio` into one composite reference and transcribes that, so
+   * `refText` is not sent when samples are present.
+   */
+  extraSamples?: File[];
 }
+
+/** Server-side limit on samples merged into one voice (backend MAX_SAMPLES). */
+export const MAX_PROFILE_SAMPLES = 8;
 
 export async function listProfiles({ signal }: { signal?: AbortSignal } = {}): Promise<Profile[]> {
   return apiJson<Profile[]>('/profiles', { signal });
@@ -35,7 +44,9 @@ export async function createCloneProfile(input: CreateCloneProfileInput): Promis
     (input.refAudio instanceof File ? input.refAudio.name : '') ||
     'profile.wav';
   form.append('ref_audio', input.refAudio, fileName);
-  form.append('ref_text', input.refText ?? '');
+  const extras = input.extraSamples ?? [];
+  for (const sample of extras) form.append('extra_ref_audio', sample, sample.name);
+  form.append('ref_text', extras.length ? '' : (input.refText ?? ''));
   // Same whitelist as /generate: a saved profile must never carry an instruct
   // the engine will reject on every later synthesis.
   form.append('instruct', input.instruct ? sanitizeInstruct(input.instruct).instruct : '');

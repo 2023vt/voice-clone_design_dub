@@ -16,6 +16,10 @@ metadata and the backend fallback mirror it.
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
 
+### Fixed
+
+- Changing pronunciation entry precedence refreshes cached longform audio (#2728) — thanks @rudycelekli!
+
 ## [0.5.7] — 2026-10-13
 
 **VoiceStudio now runs on PCs without a GPU and recovers instead of giving up.** Voice cloning uses the speech-to-text model you installed from Model Catalogue, GPU-less computers get the small CPU PyTorch build, and slow or busy backends are no longer reported as failed.
@@ -161,7 +165,6 @@ This release also adds a GPU acceleration panel with honest Radeon reporting, th
 - License notice: commercial use is free under the AGPL; the paid licence is for closed-source use, with Pro plans linked (#2578)
 
 ### Fixed
-- Changing pronunciation entry precedence refreshes cached longform audio (#2728) — thanks @rudycelekli!
 
 - A fresh install no longer logs settings errors before its database is created (#2776)
 - The model licence dialog says when licences are accepted and no longer assumes an action is waiting (#2776)

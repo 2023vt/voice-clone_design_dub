@@ -197,6 +197,7 @@ export function managedPythonRequest(
 /** The lock's CUDA-only runtime wheels: every `nvidia-*` package but the tiny NVML binding. */
 export function cudaOnlyPackages(lockText: string): string[] {
   const names = new Set<string>();
+  if (!lockText) return [];
   for (const match of lockText.matchAll(/^name = "(nvidia-[a-z0-9-]+)"$/gm)) {
     if (match[1] !== 'nvidia-ml-py') names.add(match[1]!);
   }
@@ -645,10 +646,13 @@ export async function installRuntime(
   // The lock resolves torch to the CUDA build (and, on Linux, ~3 GB of nvidia-*
   // runtime wheels) for every Linux/Windows x64 host. Keep those out of a CPU
   // install; the CPU wheels are laid down right after the frozen sync.
+  const lockText = cpuTorch
+    ? await readFile(join(project, 'uv.lock'), 'utf8').catch(() => '')
+    : '';
   const skipArgs = cpuTorch
     ? [
         ...torchPackages,
-        ...cudaOnlyPackages(await readFile(join(project, 'uv.lock'), 'utf8')),
+        ...cudaOnlyPackages(lockText),
       ].flatMap((name) => ['--no-install-package', name])
     : [];
   await run(

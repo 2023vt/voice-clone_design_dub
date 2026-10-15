@@ -7,6 +7,7 @@ import { downloadRuntimeInstaller } from './runtime-download';
 import * as pthAscii from './pth-ascii';
 import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  cudaOnlyPackages,
   installRuntime,
   promoteLegacyRuntimeCaches,
   CUDNN8_COMPAT_PIN,
@@ -687,6 +688,20 @@ describe('packaged runtime setup', () => {
       'utf8',
     );
     expect(release).toContain(`version: '${UV_VERSION}'`);
+  });
+  it('extracts nvidia packages excluding nvidia-ml-py and handles empty lock gracefully', () => {
+    expect(cudaOnlyPackages('')).toEqual([]);
+    const sampleLock = `
+name = "torch"
+name = "nvidia-cudnn-cu12"
+name = "nvidia-ml-py"
+name = "nvidia-cublas-cu12"
+name = "transformers"
+`;
+    expect(cudaOnlyPackages(sampleLock)).toEqual([
+      'nvidia-cublas-cu12',
+      'nvidia-cudnn-cu12',
+    ]);
   });
 });
 

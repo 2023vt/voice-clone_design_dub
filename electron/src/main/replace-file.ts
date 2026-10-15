@@ -33,6 +33,11 @@ async function resolveDestination(path: string, hops = 0): Promise<string> {
   if (hops > MAX_LINK_HOPS) {
     throw Object.assign(new Error(`Too many symbolic links: ${path}`), { code: 'ELOOP' });
   }
+  // A trailing separator requires a directory; basename would erase that
+  // requirement and turn a dangling directory link into a successful file save.
+  if (path.endsWith(sep) || (process.platform === 'win32' && path.endsWith('/'))) {
+    throw Object.assign(new Error(`Destination requires a directory: ${path}`), { code: 'EISDIR' });
+  }
   const directory = await realpath(dirname(path));
   const candidate = join(directory, basename(path));
   try {

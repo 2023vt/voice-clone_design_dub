@@ -180,6 +180,35 @@ describe.skipIf(process.platform === 'win32')('exports through dangling symlinks
     expect(await readdir(directory)).toEqual(['export.wav', 'future.wav']);
   });
 
+  it.each(['relative', 'absolute', 'chain'])(
+    'rejects a %s dangling directory target before opening a temporary file',
+    async (kind) => {
+      const link = join(directory, 'export.wav');
+      const target = join(directory, 'future');
+      if (kind === 'chain') {
+        await symlink('future/', join(directory, 'middle'));
+        await symlink('middle', link);
+      } else {
+        await symlink(kind === 'absolute' ? `${target}/` : 'future/', link);
+      }
+      let opens = 0;
+      const tracked: ReplaceFileSystem = {
+        rename,
+        open: (...args) => {
+          opens++;
+          return open(...args);
+        },
+      };
+      await expect(replaceFile(link, 'new export', tracked)).rejects.toMatchObject({ code: 'EISDIR' });
+      expect(opens).toBe(0);
+      expect((await lstat(link)).isSymbolicLink()).toBe(true);
+      await expect(lstat(target)).rejects.toMatchObject({ code: 'ENOENT' });
+      expect((await readdir(directory)).sort()).toEqual(
+        kind === 'chain' ? ['export.wav', 'middle'] : ['export.wav'],
+      );
+    },
+  );
+
   it('preserves a chain of links to a missing export', async () => {
     const target = join(directory, 'future.wav');
     const intermediate = join(directory, 'middle.wav');

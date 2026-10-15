@@ -11,7 +11,7 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
-- Exports preserve links to destination files that do not exist yet. (#2798) — thanks @rudycelekli!
+- Exports preserve destination links and reject links that require a directory. (#2798) — thanks @rudycelekli!
 
 ### Removed
 
@@ -19,7 +19,10 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- Exports preserve links to destination files that do not exist yet. (#2798) — thanks @rudycelekli!
+- Exports preserve destination links and reject links that require a directory. (#2798) — thanks @rudycelekli!
+- Snap packages follow Canonical’s strict-confinement approach to launch without manual Chromium sandbox setup (#2893) — thanks @velixio!
+- Snap launches explain missing sandbox permissions instead of crashing before startup (#2889)
+- Snap packages expand the Electron desktop runtime so they launch after installation (#2858)
 
 ## [0.5.7] — 2026-10-13
 

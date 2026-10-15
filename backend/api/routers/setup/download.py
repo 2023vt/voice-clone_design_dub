@@ -329,9 +329,17 @@ def _safe_put(queue: asyncio.Queue, event) -> None:
     except asyncio.QueueFull:
         try:
             queue.get_nowait()
-            queue.put_nowait(event)
-        except Exception:
+        except asyncio.QueueEmpty:
             pass
+        try:
+            queue.put_nowait(event)
+        except Exception as exc:
+            from core.scrub import scrub_text
+
+            logger.debug(
+                "Failed to enqueue download progress event after eviction: %s",
+                scrub_text(str(exc)),
+            )
 
 
 # Minimum size for "this snapshot actually contains model weights". An
@@ -364,10 +372,21 @@ def _validate_snapshot_has_weights(repo_id: str, snapshot_path: str) -> None:
             for f in files:
                 try:
                     biggest = max(biggest, os.path.getsize(os.path.join(root, f)))
-                except OSError:
+                except OSError as err:
+                    from core.scrub import scrub_text
+
+                    logger.debug(
+                        "Could not stat snapshot file during weight verification: %s",
+                        scrub_text(str(err)),
+                    )
                     continue
-    except OSError:
-        pass
+    except OSError as exc:
+        from core.scrub import scrub_text
+
+        logger.debug(
+            "Directory walk failed during snapshot weight verification: %s",
+            scrub_text(str(exc)),
+        )
     raise OSError(
         f"{repo_id}: download finished but no model weights were found in the "
         "snapshot (largest file "
@@ -387,8 +406,13 @@ async def setup_download_stream(target: str | None = None):
             return
         try:
             loop.call_soon_threadsafe(_safe_put, queue, event)
-        except RuntimeError:
-            pass
+        except RuntimeError as exc:
+            from core.scrub import scrub_text
+
+            logger.debug(
+                "Download progress event loop schedule failed: %s",
+                scrub_text(str(exc)),
+            )
 
     listener_id = hf_progress.register_listener(listener)
 

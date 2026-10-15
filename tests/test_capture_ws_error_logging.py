@@ -170,11 +170,11 @@ def test_capture_ws_sherpa_probe_exception_logs_debug_and_falls_back(
 
     with caplog.at_level(logging.DEBUG, logger="omnivoice.capture_ws"):
         # Without pcm or aec, if sherpa probe fails, returns None
-        rate = capture_ws._requested_pcm_sample_rate({"model": "sherpa-test"})
+        rate = capture_ws._requested_pcm_sample_rate({"model": f"model-at-{raw_path}"})
 
     assert rate is None
     assert any(
-        "Sherpa dictation probe failed for model=sherpa-test" in r.message
+        "Sherpa dictation probe failed for model=" in r.message
         for r in caplog.records
     )
     assert forbidden_prefix not in caplog.text

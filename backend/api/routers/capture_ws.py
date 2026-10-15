@@ -161,7 +161,7 @@ def _requested_pcm_sample_rate(query_params) -> int | None:
 
             logger.debug(
                 "Sherpa dictation probe failed for model=%s: %s",
-                requested_model,
+                scrub_text(str(requested_model)),
                 scrub_text(str(exc)),
             )
             sherpa_pcm = False

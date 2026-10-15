@@ -703,7 +703,31 @@ name = "transformers"
       'nvidia-cudnn-cu12',
     ]);
   });
+  it('handles missing uv.lock when installing CPU runtime and reaches frozen sync', async () => {
+    const { bundle, project } = await fixture();
+    await rm(join(bundle, 'uv.lock'));
+    vi.stubEnv('OMNIVOICE_TORCH_VARIANT', 'cpu');
+    const run = vi.fn(async (_cmd: string, args: string[]) => {
+      if (args[0] === 'sync') await interpreter(project);
+      return undefined;
+    });
+    await installRuntime(
+      bundle,
+      project,
+      'uv',
+      run,
+      new AbortController().signal,
+      undefined,
+      'global',
+    );
+    const syncCall = run.mock.calls.find(([, args]) => args[0] === 'sync');
+    expect(syncCall).toBeDefined();
+    expect(syncCall?.[1]).toContain('--frozen');
+    expect(await runtimeReady(bundle, project)).toBe(true);
+    expect(await runtimeCompatible(bundle, project)).toBe(true);
+  });
 });
+
 
 it('hands explicit download proxies and loopback bypasses to uv', async () => {
   const { bundle, project } = await fixture();

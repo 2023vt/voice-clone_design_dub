@@ -212,9 +212,16 @@ async function dependencyStamp(
   hash.update(RUNTIME_SCHEMA);
   if (variant === 'rocm') hash.update(':torch=rocm');
   if (variant === 'cpu') hash.update(':torch=cpu');
-  for (const file of ['pyproject.toml', 'uv.lock']) hash.update(await readFile(join(bundle, file)));
+  for (const file of ['pyproject.toml', 'uv.lock']) {
+    const content = await readFile(join(bundle, file)).catch((error: NodeJS.ErrnoException) => {
+      if (file === 'uv.lock' && error.code === 'ENOENT') return Buffer.alloc(0);
+      throw error;
+    });
+    hash.update(content);
+  }
   return hash.digest('hex');
 }
+
 
 /**
  * Markers proving the installed environment fits this host's torch flavour.
@@ -434,8 +441,14 @@ export async function runtimeCompatible(bundle: string, project: string): Promis
         stat(join(project, '.venv', 'pyvenv.cfg')),
         readFile(join(bundle, 'pyproject.toml')),
         readFile(join(project, 'pyproject.toml')),
-        readFile(join(bundle, 'uv.lock')),
-        readFile(join(project, 'uv.lock')),
+        readFile(join(bundle, 'uv.lock')).catch((error: NodeJS.ErrnoException) => {
+          if (error.code === 'ENOENT') return Buffer.alloc(0);
+          throw error;
+        }),
+        readFile(join(project, 'uv.lock')).catch((error: NodeJS.ErrnoException) => {
+          if (error.code === 'ENOENT') return Buffer.alloc(0);
+          throw error;
+        }),
         readFile(join(project, '.runtime-ready'), 'utf8').catch((error: NodeJS.ErrnoException) => {
           if (error.code === 'ENOENT') return null;
           throw error;
@@ -465,10 +478,18 @@ export async function stageRuntimeSources(bundle: string, project: string): Prom
     const pending = join(project, `.incoming-${name}`);
     const previous = join(project, `.previous-${name}`);
     await rm(pending, { recursive: true, force: true });
-    await cp(join(bundle, name), pending, {
-      recursive: true,
-      filter: (source) => !source.split(/[\\/]/).includes('__pycache__'),
-    });
+    try {
+      await cp(join(bundle, name), pending, {
+        recursive: true,
+        filter: (source) => !source.split(/[\\/]/).includes('__pycache__'),
+      });
+    } catch (error) {
+      if (name === 'uv.lock' && (error as NodeJS.ErrnoException).code === 'ENOENT') {
+        await rm(target, { recursive: true, force: true });
+        continue;
+      }
+      throw error;
+    }
     await rm(previous, { recursive: true, force: true });
     let moved = false;
     try {
@@ -486,6 +507,7 @@ export async function stageRuntimeSources(bundle: string, project: string): Prom
     await rm(previous, { recursive: true, force: true });
   }
 }
+
 
 /** Called only by the user's install action; normal startup never downloads. */
 export async function installRuntime(

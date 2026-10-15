@@ -19,7 +19,9 @@ def _make_wav(path: Path, seconds: float = 1.0, sr: int = 16000) -> None:
         wf.writeframes(struct.pack(f"<{n}h", *([0] * n)))
 
 
-def test_words_from_whisper_exception_logs_warning_and_scrubs_paths(tmp_path, monkeypatch, caplog):
+def test_words_from_whisper_exception_logs_warning_and_scrubs_paths(
+    tmp_path, monkeypatch, caplog, asr_model_installed
+):
     import sys
     mock_torch = MagicMock()
     monkeypatch.setitem(sys.modules, "torch", mock_torch)

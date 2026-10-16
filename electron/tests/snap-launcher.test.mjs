@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { createRequire } from 'node:module';
 import { join } from 'node:path';
 import test from 'node:test';
 import { configureSnapLauncher, verifySnapLauncher } from '../snap-launcher.mjs';
@@ -24,6 +25,18 @@ test('Snap launches without a sandbox permission probe and preserves desktop ini
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
+});
+
+test('accepts the launcher electron-builder generates for allow-sandbox: false', () => {
+  const builderRequire = createRequire(createRequire(import.meta.url).resolve('electron-builder'));
+  const { buildCommandShContent } = builderRequire('app-builder-lib/out/targets/snap/coreLegacy.js');
+  const generated = buildCommandShContent({
+    isTemplate: true,
+    executableName: 'voicestudio',
+    extraAppArgs: ['--no-sandbox'],
+  });
+  assert.doesNotThrow(() => verifySnapLauncher(generated));
+  assert.equal(configureSnapLauncher(generated), generated);
 });
 
 test('launcher configuration is idempotent', () => {

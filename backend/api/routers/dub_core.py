@@ -61,9 +61,15 @@ def _cookie_transport_allowed(
 ) -> bool:
     """Credentials may cross HTTP only from a local UI to a loopback peer."""
     from api.dependencies import is_local_host
+    from core.auth import is_loopback
+    from core.csrf import DEFAULT_DESKTOP_ORIGINS
 
     if scheme == "https":
         return True
+    # Main asserts this exact origin after stripping renderer-supplied headers.
+    # Desktop identity never permits sending credentials to a remote HTTP peer.
+    if origin in DEFAULT_DESKTOP_ORIGINS:
+        return is_loopback(client_host)
     try:
         origin_host = urlsplit(origin or "").hostname or ""
     except ValueError:
@@ -961,7 +967,7 @@ async def dub_ingest_url(req: DubIngestUrlRequest, request: Request):
     if req.cookie_file and not _cookie_transport_allowed(
         request.url.scheme,
         request.client.host if request.client else None,
-        request.headers.get("origin"),
+        request.headers.get("origin") or request.headers.get("x-voicestudio-desktop-origin"),
     ):
         raise HTTPException(
             status_code=403,

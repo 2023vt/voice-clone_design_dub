@@ -1,7 +1,8 @@
 // Canonical's Electron Snap guidance uses strict Snap confinement instead of
 // Chromium's inner sandbox. Apply this only to the packaged Snap command.sh.
 // https://snapcraft.io/docs/reference/interfaces/browser-support-interface/
-const invocation = /^exec "\$SNAP\/desktop-init\.sh" "\$SNAP\/desktop-common\.sh" "\$SNAP\/desktop-gnome-specific\.sh" "\$SNAP\/voicestudio"( --no-sandbox)? "\$@"[\t ]*$/gm;
+// electron-builder appends the flag itself, shell-quoted, when allow-sandbox is false.
+const invocation = /^exec "\$SNAP\/desktop-init\.sh" "\$SNAP\/desktop-common\.sh" "\$SNAP\/desktop-gnome-specific\.sh" "\$SNAP\/voicestudio"( (?:--no-sandbox|'--no-sandbox'))? "\$@"[\t ]*$/gm;
 
 function executableLine(command) {
   const matches = [...command.matchAll(invocation)];

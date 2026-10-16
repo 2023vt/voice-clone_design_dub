@@ -106,7 +106,7 @@ _CHANGE_CASES = [
     # EN runs the range through num2words afterwards, as it does any digit
     ("English", "It takes 20~30 seconds", "It takes twenty to thirty seconds"),
     # Universal safety filters (language-independent)
-    (None, "hello​ ‍world", "hello world"),
+    (None, "hello\u200b \u200dworld", "hello \u200dworld"),
     (None, "too   many\t spaces", "too many spaces"),
     (None, "wow!!!!!!!!", "wow!!!"),
     (None, "wait.........", "wait..."),
@@ -129,7 +129,9 @@ def test_unsafe_control_filter_has_exact_boundaries():
         0x0C,
         *range(0x0E, 0x20),
         *range(0x7F, 0xA0),
-        *range(0x200B, 0x2010),
+        0x200B,
+        0x200E,
+        0x200F,
         *range(0x202A, 0x202F),
         *range(0x2060, 0x2065),
         0xFEFF,

@@ -141,6 +141,27 @@ def test_custom_caps_are_respected():
     assert sf.overflow_s == pytest.approx(4.0 / 1.3 - 1.5, abs=1e-3)
 
 
+def test_unit_caps_preserve_timing_and_report_residual_overflow():
+    params = FitParams(max_audio_only_rate=1.0, audio_rate_cap=1.0, video_slow_cap=1.0)
+    p = _single_seg_plan(2.0, params=params)
+    sf = p.segments[0]
+    assert sf.audio_rate == 1.0
+    assert sf.video_ratio == 1.0
+    assert sf.status == "overflow_trimmed"
+    assert sf.overflow_s == pytest.approx(1.0)
+    assert p.total_duration == pytest.approx(1.0)
+    assert not p.needs_video_retime
+
+
+def test_caps_above_defaults_remain_supported():
+    p = _single_seg_plan(9.0, params=FitParams(audio_rate_cap=10.0, video_slow_cap=10.0))
+    sf = p.segments[0]
+    assert sf.audio_rate == pytest.approx(3.0)
+    assert sf.video_ratio == pytest.approx(3.0)
+    assert sf.status == "hybrid"
+    assert sf.overflow_s == 0.0
+
+
 # ── Slack absorption ───────────────────────────────────────────────────
 
 
@@ -160,6 +181,22 @@ def test_gap_slack_absorbed_minus_gap_guard():
     assert a.status == "fits"                      # 1.9 / 1.95 < 1.0
     # The unretimed guard sliver keeps b anchored at its original start.
     assert b.new_start == pytest.approx(2.0)
+
+
+@pytest.mark.parametrize("guard, effective_end", [(0.0, 2.0), (60.0, 1.0)])
+def test_gap_guard_boundaries_preserve_the_next_onset(guard, effective_end):
+    p = plan_fit(
+        [
+            {"id": "a", "start": 0.0, "end": 1.0},
+            {"id": "b", "start": 2.0, "end": 3.0},
+        ],
+        [1.0, 1.0],
+        3.0,
+        FitParams(gap_guard_s=guard),
+    )
+    assert p.segments[0].effective_end == pytest.approx(effective_end)
+    assert p.segments[1].new_start == pytest.approx(2.0)
+    assert p.total_duration == pytest.approx(3.0)
 
 
 def test_back_to_back_segments_do_not_shrink_the_slot():

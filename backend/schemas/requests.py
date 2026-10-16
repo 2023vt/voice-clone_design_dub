@@ -53,10 +53,10 @@ class FitOptions(BaseModel):
     defaults (services.fit_planner.FitParams) so old clients and sparse
     payloads behave identically to a fully-populated default payload.
     """
-    max_audio_only_rate: Optional[float] = None  # default 1.2
-    audio_rate_cap: Optional[float] = None       # default 1.5
-    video_slow_cap: Optional[float] = None       # default 2.0
-    gap_guard_s: Optional[float] = None          # default 0.05
+    max_audio_only_rate: Optional[float] = Field(default=None, ge=1, allow_inf_nan=False)  # default 1.2
+    audio_rate_cap: Optional[float] = Field(default=None, ge=1, allow_inf_nan=False)       # default 1.5
+    video_slow_cap: Optional[float] = Field(default=None, ge=1, allow_inf_nan=False)       # default 2.0
+    gap_guard_s: Optional[float] = Field(default=None, ge=0, allow_inf_nan=False)          # default 0.05
     allow_video_retime: Optional[bool] = None    # default True
 
 class DubRequest(BaseModel):

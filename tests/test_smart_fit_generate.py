@@ -28,8 +28,11 @@ import json
 
 import pytest
 import torch
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 from schemas.requests import DubRequest
+from services.fit_planner import FitParams
 
 
 SR = 24000
@@ -160,6 +163,97 @@ def _track_samples(job_dir):
     import torchaudio
     wav, sr = torchaudio.load(str(job_dir / "dubbed_es.wav"))
     return wav.shape[-1], sr
+
+
+# ── HTTP validation before synthesis ───────────────────────────────────
+
+
+@pytest.fixture
+def generate_client(patched_generate):
+    """Exercise the real route without starting the application's models."""
+    import api.routers.dub_generate as dg
+
+    app = FastAPI()
+    app.include_router(dg.router)
+    with TestClient(app) as client:
+        yield client
+
+
+@pytest.mark.parametrize("field", [
+    "max_audio_only_rate", "audio_rate_cap", "video_slow_cap", "gap_guard_s",
+])
+@pytest.mark.parametrize("value", [-0.01, "NaN", "Infinity", "-Infinity"])
+def test_smart_fit_api_rejects_invalid_options_before_synthesis(
+    generate_client, patched_generate, field, value,
+):
+    _run, model, job, job_dir = patched_generate
+    response = generate_client.post("/dub/generate/jobX", json=_body(
+        [{"start": 0.0, "end": 1.0, "text": "1.0:test"}],
+        timing_strategy="smart_fit", fit_options={field: value},
+    ))
+
+    # Non-finite strings are valid JSON and exercise Pydantic's float
+    # coercion; numeric non-finite values are also covered at schema level.
+    assert response.status_code == 422, f"fake engine calls: {model.calls}"
+    assert response.json()["detail"][0]["loc"] == ["body", "fit_options", field]
+    assert model.calls == []
+    assert job["dubbed_tracks"] == {}
+    assert list(job_dir.iterdir()) == []
+
+
+@pytest.mark.parametrize("field", ["max_audio_only_rate", "audio_rate_cap", "video_slow_cap"])
+@pytest.mark.parametrize("value", [0.0, 0.99])
+def test_smart_fit_api_rejects_rates_below_one_before_synthesis(
+    generate_client, patched_generate, field, value,
+):
+    _run, model, _job, _job_dir = patched_generate
+    response = generate_client.post("/dub/generate/jobX", json=_body(
+        [{"start": 0.0, "end": 1.0, "text": "1.0:test"}],
+        timing_strategy="smart_fit", fit_options={field: value},
+    ))
+    assert response.status_code == 422, f"fake engine calls: {model.calls}"
+    assert response.json()["detail"][0]["loc"] == ["body", "fit_options", field]
+    assert model.calls == []
+
+
+@pytest.mark.parametrize("extra", [
+    {}, {"fit_options": None}, {"fit_options": {}},
+    {"fit_options": {
+        "max_audio_only_rate": None, "audio_rate_cap": None,
+        "video_slow_cap": None, "gap_guard_s": None, "allow_video_retime": None,
+    }},
+    {"fit_options": {
+        "max_audio_only_rate": 1.0, "audio_rate_cap": 1.0,
+        "video_slow_cap": 1.0, "gap_guard_s": 0.0, "allow_video_retime": False,
+    }},
+    {"fit_options": {
+        "max_audio_only_rate": 10.0, "audio_rate_cap": 20.0,
+        "video_slow_cap": 30.0, "gap_guard_s": 60.0,
+    }},
+], ids=["omitted", "null", "empty", "null-fields", "boundaries-and-false", "large-finite"])
+def test_smart_fit_api_preserves_valid_options_and_defaults(
+    generate_client, patched_generate, extra,
+):
+    _run, model, job, job_dir = patched_generate
+    job["duration"] = 1.0
+    response = generate_client.post("/dub/generate/jobX", json=_body(
+        [{"start": 0.0, "end": 1.0, "text": "1.0:test"}],
+        timing_strategy="smart_fit", **extra,
+    ))
+
+    assert response.status_code == 200
+    assert response.json()["task_id"]
+    assert model.calls == ["1.0:test"]
+    defaults = FitParams()
+    overrides = extra.get("fit_options") or {}
+    expected = {"timing_strategy": "smart_fit"}
+    for field in ("max_audio_only_rate", "audio_rate_cap", "video_slow_cap",
+                  "gap_guard_s", "allow_video_retime"):
+        value = overrides.get(field)
+        expected[field] = getattr(defaults, field) if value is None else value
+    assert job["fit_plans"]["es"]["params"] == expected
+    assert job["dubbed_tracks"]["es"]["duration"] == pytest.approx(1.0)
+    assert (job_dir / "dubbed_es.wav").exists()
 
 
 # ── Audio-only stretch ─────────────────────────────────────────────────

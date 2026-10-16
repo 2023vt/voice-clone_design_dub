@@ -16,13 +16,14 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/popover';
 import palashAvatar from '../../../../../public/social/palash.png';
 import studioAvatar from '../../../../../public/social/voicestudio.jpg';
+import githubSponsorsLogo from '../../../../../public/social/githubsponsors.svg';
 import kofiLogo from '../../../../../public/social/kofi.svg';
 import paypalLogo from '../../../../../public/social/paypal.svg';
 import githubLogo from '../../../../../public/social/github.svg';
 import discordLogo from '../../../../../public/social/discord.svg';
 import { getBridge } from '@/components/bridge';
 import { DISCORD_URL, REPO_URL, X_URL } from '@shared/utils/contactLinks';
-import { KOFI_URL, PAYPAL_URL } from '@shared/utils/donateLinks';
+import { GITHUB_SPONSORS_URL, KOFI_URL, PAYPAL_URL } from '@shared/utils/donateLinks';
 import './sponsor-footer.css';
 
 // GitHub snapshot checked 2026-09-25. Installer downloads sum .AppImage,
@@ -240,6 +241,12 @@ export function SponsorFooter() {
               </p>
               <div className="sponsor-support-list">
                 {[
+                  {
+                    label: 'GitHub Sponsors',
+                    href: GITHUB_SPONSORS_URL,
+                    logo: githubSponsorsLogo,
+                    brand: 'githubsponsors',
+                  },
                   { label: 'Ko-fi', href: KOFI_URL, logo: kofiLogo, brand: 'kofi' },
                   { label: 'PayPal', href: PAYPAL_URL, logo: paypalLogo, brand: 'paypal' },
                   {

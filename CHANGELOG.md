@@ -11,7 +11,14 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - The open-source app no longer contains a licence-key client
-- Public API URLs are validated without logging rejected credentials, and international hostnames work with the served web interface. (#2704) — thanks @rudycelekli!
+
+### Added
+
+- GitHub Sponsors is now the lead way to support VoiceStudio — on the Support page, the footer support menu, the repository Sponsor button, and SPONSORS.md (#2918)
+
+### Changed
+
+- The expanded sidebar shows the installed app version beneath VoiceStudio and clearly marks development builds (#2894)
 
 ### Removed
 
@@ -19,7 +26,16 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- Public API URLs are validated and international hostnames work with the served web interface. (#2704) — thanks @rudycelekli!
+- Public API URLs are validated without logging rejected credentials, and international hostnames work with the served web interface. (#2704) — thanks @rudycelekli!
+
+- "Text-to-speech is not ready" → Fix now downloads the model chosen for the selected engine instead of doing nothing and leaving the warning up (#2918)
+- Integrations show official logos for Cursor, Claude Code, Codex CLI, OpenAI Agents, Docker and the VoiceStudio API instead of a generic placeholder or a GitHub avatar (#2918)
+- Tools → Convert includes saved Voice Design profiles and clones with locked reference audio in the target voice picker (#2899)
+- Preview voice buttons no longer freeze or stick on a warning: loading can be cancelled, errors retry on click, and repeat clicks share one render (#2915)
+
+- Snap packages follow Canonical’s strict-confinement approach to launch without manual Chromium sandbox setup (#2893) — thanks @velixio!
+- Snap launches explain missing sandbox permissions instead of crashing before startup (#2889)
+- Snap packages expand the Electron desktop runtime so they launch after installation (#2858)
 
 ## [0.5.7] — 2026-10-13
 

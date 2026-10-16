@@ -6,6 +6,11 @@ existing installations, see [migration notes](../docs/electron-migration.md).
 
 The runtime supervisor manages the local FastAPI backend. Network integrations
 and remote-backend connections require configuration; local generation stays on your machine.
+Once setup and the required models are installed, saving cloned voice profiles
+works without internet access. Desktop API requests follow the supervisor's
+backend readiness rather than the browser's internet connectivity; they still
+pause during startup or a backend failure. Remote backend requests also wait
+for network connectivity before resuming queued operations.
 
 ## Stack
 

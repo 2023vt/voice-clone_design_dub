@@ -277,7 +277,8 @@ def _speak_number_ranges(text: str, lang: str) -> str:
 
 # ── Universal safety filters (all languages) ─────────────────────────────────
 
-# Zero-width & bidi controls, C0/C1 controls (except \t \n \r), BOM, U+FFFD.
+# Zero-width junk & bidi controls, C0/C1 controls (except \t \n \r), BOM, U+FFFD.
+# Preserve ZWNJ/ZWJ (U+200C/U+200D): they encode spelling, shaping and emoji.
 # Keep the set explicit rather than encoding it as regex character ranges: the
 # latter is easy to widen accidentally and obscures the intentionally preserved
 # whitespace controls at the C0 boundaries.
@@ -288,7 +289,9 @@ _UNSAFE_CONTROL_CODEPOINTS = frozenset(
         0x0C,
         *range(0x0E, 0x20),
         *range(0x7F, 0xA0),
-        *range(0x200B, 0x2010),
+        0x200B,
+        0x200E,
+        0x200F,
         *range(0x202A, 0x202F),
         *range(0x2060, 0x2065),
         0xFEFF,

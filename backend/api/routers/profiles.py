@@ -837,7 +837,7 @@ async def _materialize_design_sample(profile_id: str, row) -> Optional[str]:
         return None
 
     from pathlib import Path
-    from api.routers.archetypes import _render_archetype_wav
+    from api.routers.archetypes import _render_once, _render_wav_atomic
 
     audio_filename = f"{profile_id}.wav"
     # CWE-22: resolve under VOICES_DIR via the shared basename + containment
@@ -845,19 +845,29 @@ async def _materialize_design_sample(profile_id: str, row) -> Optional[str]:
     audio_path = _voices_path(audio_filename)
     if audio_path is None:
         raise HTTPException(status_code=400, detail="invalid profile identifier")
-    try:
-        await _render_archetype_wav(
+
+    async def _materialize() -> None:
+        # Atomic + validated: a concurrent or interrupted request must never
+        # serve (or persist) a half-written sample. Shared via _render_once, so
+        # repeat clicks join one render and a dropped request still finishes it.
+        await _render_wav_atomic(
             {
                 "language": row["language"] or "Auto",
                 "sample_script": row["ref_text"] or "",
                 "instruct": row["instruct"] or "",
             },
             Path(audio_path),
+            prefix=f".{profile_id}-",
         )
+        with db_conn() as conn:
+            conn.execute(
+                "UPDATE voice_profiles SET ref_audio_path=? WHERE id=?",
+                (audio_filename, profile_id),
+            )
+
+    try:
+        await _render_once(audio_path, _materialize)
     except Exception as e:
-        with __import__("contextlib").suppress(OSError):
-            if os.path.exists(audio_path):
-                os.remove(audio_path)
         raise HTTPException(
             status_code=503,
             detail=(
@@ -865,12 +875,6 @@ async def _materialize_design_sample(profile_id: str, row) -> Optional[str]:
                 "preview sample can't be rendered. Finish setup / download a "
                 f"model, then try again. ({e})"
             ),
-        )
-
-    with db_conn() as conn:
-        conn.execute(
-            "UPDATE voice_profiles SET ref_audio_path=? WHERE id=?",
-            (audio_filename, profile_id),
         )
     return audio_filename
 

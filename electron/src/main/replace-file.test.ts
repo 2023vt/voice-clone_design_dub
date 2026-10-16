@@ -177,7 +177,7 @@ describe.skipIf(process.platform === 'win32')('exports through dangling symlinks
     await replaceFile(link, 'new export');
     expect((await lstat(link)).isSymbolicLink()).toBe(true);
     expect(await readFile(target, 'utf8')).toBe('new export');
-    expect(await readdir(directory)).toEqual(['export.wav', 'future.wav']);
+    expect((await readdir(directory)).sort()).toEqual(['export.wav', 'future.wav']);
   });
 
   it.each(['relative', 'absolute', 'chain'])(

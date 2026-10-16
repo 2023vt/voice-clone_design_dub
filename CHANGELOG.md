@@ -20,6 +20,10 @@ metadata and the backend fallback mirror it.
 
 - The expanded sidebar shows the installed app version beneath VoiceStudio and clearly marks development builds (#2894)
 
+### Fixed
+
+- Failed integration and notification website links show a clear error instead of an unhandled rejection (#2844) — thanks @rudycelekli!
+
 ### Removed
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)

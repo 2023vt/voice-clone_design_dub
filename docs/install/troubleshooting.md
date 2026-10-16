@@ -567,8 +567,10 @@ restarted it, and the next attempt killed it again
 ([#1371](https://github.com/debpalash/VoiceStudio/issues/1371)). VoiceStudio now
 checks whether cuDNN 8 will load *before* selecting a CTranslate2 engine and
 falls back to PyTorch Whisper instead, so a missing library costs you WhisperX's
-word-level alignment — not the backend. The repair below is still worth doing to
-get WhisperX back.
+word-level alignment — not the backend. Direct or already-selected CTranslate2
+adapters also check the CUDA libraries before loading and use their CPU path
+when cuDNN is missing. Hosts with working CUDA libraries keep GPU acceleration.
+The repair below is still worth doing to get WhisperX back.
 
 **Cause:** WhisperX and faster-whisper run on **CTranslate2**, which needs
 **cuDNN 8**, but PyTorch 2.8 ships cuDNN 9. VoiceStudio side-loads a cuDNN-8 copy

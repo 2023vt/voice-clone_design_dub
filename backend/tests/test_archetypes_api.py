@@ -326,3 +326,61 @@ def test_archetype_use_does_not_rewrite_an_imported_personality_collision(
     assert imported_ns["vd_states"] is None
     assert imported_ns_audio.read_bytes() == original_ns_audio
     assert created["personality"] == arch_router._archetype_personality(sample)
+
+
+# ── Preview render single-flight ──────────────────────────────────────────────
+def test_concurrent_previews_share_one_render(monkeypatch, tmp_path):
+    """Re-clicks, media re-requests and a second view previewing the same voice
+    join one render instead of each queueing their own on the GPU pool."""
+    import asyncio
+
+    calls = []
+
+    async def render(_a, out_path):
+        calls.append(out_path)
+        await asyncio.sleep(0.05)
+        _write_wav(Path(out_path))
+
+    monkeypatch.setattr(arch_router, "_render_archetype_wav", render)
+    monkeypatch.setattr(arch_router.gallery, "cached_preview", lambda _key: None)
+
+    async def fetch_none(_key, **_kw):
+        return None
+
+    monkeypatch.setattr(arch_router.gallery, "fetch_preview", fetch_none)
+    monkeypatch.setattr(arch_router, "_PREVIEW_DIR", tmp_path)
+    sample = archetypes.list_archetypes(featured=True)[1]
+
+    async def run():
+        return await asyncio.gather(
+            *(arch_router.preview_archetype(sample["id"], local=False) for _ in range(3))
+        )
+
+    responses = asyncio.run(run())
+    assert len(calls) == 1
+    assert {r.headers["X-OmniVoice-Preview-Source"] for r in responses} == {"local"}
+    assert not arch_router._renders
+
+
+def test_dropped_preview_request_still_finishes_the_render(monkeypatch, tmp_path):
+    """A cancelled request (user cancels, client disconnects) must not discard
+    the render: the clip lands in the cache so the next click is instant."""
+    import asyncio
+
+    out = tmp_path / "clip.wav"
+
+    async def render():
+        await asyncio.sleep(0.05)
+        _write_wav(out)
+
+    async def run():
+        waiter = asyncio.ensure_future(arch_router._render_once(str(out), render))
+        await asyncio.sleep(0)
+        waiter.cancel()
+        with pytest.raises(asyncio.CancelledError):
+            await waiter
+        await asyncio.sleep(0.1)
+
+    asyncio.run(run())
+    assert out.is_file()
+    assert not arch_router._renders

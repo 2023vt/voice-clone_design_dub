@@ -42,6 +42,10 @@ metadata and the backend fallback mirror it.
 - Remove licence activation from the open-source Pro page. (#2762)
 - Remote compute devices, remote workers and GPU sharing moved to VoiceStudio Pro and are no longer included in the open-source app.
 
+### Fixed
+
+- On a PC with two NVIDIA cards, the setup check names the GPU VoiceStudio runs on, not the first card in the system (#2743)
+
 ## [0.5.7] — 2026-10-07
 
 **VoiceStudio now runs on PCs without a GPU and recovers instead of giving up.** Voice cloning uses the speech-to-text model you installed from Model Catalogue, GPU-less computers get the small CPU PyTorch build, and slow or busy backends are no longer reported as failed.

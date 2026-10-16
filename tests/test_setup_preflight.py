@@ -593,3 +593,23 @@ def test_optional_gpu_never_blocks_cpu_setup(monkeypatch, tmp_path, vendor, avai
     if vendor == "nvidia" and not available:
         assert "CPU-only" in gpu["fix"]
         assert "GPU-only engines remain unavailable" in gpu["fix"]
+
+
+def test_gpu_check_names_the_card_the_app_runs_on(monkeypatch):
+    """Two NVIDIA cards, the app pinned to the second (CUDA_VISIBLE_DEVICES=1):
+    nvidia-smi still lists the first card first, but the check must name the
+    card torch sees as device 0, the one every render runs on."""
+    import importlib
+    import types
+
+    wizard = importlib.import_module("api.routers.setup.wizard")
+    monkeypatch.setattr(wizard, "_run_cmd", lambda args, timeout=2.0: (
+        0, "610.88, NVIDIA GeForce RTX 5080\n610.88, NVIDIA GeForce RTX 5060 Ti\n"))
+    monkeypatch.setattr(wizard, "_min_nvidia_driver", lambda: (0,))
+    fake_torch = types.SimpleNamespace(cuda=types.SimpleNamespace(
+        is_available=lambda: True, get_device_name=lambda index: "NVIDIA GeForce RTX 5060 Ti"))
+    monkeypatch.setitem(sys.modules, "torch", fake_torch)
+    monkeypatch.setattr(sys, "platform", "win32")
+    info = wizard._detect_gpu()
+    assert info["device_name"] == "NVIDIA GeForce RTX 5060 Ti"
+    assert info["driver"] == "610.88" and info["available"] is True

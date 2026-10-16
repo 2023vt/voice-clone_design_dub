@@ -157,6 +157,11 @@ def _detect_gpu() -> dict:
             import torch
             info["available"] = bool(torch.cuda.is_available())
             info["backend"] = "cuda" if info["available"] else "cpu"
+            if info["available"]:
+                # nvidia-smi lists every card; on a multi-GPU host the app runs
+                # on the one CUDA_VISIBLE_DEVICES leaves as device 0, which is
+                # not always nvidia-smi's first. Name the card the app uses.
+                info["device_name"] = torch.cuda.get_device_name(0) or name
         except Exception:
             pass
         try:

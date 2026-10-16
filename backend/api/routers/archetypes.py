@@ -24,6 +24,7 @@ Design notes
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -32,7 +33,7 @@ import re
 import time
 import uuid
 from pathlib import Path
-from typing import Optional
+from typing import Any, Awaitable, Callable, Optional
 
 from fastapi import APIRouter, Body, HTTPException, Query, Depends
 from fastapi.responses import FileResponse
@@ -183,6 +184,31 @@ async def _render_wav_atomic(a: dict, out_path: Path, *, prefix: str = ".render-
         with __import__("contextlib").suppress(OSError):
             tmp_path.unlink()
     return audio_path
+
+
+# One render per output file. A media element may re-request, a user may
+# re-click, and two views may preview the same voice at once — each used to
+# queue its own render on the GPU pool. The shared task is shielded from the
+# request, so a cancelled or disconnected client still lands the clip on disk
+# and the next click serves it instead of starting over.
+_renders: dict[str, asyncio.Task] = {}
+
+
+def _forget_render(key: str, task: asyncio.Task) -> None:
+    if _renders.get(key) is task:
+        del _renders[key]
+    if not task.cancelled():
+        task.exception()  # retrieved: an orphaned failure must not warn at GC
+
+
+async def _render_once(key: str, render: Callable[[], Awaitable[Any]]) -> Any:
+    """Run *render* once per *key*; concurrent callers await the same result."""
+    task = _renders.get(key)
+    if task is None:
+        task = asyncio.ensure_future(render())
+        _renders[key] = task
+        task.add_done_callback(lambda t: _forget_render(key, t))
+    return await asyncio.shield(task)
 
 
 def _heal_archetype_profile(conn, row, a: dict, audio_filename: Optional[str]) -> None:
@@ -539,7 +565,11 @@ async def preview_archetype(
     cache_path = _PREVIEW_DIR / f"{key}.wav"
     if not is_playable_wav(cache_path):
         try:
-            await _render_wav_atomic(a, cache_path, prefix=".preview-")
+            async def _render_preview() -> None:
+                if not is_playable_wav(cache_path):  # landed while we queued
+                    await _render_wav_atomic(a, cache_path, prefix=".preview-")
+
+            await _render_once(str(cache_path), _render_preview)
         except ModelLicenceNotAccepted:
             raise  # the structured 403 that opens the acceptance dialog
         except Exception as e:  # model missing / OOM / inference failure

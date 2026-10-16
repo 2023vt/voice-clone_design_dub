@@ -117,7 +117,11 @@ export function CaptureWidget() {
             }
           })
           .catch(() => {
-            if (session.current === id) setDelivery('failed');
+            if (session.current === id) {
+              session.current = null;
+              live.cancel();
+              setDelivery('failed');
+            }
           });
       }, delay);
     };

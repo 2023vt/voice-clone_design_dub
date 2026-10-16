@@ -26,6 +26,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
+- Exports preserve destination links and reject links that require a directory. (#2798) — thanks @rudycelekli!
 - "Text-to-speech is not ready" → Fix now downloads the model chosen for the selected engine instead of doing nothing and leaving the warning up (#2918)
 - Integrations show official logos for Cursor, Claude Code, Codex CLI, OpenAI Agents, Docker and the VoiceStudio API instead of a generic placeholder or a GitHub avatar (#2918)
 - Tools → Convert includes saved Voice Design profiles and clones with locked reference audio in the target voice picker (#2899)

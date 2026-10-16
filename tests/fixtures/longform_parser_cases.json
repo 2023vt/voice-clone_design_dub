@@ -1601,5 +1601,185 @@
         ]
       }
     ]
+  },
+  {
+    "name": "ssml_spell_grapheme_combining",
+    "input": "[spell]éA[/spell]",
+    "default_voice": "v1",
+    "expected": [
+      {
+        "title": "Chapter 1",
+        "spans": [
+          {
+            "voice_id": "v1",
+            "text": "é A",
+            "pause_ms_after": 0,
+            "speed": null
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "ssml_spell_grapheme_indic",
+    "input": "[spell]क्‍षA[/spell]",
+    "default_voice": "v1",
+    "expected": [
+      {
+        "title": "Chapter 1",
+        "spans": [
+          {
+            "voice_id": "v1",
+            "text": "क्‍ष A",
+            "pause_ms_after": 0,
+            "speed": null
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "ssml_spell_grapheme_flag",
+    "input": "[spell]🇺🇸A[/spell]",
+    "default_voice": "v1",
+    "expected": [
+      {
+        "title": "Chapter 1",
+        "spans": [
+          {
+            "voice_id": "v1",
+            "text": "🇺🇸 A",
+            "pause_ms_after": 0,
+            "speed": null
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "ssml_spell_grapheme_emoji",
+    "input": "[spell]👩🏽‍💻A[/spell]",
+    "default_voice": "v1",
+    "expected": [
+      {
+        "title": "Chapter 1",
+        "spans": [
+          {
+            "voice_id": "v1",
+            "text": "👩🏽‍💻 A",
+            "pause_ms_after": 0,
+            "speed": null
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "ssml_spell_grapheme_indic_boundary",
+    "input": "[spell]क् ष[/spell]",
+    "default_voice": "v1",
+    "expected": [
+      {
+        "title": "Chapter 1",
+        "spans": [
+          {
+            "voice_id": "v1",
+            "text": "क् ष",
+            "pause_ms_after": 0,
+            "speed": null
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "ssml_spell_grapheme_mark_boundary",
+    "input": "[spell]e ́A[/spell]",
+    "default_voice": "v1",
+    "expected": [
+      {
+        "title": "Chapter 1",
+        "spans": [
+          {
+            "voice_id": "v1",
+            "text": "e ́ A",
+            "pause_ms_after": 0,
+            "speed": null
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "ssml_spell_grapheme_flag_boundary",
+    "input": "[spell]🇺 🇸[/spell]",
+    "default_voice": "v1",
+    "expected": [
+      {
+        "title": "Chapter 1",
+        "spans": [
+          {
+            "voice_id": "v1",
+            "text": "🇺 🇸",
+            "pause_ms_after": 0,
+            "speed": null
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "spell_nel_whitespace_separator",
+    "input": "[spell]e\u0085́A[/spell]",
+    "default_voice": "v1",
+    "expected": [
+      {
+        "title": "Chapter 1",
+        "spans": [
+          {
+            "voice_id": "v1",
+            "text": "e ́ A",
+            "pause_ms_after": 0,
+            "speed": null
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "spell_c0_file_separator",
+    "input": "[spell]e\u001ćA[/spell]",
+    "default_voice": "v1",
+    "expected": [
+      {
+        "title": "Chapter 1",
+        "spans": [
+          {
+            "voice_id": "v1",
+            "text": "e ́ A",
+            "pause_ms_after": 0,
+            "speed": null
+          }
+        ]
+      }
+    ]
+  },
+  {
+    "name": "spell_keeps_internal_bom",
+    "input": "[spell]e\ufeffA[/spell]",
+    "default_voice": "v1",
+    "expected": [
+      {
+        "title": "Chapter 1",
+        "spans": [
+          {
+            "voice_id": "v1",
+            "text": "e \ufeff A",
+            "pause_ms_after": 0,
+            "speed": null
+          }
+        ]
+      }
+    ]
   }
 ]

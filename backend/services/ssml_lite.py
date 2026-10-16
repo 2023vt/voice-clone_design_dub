@@ -142,14 +142,17 @@ def parse_ssml_lite(text: str) -> list[dict]:
 def spell_out(word: str) -> str:
     """Space out a run for the ``[spell]`` case: ``"USA"`` → ``"U S A"``.
 
-    Collapses surrounding whitespace, then joins the remaining characters with
-    single spaces so the engine pronounces each letter discretely. Whitespace
+    Collapses surrounding whitespace, then joins the remaining grapheme
+    clusters with single spaces so the engine pronounces each letter discretely. Whitespace
     inside the run is treated as a separator (each token spelled, joined by a
     single space), so ``"go USA"`` → ``"g o U S A"``.
     """
     if not word:
         return ""
-    # Drop all existing whitespace, then interleave the visible characters with
-    # spaces. ``split()`` + ``"".join`` removes runs of whitespace first.
-    compact = "".join(word.split())
-    return " ".join(compact)
+    # Segment tokens separately: removing whitespace first could join an
+    # Indic virama, combining mark or regional indicator to the next token.
+    import regex
+
+    return " ".join(
+        cluster for token in word.split() for cluster in regex.findall(r"\X", token)
+    )

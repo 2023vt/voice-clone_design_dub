@@ -22,7 +22,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- A failed vendor website open on an integration page now shows an error instead of an unhandled rejection (#2844)
+- A failed vendor website open on an integration page now shows an error instead of an unhandled rejection (#2844) — thanks @rudycelekli!
 
 ### Removed
 

@@ -4,6 +4,7 @@ import threading
 import time
 import json
 import logging
+from collections.abc import Callable
 
 from core import job_store
 from core import failure
@@ -70,7 +71,7 @@ class TaskManager:
             self.queue = asyncio.Queue()
 
     async def add_task(self, task_id, task_type, func, *args, project_id=None, meta=None,
-                       on_cancel=None, **kwargs):
+                       on_cancel: Callable[[], None] | None = None, **kwargs) -> None:
         """Queue ``func``. ``on_cancel`` releases what the caller staged for it
         (for example a temporary credentials file) when the task is cancelled
         before it starts, since ``func`` never runs to clean up after itself."""

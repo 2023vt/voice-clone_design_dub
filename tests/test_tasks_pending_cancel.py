@@ -157,3 +157,66 @@ def test_abort_cannot_land_between_the_cancel_check_and_dispatch():
         assert not done.wait(0.2)  # Blocked while the worker holds the lock.
     assert done.wait(1)
     assert manager.active_tasks["t"]["cancelled"] is True
+
+
+def test_worker_observes_cancellation_winning_at_dispatch_checkpoint():
+    import threading
+    from core import job_store
+    from core.db import init_db
+    from core.tasks import TaskManager
+
+    init_db()
+    manager = TaskManager()
+    task_id = uuid.uuid4().hex
+    calls = []
+    checkpoint = threading.Event()
+    cancelled = threading.Event()
+    owner = threading.get_ident()
+    errors = []
+
+    class DispatchLock:
+        def __init__(self):
+            self.lock = threading.Lock()
+            self.waiting = True
+
+        def __enter__(self):
+            if threading.get_ident() == owner and self.waiting:
+                self.waiting = False
+                checkpoint.set()
+                assert cancelled.wait(2), 'cancellation did not reach the worker checkpoint'
+            self.lock.acquire()
+            return self
+
+        def __exit__(self, *_):
+            self.lock.release()
+
+    manager._state_lock = DispatchLock()
+
+    def cancel_at_checkpoint():
+        if not checkpoint.wait(2):
+            errors.append('worker did not acquire its dispatch lock')
+            return
+        if not manager.cancel_task(task_id):
+            errors.append('pending cancellation refused')
+        cancelled.set()
+
+    async def scenario():
+        await manager.add_task(task_id, 'test', lambda: calls.append('executed'),
+                               on_cancel=lambda: calls.append('released'))
+        canceller = threading.Thread(target=cancel_at_checkpoint)
+        canceller.start()
+        worker = asyncio.create_task(manager.worker())
+        try:
+            await asyncio.wait_for(manager.queue.join(), 3)
+        finally:
+            worker.cancel()
+            with contextlib.suppress(asyncio.CancelledError):
+                await worker
+            canceller.join(3)
+        assert not canceller.is_alive()
+
+    asyncio.run(scenario())
+    assert not errors
+    assert calls == ['released']
+    assert manager.active_tasks[task_id]['status'] == 'cancelled'
+    assert job_store.get(task_id)['status'] == 'cancelled'

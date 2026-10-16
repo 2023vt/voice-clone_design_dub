@@ -80,6 +80,18 @@ def _seed_job_with_tracks(dc, tmp_path: Path):
     return job_id, job_dir
 
 
+def test_subtitle_audio_export_needs_no_source_background(app_client):
+    client, dc, _dx, tmp = app_client
+    job_id, _ = _seed_job_with_tracks(dc, tmp)
+    job = dc._dub_jobs[job_id]
+    job.update(input_type="subtitle", video_path=None, audio_path=None,
+               vocals_path=None, no_vocals_path=None, filename="lines.vtt")
+
+    response = client.get(f"/dub/download-audio/{job_id}", params={"lang": "es"})
+    assert response.status_code == 200, response.text
+    assert response.content.startswith(b"RIFF")
+
+
 class _FakeProc:
     returncode = 0
 
@@ -91,10 +103,10 @@ def _fake_ffmpeg_factory(write_file: bool = True):
     """Return an async callable that mimics the ffmpeg invocation."""
     async def _runner(*cmd, **_):
         if write_file:
-            # Positional cmd ends with "<output>" "-y" — scan for an abs path arg.
+            # Positional cmd ends with "<output>" "-y" — scan for an absolute path.
             out = None
             for arg in reversed(cmd):
-                if isinstance(arg, str) and arg.startswith("/") and "." in Path(arg).name:
+                if isinstance(arg, str) and Path(arg).is_absolute() and "." in Path(arg).name:
                     out = arg
                     break
             if out:

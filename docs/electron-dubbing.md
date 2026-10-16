@@ -19,6 +19,17 @@ the selected Settings > Models > Translation provider. Choose a target language,
 translate, review the text, then generate. Completed tracks can be previewed and
 exported through the native save dialog.
 
+**Subtitle dubbing** is a separate item in the Dubbing menu. Import an SRT or
+WebVTT file directly, assign saved voices in the casting controls, then use the
+same translation, production and generation controls as Dub. There is no source
+media or ASR step. The backend sorts and resolves overlapping cues at import.
+Generation preserves each cue's start time and gaps: speech longer than its cue
+is pitch-preserving sped up by at most 15%; shorter speech stays at its natural
+rate. If a line still overruns its cue, the output timeline extends to keep the
+whole line, and any overlap with later cues is mixed together. All cues are mixed
+into one WAV automatically, which can be previewed and exported from the usual
+export controls.
+
 The import card can clear a pasted URL and its cookie attachment before ingest.
 After loading a source, Remove video (Remove audio for audio sources) returns to
 the import card, with its file and URL options, discarding the transcript and edit

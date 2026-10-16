@@ -117,6 +117,20 @@ def test_app_venv_included(roots, tmp_path):
     assert {"name": "app", "bytes": 80} in venvs["items"]
 
 
+def test_app_venv_is_shown_as_its_own_path_when_no_sidecars(tmp_path):
+    data = tmp_path / "data"
+    venv = tmp_path / "other-volume" / "venv"
+    _write(str(venv / "bin" / "python"), 80)
+    r = storage_report.build_report(
+        data_dir=str(data), hf_cache_dir=str(tmp_path / "hf"),
+        engines_dir=str(data / "engines"), app_venv=str(venv),
+        temp_root=str(tmp_path / "temp"),
+    )
+    venvs = _cat(r, "engine_venvs")
+    assert venvs["path"] == str(venv)
+    assert venvs["bytes"] == 80
+
+
 def test_sidecar_under_data_dir_is_counted_once_not_double(tmp_path):
     # The real layout: sidecars install to DATA_DIR/engines/<id>. The engine-venv
     # category owns that subtree; the data dir's "other" must NOT also count it,

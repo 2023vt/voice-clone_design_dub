@@ -33,6 +33,7 @@ export interface Line {
 export interface AudiobookRenderChapter {
   title: string;
   status: string;
+  output?: string;
   duration_s?: number;
   /** Exact length in the embedded m4b chapters; sent by newer backends only. */
   duration_ms?: number;
@@ -297,6 +298,9 @@ export async function renderLongform(mode: Mode, resumeId?: string) {
             outputChapters[index] = {
               title: typeof event.title === 'string' ? event.title : '',
               status: event.type === 'chapter_error' ? 'failed' : event.cached ? 'cached' : 'done',
+              ...(event.type === 'chapter' && typeof event.output === 'string'
+                ? { output: event.output }
+                : {}),
               ...(Number.isFinite(Number(event.duration_s))
                 ? { duration_s: Number(event.duration_s) }
                 : {}),

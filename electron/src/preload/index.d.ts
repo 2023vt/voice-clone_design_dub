@@ -315,6 +315,8 @@ export interface VoiceStudioBridge {
     purgeReset(scopes: string[]): Promise<ResetReport>;
     chooseDataDirectory(): Promise<DataDirectorySelection | null>;
     relocateDataDirectory(authorization: string): Promise<DataRelocationResult>;
+    chooseModelsDirectory(): Promise<DataDirectorySelection | null>;
+    relocateModelsDirectory(authorization: string): Promise<DataRelocationResult>;
     onRelocationProgress(cb: (stage: DataRelocationStage) => void): () => void;
     scanUninstall(): Promise<UninstallTarget[]>;
     purgeUninstall(includeModels: boolean): Promise<{ scheduled: true; size_bytes: number }>;

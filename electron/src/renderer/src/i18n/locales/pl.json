@@ -3463,5 +3463,6 @@
     "gateIntro": "Zaakceptuj licencję każdego z poniższych modeli, zanim go użyjesz. Przejrzyj każdą z nich, a następnie zaznacz jej pole.",
     "retryHint": "Licencje zaakceptowane. Jeśli coś na nie czekało, uruchom to ponownie.",
     "detailsFailed": "Nie udało się wczytać szczegółów licencji. Zamknij to okno i spróbuj ponownie."
-  }
+  },
+  "subtitleDub": {"title": "Dubbing napisów", "import": "Importuj napisy", "choose": "Wybierz SRT lub VTT", "hint": "Zaimportuj napisy i przypisz zapisany głos do każdej kwestii. Tylko zbyt długi dźwięk zostanie przyspieszony.", "remove": "Usuń napisy", "removeConfirm": "Usunąć te napisy, ich fragmenty i niezapisane zmiany? Tego nie można cofnąć."}
 }

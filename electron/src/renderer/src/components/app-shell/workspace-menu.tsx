@@ -3,6 +3,7 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/popover';
 import { Link, useRouterState } from '@tanstack/react-router';
 import {
   AudioLinesIcon,
+  AudioWaveformIcon,
   FingerprintIcon,
   BookOpenIcon,
   FolderIcon,
@@ -33,6 +34,7 @@ type Destination = readonly [
     | '/batch'
     | '/gallery'
     | '/dub'
+    | '/subtitle-dub'
     | '/design'
     | '/transcriptions'
     | '/personas'
@@ -57,6 +59,7 @@ const storyDestinations: Destination[] = [
 ];
 const dubDestinations: Destination[] = [
   ['/dub', 'dubWorkspace.title', FilmIcon],
+  ['/subtitle-dub', 'subtitleDub.title', AudioWaveformIcon],
   ['/batch', 'nav.batch_dub', LayersIcon],
 ];
 const laterDestinations: Destination[] = [
@@ -80,6 +83,7 @@ const iconMotion: Record<Destination[0], string> = {
   '/stories': 'wave',
   '/audiobook': 'tilt',
   '/dub': 'tilt',
+  '/subtitle-dub': 'wave',
   '/batch': 'lift',
   '/transcriptions': 'nudge',
   '/calls': 'pulse',

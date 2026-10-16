@@ -284,6 +284,56 @@ def dub_parse_subtitle_text(req: ParseSubtitleTextRequest):
     }
 
 
+@router.post("/dub/upload-subtitles")
+async def dub_upload_subtitles(file: UploadFile = File(...)):
+    """Start an audio-only dub directly from timed SRT or WebVTT cues."""
+    filename = file.filename or "subtitles.srt"
+    if os.path.splitext(filename)[1].lower() not in {".srt", ".vtt"}:
+        raise HTTPException(status_code=400, detail="Choose an SRT or VTT subtitle file.")
+    try:
+        raw = await file.read(_MAX_SUBTITLE_PASTE_CHARS * 4 + 1)
+    finally:
+        await file.close()
+    if not raw or len(raw) > _MAX_SUBTITLE_PASTE_CHARS * 4:
+        raise HTTPException(status_code=400, detail="Subtitle file is empty or too large.")
+    from services.text_upload import decode_text_upload
+    from services.srt_parser import parse_srt
+
+    result = parse_srt(decode_text_upload(raw))
+    if not result.segments:
+        raise HTTPException(status_code=400, detail="No valid timed cues found in the subtitle file.")
+    job_id = str(uuid.uuid4())
+    job_dir = _safe_job_dir(job_id)
+    os.makedirs(job_dir, exist_ok=False)
+    duration = max(segment["end"] for segment in result.segments)
+    job = {
+        "video_path": None,
+        "audio_path": None,
+        "vocals_path": None,
+        "no_vocals_path": None,
+        "thumb_path": None,
+        "duration": duration,
+        "filename": filename,
+        "segments": result.segments,
+        "dubbed_tracks": {},
+        "scene_cuts": [],
+        "input_type": "subtitle",
+    }
+    if not dub_pipeline.put_and_save_job(job_id, job, filename=filename, duration=duration):
+        raise HTTPException(status_code=409, detail="Subtitle job was removed during import.")
+    return {
+        "job_id": job_id,
+        "duration": duration,
+        "segments": result.segments,
+        "stats": {
+            "imported": len(result.segments),
+            "skipped_malformed": result.skipped_cues,
+            "dropped_overlap": result.dropped_overlaps,
+            "clamped_to_duration": 0,
+        },
+    }
+
+
 @router.post("/dub/import-srt/{job_id}")
 async def dub_import_srt(job_id: str, file: UploadFile = File(...)):
     """Replace `job["segments"]` with timestamps + text parsed from an SRT
@@ -302,7 +352,7 @@ async def dub_import_srt(job_id: str, file: UploadFile = File(...)):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Could not read uploaded file: {e}") from e
     if not raw_bytes:
-        raise HTTPException(status_code=400, detail="Uploaded SRT file is empty.")
+        raise HTTPException(status_code=400, detail="Uploaded subtitle file is empty.")
     # Most SRT files are UTF-8, but Windows subtitle tools also save UTF-16
     # (with a BOM) and Windows-1252; decode those instead of finding no cues.
     from services.text_upload import decode_text_upload
@@ -316,7 +366,7 @@ async def dub_import_srt(job_id: str, file: UploadFile = File(...)):
             detail=(
                 "No valid cues found in the uploaded file. "
                 f"Skipped {result.skipped_cues} malformed cue(s). "
-                "Expected SubRip (.srt) format: index, then 'HH:MM:SS,ms --> HH:MM:SS,ms', then text, blank line."
+                "Expected SRT or WebVTT timed cues."
             ),
         )
 

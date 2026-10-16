@@ -40,6 +40,11 @@ import {
   type ResetRoots,
 } from './reset-data';
 import { inspectDataRelocation, relocateDataDirectory } from './data-relocation';
+import {
+  inspectModelsRelocation,
+  modelsRelocationSource,
+  relocateModelsDirectory,
+} from './models-relocation';
 import { createUninstallPlan, scanUninstallTargets, type UninstallRoots } from './uninstall-data';
 import { scheduleUninstallCleanup } from './uninstall-cleanup';
 import { sendToLiveWindow } from './window-safety';
@@ -69,6 +74,8 @@ export const CHANNELS = {
   maintenancePurgeReset: 'maintenance:purgeReset',
   maintenanceChooseDataDirectory: 'maintenance:chooseDataDirectory',
   maintenanceRelocateDataDirectory: 'maintenance:relocateDataDirectory',
+  maintenanceChooseModelsDirectory: 'maintenance:chooseModelsDirectory',
+  maintenanceRelocateModelsDirectory: 'maintenance:relocateModelsDirectory',
   maintenanceRelocationProgress: 'maintenance:relocationProgress',
   maintenanceScanUninstall: 'maintenance:scanUninstall',
   maintenancePurgeUninstall: 'maintenance:purgeUninstall',
@@ -251,6 +258,36 @@ async function waitForBackendDataDirectory(
   return false;
 }
 
+async function backendModelsDirectory(supervisor: BackendSupervisor): Promise<string> {
+  const response = await fetch(`${supervisor.baseUrl}/api/settings/storage/models-dir`, {
+    headers: supervisor.requestHeaders(),
+    signal: AbortSignal.timeout(5000),
+  });
+  if (!response.ok) throw new Error('Backend storage state is unavailable');
+  const state = (await response.json()) as { effective?: unknown };
+  if (typeof state.effective !== 'string' || !isAbsolute(state.effective)) {
+    throw new Error('Backend returned an invalid model cache path');
+  }
+  return state.effective;
+}
+
+async function waitForBackendModelsDirectory(
+  supervisor: BackendSupervisor,
+  expected: string,
+  timeoutMs = 30_000,
+): Promise<boolean> {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    try {
+      if (samePath(await backendModelsDirectory(supervisor), expected)) return true;
+    } catch {
+      // The backend may still be starting.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 400));
+  }
+  return false;
+}
+
 async function resetRoots(supervisor: BackendSupervisor): Promise<ResetRoots> {
   if (supervisor.connection.remote)
     throw new Error('Reset is available for the local backend only');
@@ -329,6 +366,12 @@ export function registerIpc(
   registerSiteBrowser(getMainWindow);
   let maintenanceBusy = false;
   let relocationSelection: {
+    authorization: string;
+    source: string;
+    target: string;
+    createdAt: number;
+  } | null = null;
+  let modelsRelocationSelection: {
     authorization: string;
     source: string;
     target: string;
@@ -458,6 +501,74 @@ export function registerIpc(
         stop: () => supervisor.shutdown(),
         start: () => supervisor.start(),
         verify: (target) => waitForBackendDataDirectory(supervisor, target),
+        progress,
+      });
+    } finally {
+      maintenanceBusy = false;
+    }
+  });
+  ipcMain.handle(CHANNELS.maintenanceChooseModelsDirectory, async (event) => {
+    const owner = getMainWindow();
+    assertTrustedMainFrame(event, owner);
+    if (supervisor.connection.remote) throw new Error('local_only');
+    if (!supervisor.status.managed) throw new Error('backend_not_managed');
+    const active = await backendModelsDirectory(supervisor);
+    const source = await modelsRelocationSource(
+      active,
+      process.platform === 'win32' && process.env.LOCALAPPDATA
+        ? join(process.env.LOCALAPPDATA, 'OmniVoice', 'hf_cache')
+        : undefined,
+    );
+    const picked = await dialog.showOpenDialog(owner, {
+      defaultPath: dirname(source),
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (picked.canceled || !picked.filePaths[0]) return null;
+    const plan = await inspectModelsRelocation(source, picked.filePaths[0]);
+    modelsRelocationSelection = {
+      authorization: randomUUID(),
+      source: plan.source,
+      target: plan.target,
+      createdAt: Date.now(),
+    };
+    return { ...plan, authorization: modelsRelocationSelection.authorization };
+  });
+  ipcMain.handle(CHANNELS.maintenanceRelocateModelsDirectory, async (event, raw: unknown) => {
+    const owner = getMainWindow();
+    assertTrustedMainFrame(event, owner);
+    if (
+      typeof raw !== 'string' ||
+      !modelsRelocationSelection ||
+      raw !== modelsRelocationSelection.authorization
+    ) {
+      throw new Error('invalid_authorization');
+    }
+    const selected = modelsRelocationSelection;
+    modelsRelocationSelection = null;
+    if (Date.now() - selected.createdAt > RELOCATION_SELECTION_TTL_MS) {
+      throw new Error('authorization_expired');
+    }
+    if (maintenanceBusy) throw new Error('maintenance_busy');
+    if (supervisor.connection.remote) throw new Error('local_only');
+    if (!supervisor.status.managed) throw new Error('backend_not_managed');
+    const active = await backendModelsDirectory(supervisor);
+    const currentSource = await modelsRelocationSource(
+      active,
+      process.platform === 'win32' && process.env.LOCALAPPDATA
+        ? join(process.env.LOCALAPPDATA, 'OmniVoice', 'hf_cache')
+        : undefined,
+    );
+    if (!samePath(currentSource, selected.source)) {
+      throw new Error('source_changed');
+    }
+    const progress = (stage: string) =>
+      sendToLiveWindow(owner, CHANNELS.maintenanceRelocationProgress, { stage });
+    maintenanceBusy = true;
+    try {
+      return await relocateModelsDirectory(selected.source, selected.target, {
+        stop: () => supervisor.shutdown(),
+        start: () => supervisor.start(),
+        verify: (target) => waitForBackendModelsDirectory(supervisor, target),
         progress,
       });
     } finally {

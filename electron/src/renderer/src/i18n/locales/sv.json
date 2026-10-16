@@ -3459,5 +3459,6 @@
     "gateIntro": "Godkänn licensen för varje modell nedan innan du använder den. Granska var och en och markera sedan dess ruta.",
     "retryHint": "Licenserna har godkänts. Om något väntade på dem, starta det igen.",
     "detailsFailed": "Licensinformationen kunde inte läsas in. Stäng dialogrutan och försök igen."
-  }
+  },
+  "subtitleDub": {"title": "Dubba undertexter", "import": "Importera undertexter", "choose": "Välj SRT eller VTT", "hint": "Importera undertexter och välj en sparad röst för varje del. Bara ljud som är för långt snabbas upp.", "remove": "Ta bort undertexter", "removeConfirm": "Ta bort undertexterna, deras delar och osparade ändringar? Det går inte att ångra."}
 }

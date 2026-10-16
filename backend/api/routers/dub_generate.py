@@ -3,6 +3,7 @@ import re
 import json
 import struct
 import logging
+import math
 import time
 import asyncio
 import contextlib
@@ -48,6 +49,16 @@ from services.dub_pipeline import (
 from omnivoice.utils.voice_design import heal_design_instruct
 
 logger = logging.getLogger("omnivoice.dub")
+
+# Subtitle-only jobs keep every spoken word and never compress a line by more
+# than 15%. Longer speech may overlap the next cue in the final audio mix.
+SUBTITLE_MAX_AUDIO_RATE = 1.15
+
+class _RemoteDubBackend:
+    """Sample-rate carrier while Dubbing runs without local TTS weights."""
+
+    sample_rate = 24_000
+
 
 def _validate_render_languages(backend, req, seg_ids, regen_only):
     """Validate the final local render set, including repaired cache misses."""
@@ -733,7 +744,13 @@ async def dub_generate(job_id: str, req: DubRequest):
         # `seg_i.wav` on disk and slot into the final mix unchanged.
         regen_only = set(req.regen_only or []) if req.regen_only is not None else None
         seg_ids = req.segment_ids or []
-        strategy = (req.timing_strategy or "concise").lower()
+        # Subtitle-first jobs have no source video to retime. Their contract is
+        # one-sided: compress speech that exceeds a cue, leave shorter speech
+        # at its natural rate, and keep all gaps in the merged WAV.
+        strategy = (
+            "subtitle_cues" if job.get("input_type") == "subtitle"
+            else (req.timing_strategy or "concise").lower()
+        )
         # Voice-identity mode (see DubRequest.voice_match). The memo makes the
         # "consistent" pick once per speaker and hands the SAME reference to
         # every segment of that speaker for the whole run.
@@ -860,7 +877,8 @@ async def dub_generate(job_id: str, req: DubRequest):
             yield f"data: {json.dumps({'type': 'progress', 'current': i, 'total': total, 'text': seg.text[:50]})}\n\n"
 
             seg_duration = seg.end - seg.start
-            if seg_duration <= 0.05 or not seg.text.strip():
+            if (seg_duration <= (0 if strategy == "subtitle_cues" else 0.05)
+                    or not seg.text.strip()):
                 sr = backend.sample_rate
                 # max(0, …): a zero/negative-duration slot must not feed a
                 # negative length to torch.zeros (raises) — _store_mix_wav
@@ -1340,7 +1358,7 @@ async def dub_generate(job_id: str, req: DubRequest):
                         # the director asked for without the chipmunk side-
                         # effect that overshooting the slot would otherwise
                         # cause.
-                        if (req.timing_strategy or "concise") == "strict_slot":
+                        if strategy == "strict_slot":
                             seg_speed = (seg_speed or 1.0) * bias
                 except Exception as e:
                     logger.debug("direction parse skipped for %s: %s", getattr(seg, 'id', '?'), e)
@@ -1534,7 +1552,11 @@ async def dub_generate(job_id: str, req: DubRequest):
         new_layout: list[tuple[float, float]] = []
         video_stretch_plan: list[dict] = []
         fit_plan = None  # smart_fit only — services.fit_planner.FitPlan
-        orig_total_dur = float(job.get("duration") or 0.0)
+        orig_total_dur = (
+            max((segment.end for segment in req.segments), default=0.0)
+            if strategy == "subtitle_cues"
+            else float(job.get("duration") or 0.0)
+        )
 
         if strategy == "stretch_video":
             cursor = 0.0
@@ -1598,6 +1620,16 @@ async def dub_generate(job_id: str, req: DubRequest):
             total_samples = int(fit_plan.total_duration * sr)
         else:
             total_samples = int(orig_total_dur * sr)
+            if strategy == "subtitle_cues":
+                # Reserve enough space for the untrimmed natural speech. The
+                # final WAV is sliced to the actual rendered end below.
+                total_samples = max(
+                    total_samples,
+                    *(
+                        int(start * sr) + _entry_num_samples((start, end, path, sr))
+                        for start, end, path, _ in all_segment_wavs
+                    ),
+                )
 
         # smart_fit: cue times for the fitted timeline, computed from the
         # ACTUAL stretched/trimmed sample positions in the mix loop below —
@@ -1611,6 +1643,7 @@ async def dub_generate(job_id: str, req: DubRequest):
         import numpy as np
 
         mix_samples = max(total_samples, 1)
+        rendered_end_samples = int(orig_total_dur * sr)
         fd, mix_path = tempfile.mkstemp(
             prefix=f".{os.path.basename(track_path)}.mix.",
             suffix=".f32",
@@ -1738,12 +1771,16 @@ async def dub_generate(job_id: str, req: DubRequest):
                     effective_end = end
                     slowed_rate = None
                     slot_samples = int(max(0.0, (effective_end - start)) * sr)
-                    if slot_fit != "off" and slot_samples > 0 and wl > slot_samples:
-                        if slot_fit == "time_stretch":
-                            ratio = wl / slot_samples
+                    if (strategy == "subtitle_cues" or slot_fit != "off") and slot_samples > 0 and wl > slot_samples:
+                        if strategy == "subtitle_cues" or slot_fit == "time_stretch":
+                            target_samples = (
+                                max(slot_samples, math.ceil(wl / SUBTITLE_MAX_AUDIO_RATE))
+                                if strategy == "subtitle_cues" else slot_samples
+                            )
+                            ratio = wl / target_samples
                             try:
                                 adjusted = await _pitch_preserving_stretch(
-                                    adjusted, slot_samples, sr,
+                                    adjusted, target_samples, sr,
                                 )
                             except Exception as e:
                                 logger.warning(
@@ -1753,7 +1790,7 @@ async def dub_generate(job_id: str, req: DubRequest):
                                 )
                                 adjusted = torch.nn.functional.interpolate(
                                     adjusted.unsqueeze(0),
-                                    size=slot_samples,
+                                    size=target_samples,
                                     mode='linear',
                                     align_corners=False,
                                 ).squeeze(0)
@@ -1761,7 +1798,8 @@ async def dub_generate(job_id: str, req: DubRequest):
                             adjusted = adjusted[..., :slot_samples]
                         wl = adjusted.shape[-1]
                     elif (
-                        slot_fit == "time_stretch"
+                        strategy != "subtitle_cues"
+                        and slot_fit == "time_stretch"
                         and slot_samples > 0
                         and wl > 0
                         and wl < slot_samples
@@ -1786,7 +1824,13 @@ async def dub_generate(job_id: str, req: DubRequest):
                     # Truthful verdict: a slowed segment says so (and by how
                     # much) instead of hiding behind "fits" — the same honesty
                     # contract the smart_fit branch keeps.
-                    if slowed_rate is not None:
+                    if strategy == "subtitle_cues":
+                        fit_status.append({
+                            "status": "cue_extended" if wl > slot_samples else "fits",
+                            "audio_rate": round(natural_dur / (wl / sr), 3) if wl > 0 else 1.0,
+                            "cue_overflow_s": round(max(0, wl - slot_samples) / sr, 3),
+                        })
+                    elif slowed_rate is not None:
                         fit_status.append({
                             "status": "audio_slowed",
                             "audio_rate": round(slowed_rate, 3),
@@ -1813,6 +1857,8 @@ async def dub_generate(job_id: str, req: DubRequest):
                     wl = adjusted.shape[-1]
                     s = 0
                 e = min(s + wl, total_samples)
+                if strategy == "subtitle_cues":
+                    rendered_end_samples = max(rendered_end_samples, s + wl)
                 if s < total_samples and e > s:
                     mix_len = e - s
                     seg_np = (
@@ -1833,7 +1879,11 @@ async def dub_generate(job_id: str, req: DubRequest):
 
             _t_save_0 = time.perf_counter()
             mix_audio.flush()
-            track_tmp = _write_memmap_wav_staged(track_path, mix_audio[:mix_samples], sr)
+            output_samples = mix_samples
+            if strategy == "subtitle_cues":
+                total_samples = max(rendered_end_samples, 1)
+                output_samples = total_samples
+            track_tmp = _write_memmap_wav_staged(track_path, mix_audio[:output_samples], sr)
             _t_save = time.perf_counter() - _t_save_0
             _t_mix = _t_save_0 - _t_loop_end
         finally:
@@ -1892,6 +1942,8 @@ async def dub_generate(job_id: str, req: DubRequest):
                 job["language"] = req.language
                 job["language_code"] = lang_code
                 job["timing_strategy"] = strategy
+                if strategy == "subtitle_cues":
+                    job["duration"] = track_dur
                 # Keep job segments in lock-step with what was just rendered so
                 # subtitle export / burn-in use the translated text (#309).
                 _sync_job_segments(job, req)

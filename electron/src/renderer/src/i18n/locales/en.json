@@ -3459,5 +3459,6 @@
     "gateIntro": "Accept the licence of each model below before using it. Review each one, then tick its box.",
     "retryHint": "Licences accepted. If something was waiting for them, start it again.",
     "detailsFailed": "The licence details could not be loaded. Close this dialog and try again."
-  }
+  },
+  "subtitleDub": {"title": "Subtitle dubbing", "import": "Import subtitles", "choose": "Choose SRT or VTT", "hint": "Import subtitles and assign a saved voice to the cues. Only speech longer than its cue is sped up.", "remove": "Remove subtitles", "removeConfirm": "Remove these subtitles, their cues and unsaved edits? This cannot be undone."}
 }

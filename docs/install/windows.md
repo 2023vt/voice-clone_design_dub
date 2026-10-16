@@ -75,8 +75,16 @@ drive (for example an external SSD):
 2. On the setup screen, press **Change…** beside **App environment** to put the
    Python environment on the drive. uv's download cache and managed Python stay
    beside that environment, so multi-GB wheels are not staged on `C:`.
-3. In **Settings > Storage**, move the application data folder (voices,
-   projects, settings) and the model cache to the drive.
+3. In the desktop app's **Settings > Storage**, use **Move…** in the **App data**
+   and **Model cache** rows. The **Engine environments** row uses the same App data
+   move because installed engines live inside that folder. Select an empty
+   destination for App data. Model cache can also adopt an existing copy that
+   contains every source file; extra cache files are preserved. VoiceStudio checks
+   each source file before switching paths. It restarts the local
+   backend with the new path, then removes the old copy. **Choose folder…** in
+   the model-cache row only changes the location for future downloads; it does
+   not move existing weights. The app runtime environment has its own **Change…**
+   control on the setup screen.
 
 The drive must be connected when VoiceStudio starts.
 
@@ -145,6 +153,11 @@ bun install
 bun run setup:api   # create the Python environment with uv
 bun run dev         # Electron with hot reload; it starts and supervises the backend
 ```
+
+After the one-time setup, double-click `Start-VoiceStudio.cmd` in the repository
+root to launch the same Electron development app without opening a terminal
+manually. The launcher checks the installed dependencies and keeps the console
+open if startup fails so the error is visible.
 
 Use `bun run desktop-prod` to build and launch the production bundle, or
 `bun run dist` to create a local NSIS installer in `electron/release/` without

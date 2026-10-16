@@ -3461,5 +3461,6 @@
     "gateIntro": "Acepta la licencia de cada modelo de abajo antes de usarlo. Revisa cada una y marca su casilla.",
     "retryHint": "Licencias aceptadas. Si algo estaba esperando, vuelve a iniciarlo.",
     "detailsFailed": "No se pudieron cargar los detalles de la licencia. Cierra este diálogo e inténtalo de nuevo."
-  }
+  },
+  "subtitleDub": {"title": "Doblaje de subtítulos", "import": "Importar subtítulos", "choose": "Elegir SRT o VTT", "hint": "Importa subtítulos y asigna una voz guardada a los fragmentos. Solo se acelera el audio que supera su duración.", "remove": "Quitar subtítulos", "removeConfirm": "¿Quitar estos subtítulos, sus fragmentos y los cambios sin guardar? Esta acción no se puede deshacer."}
 }

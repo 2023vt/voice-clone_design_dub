@@ -107,6 +107,10 @@ def test_m4b_two_chapters_muxes_and_emits_full_sequence(tmp_path, monkeypatch):
     )
     types = [e["type"] for e in events]
     assert types == ["started", "chapter", "chapter", "assembling", "done"]
+    for chapter_event in (event for event in events if event["type"] == "chapter"):
+        chapter_path = out / chapter_event["output"]
+        assert chapter_path.is_file()
+        assert chapter_path.suffix == ".wav"
     done = events[-1]
     assert done["chapters"] == 2 and done["failed_chapters"] == []
 

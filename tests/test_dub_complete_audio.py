@@ -90,6 +90,57 @@ def test_concise_overrun_does_not_publish_truncated_track(render_dub):
     assert not render_dub.job['dubbed_tracks']
 
 
+def test_subtitle_cues_cap_speed_and_merge_overlapping_speech(render_dub, monkeypatch):
+    import api.routers.dub_generate as dg
+    render_dub.job.update(input_type='subtitle', duration=2.7)
+    outputs = iter((torch.ones(1, 48000) * .2, torch.ones(1, 12000) * .3))
+    render_dub.output[0] = lambda: next(outputs)
+    calls = []
+
+    async def stretch(wav, target, sr):
+        calls.append((wav.shape[-1], target))
+        return torch.nn.functional.interpolate(wav.unsqueeze(0), size=target, mode='linear').squeeze(0)
+
+    monkeypatch.setattr(dg, '_pitch_preserving_stretch', stretch)
+    events = render_dub.run(
+        segments=[
+            dict(start=1, end=2, text='long'),
+            dict(start=2.2, end=2.7, text='short'),
+        ],
+        segment_ids=['a', 'b'],
+        timing_strategy='stretch_video',  # subtitle jobs enforce cue timing server-side
+    )
+    assert any(event['type'] == 'done' for event in events)
+    done = next(event for event in events if event['type'] == 'done')
+    assert done['fit_status'][0]['status'] == 'cue_extended'
+    assert done['fit_status'][0]['audio_rate'] <= 1.15
+    assert calls == [(48000, 41740)]
+    audio, sr = sf.read(render_dub.path / 'dubbed_en.wav')
+    assert sr == 24000 and len(audio) == 24000 + 41740
+    assert max(abs(audio[:sr])) == 0
+    assert max(abs(audio[sr:2 * sr])) > 0
+    assert audio[int(2.3 * sr)] == pytest.approx(.5, abs=.02)
+    assert render_dub.job['duration'] == pytest.approx(len(audio) / sr)
+
+
+def test_subtitle_cues_use_exact_fit_when_under_fifteen_percent(render_dub, monkeypatch):
+    import api.routers.dub_generate as dg
+    render_dub.job.update(input_type='subtitle', duration=1.0)
+    render_dub.output[0] = lambda: torch.ones(1, 26400) * .2
+    calls = []
+
+    async def stretch(wav, target, sr):
+        calls.append((wav.shape[-1], target))
+        return torch.nn.functional.interpolate(wav.unsqueeze(0), size=target, mode='linear').squeeze(0)
+
+    monkeypatch.setattr(dg, '_pitch_preserving_stretch', stretch)
+    events = render_dub.run(timing_strategy='strict_slot')
+    assert any(event['type'] == 'done' for event in events)
+    assert next(event for event in events if event['type'] == 'done')['fit_status'][0]['status'] == 'fits'
+    assert calls == [(26400, 24000)]
+    assert sf.info(render_dub.path / 'dubbed_en.wav').duration == 1.0
+
+
 def test_silent_engine_output_is_not_a_successful_segment(render_dub):
     render_dub.output[0] = lambda: torch.zeros(1, 24000)
     events = render_dub.run()

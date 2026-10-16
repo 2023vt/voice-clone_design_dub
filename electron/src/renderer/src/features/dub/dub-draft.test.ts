@@ -16,6 +16,20 @@ const defaults: DubSession = {
   target: 'Spanish',
   quality: 'fast',
 };
+it('restores subtitle-only jobs without treating them as video', () => {
+  const result = restoreDubDraft(
+    JSON.stringify({
+      ...defaults,
+      inputType: 'subtitle',
+      jobId: 'subtitle-job',
+      filename: 'lines.vtt',
+      segments: [{ id: '0', start: 1, end: 2, text: 'Hello' }],
+    }),
+    defaults,
+  );
+  expect(result.inputType).toBe('subtitle');
+  expect(result.phase).toBe('editing');
+});
 it('restores edits but requires explicit reconnection for interrupted generation', () => {
   const result = restoreDubDraft(
     JSON.stringify({

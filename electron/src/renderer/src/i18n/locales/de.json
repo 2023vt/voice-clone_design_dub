@@ -3459,5 +3459,6 @@
     "gateIntro": "Akzeptiere die Lizenz jedes unten aufgeführten Modells, bevor du es verwendest. Prüfe jede einzelne und setze dann das jeweilige Häkchen.",
     "retryHint": "Lizenzen akzeptiert. Falls etwas darauf gewartet hat, starte es erneut.",
     "detailsFailed": "Die Lizenzdetails konnten nicht geladen werden. Schließe diesen Dialog und versuche es erneut."
-  }
+  },
+  "subtitleDub": {"title": "Untertitel synchronisieren", "import": "Untertitel importieren", "choose": "SRT- oder VTT-Datei wählen", "hint": "Untertitel importieren und jedem Abschnitt eine gespeicherte Stimme zuweisen. Nur zu lange Sprachabschnitte werden beschleunigt.", "remove": "Untertitel entfernen", "removeConfirm": "Diese Untertitel, ihre Abschnitte und ungespeicherte Änderungen entfernen? Dies kann nicht rückgängig gemacht werden."}
 }

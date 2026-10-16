@@ -3461,5 +3461,6 @@
     "gateIntro": "Acceptez la licence de chaque modèle ci-dessous avant de l'utiliser. Consultez-les une par une, puis cochez la case correspondante.",
     "retryHint": "Licences acceptées. Si une action attendait cette acceptation, relancez-la.",
     "detailsFailed": "Impossible de charger les détails de la licence. Fermez cette boîte de dialogue et réessayez."
-  }
+  },
+  "subtitleDub": {"title": "Doublage de sous-titres", "import": "Importer des sous-titres", "choose": "Choisir un fichier SRT ou VTT", "hint": "Importez des sous-titres et attribuez une voix enregistrée aux segments. Seuls les segments trop longs sont accélérés.", "remove": "Supprimer les sous-titres", "removeConfirm": "Supprimer ces sous-titres, leurs segments et les modifications non enregistrées ? Cette action est irréversible."}
 }

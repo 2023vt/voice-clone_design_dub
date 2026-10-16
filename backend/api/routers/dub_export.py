@@ -1877,7 +1877,7 @@ async def dub_download_audio(
     exports_dir = os.path.join(job_dir, "exports")
     os.makedirs(exports_dir, exist_ok=True)
 
-    bg_audio = await _preserved_background(job, job_id, lang_label) if preserve_bg else None
+    bg_audio = await _preserved_background(job, job_id, lang_label) if preserve_bg and job.get("input_type") != "subtitle" else None
     leased = None
     if bg_audio:
         try:
@@ -2173,7 +2173,7 @@ async def dub_download_mp3(
     os.makedirs(exports_dir, exist_ok=True)
 
     source_path = wav_path
-    bg_audio = await _preserved_background(job, job_id, lang_label) if preserve_bg else None
+    bg_audio = await _preserved_background(job, job_id, lang_label) if preserve_bg and job.get("input_type") != "subtitle" else None
     if bg_audio:
         mixed_path = os.path.join(exports_dir, f"mixed_mp3_{stamp}.wav")
         cmd_mix = [

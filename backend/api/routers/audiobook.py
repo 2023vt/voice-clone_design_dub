@@ -1166,7 +1166,8 @@ async def _render_longform_sse(
             # reproduces their START offsets; `duration_s` is display-rounded.
             ev = {"type": "chapter", "index": i, "total": total,
                   "title": chapter.title, "duration_s": round(dur, 2),
-                  "duration_ms": dur_ms, "cached": was_cached}
+                  "duration_ms": dur_ms, "cached": was_cached,
+                  "output": os.path.relpath(wav_path, OUTPUTS_DIR)}
             if seg_stats is not None:
                 # Additive fields (old clients ignore them): segment-level
                 # reuse inside a re-rendered chapter.

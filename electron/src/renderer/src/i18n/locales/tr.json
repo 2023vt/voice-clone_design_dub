@@ -3459,5 +3459,6 @@
     "gateIntro": "Kullanmadan önce aşağıdaki her modelin lisansını kabul edin. Her birini inceleyin, ardından kutusunu işaretleyin.",
     "retryHint": "Lisanslar kabul edildi. Bunu bekleyen bir işlem varsa yeniden başlatın.",
     "detailsFailed": "Lisans ayrıntıları yüklenemedi. Bu pencereyi kapatıp yeniden deneyin."
-  }
+  },
+  "subtitleDub": {"title": "Altyazı dublajı", "import": "Altyazı içe aktar", "choose": "SRT veya VTT seç", "hint": "Altyazıları içe aktarın ve her bölüme kayıtlı bir ses atayın. Yalnızca uzun sesler hızlandırılır.", "remove": "Altyazıları kaldır", "removeConfirm": "Bu altyazıları, bölümlerini ve kaydedilmemiş düzenlemeleri kaldırmak istiyor musunuz? Bu işlem geri alınamaz."}
 }

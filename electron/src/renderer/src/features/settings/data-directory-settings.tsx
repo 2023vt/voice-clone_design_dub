@@ -34,7 +34,7 @@ function relocationError(t: (key: string) => string, error: unknown): string {
   return t('settings.data_move_error');
 }
 
-export function DataDirectorySettings() {
+export function DataDirectorySettings({ inline = false }: { inline?: boolean }) {
   const { t } = useTranslation();
   const client = useQueryClient();
   const bridge = getBridge();
@@ -77,21 +77,32 @@ export function DataDirectorySettings() {
 
   return (
     <>
-      <SettingsSection icon={DatabaseIcon} title={t('settings.data_directory')}>
-        <SettingsRow
-          id="data-directory"
-          title={t('settings.data_directory')}
-          description={t('settings.data_directory_desc')}
-        >
-          <DataDirectoryPath />
-          {bridge && (
-            <Button variant="outline" size="sm" disabled={busy} onClick={() => void choose()}>
-              <FolderOpenIcon />
-              {t('settings.data_move_choose')}
-            </Button>
-          )}
-        </SettingsRow>
-      </SettingsSection>
+      {!inline && (
+        <SettingsSection icon={DatabaseIcon} title={t('settings.data_directory')}>
+          <SettingsRow
+            id="data-directory"
+            title={t('settings.data_directory')}
+            description={t('settings.data_directory_desc')}
+          >
+            <DataDirectoryPath />
+            {bridge?.maintenance?.chooseDataDirectory && (
+              <Button variant="outline" size="sm" disabled={busy} onClick={() => void choose()}>
+                <FolderOpenIcon />
+                {t('settings.data_move_choose')}
+              </Button>
+            )}
+          </SettingsRow>
+        </SettingsSection>
+      )}
+      {inline &&
+        (bridge?.maintenance?.chooseDataDirectory ? (
+          <Button variant="outline" size="sm" disabled={busy} onClick={() => void choose()}>
+            <FolderOpenIcon />
+            {t('settings.data_move_choose')}
+          </Button>
+        ) : (
+          <p className="text-xs text-muted-foreground">{t('settings.data_move_electron_only')}</p>
+        ))}
 
       <Dialog
         open={Boolean(selection)}

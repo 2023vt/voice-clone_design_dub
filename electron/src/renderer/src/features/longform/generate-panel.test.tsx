@@ -3,6 +3,12 @@ import { fireEvent, render, screen } from '@testing-library/react';
 import '@/i18n';
 import { GeneratePanel, type GenerateSession } from './generate-panel';
 
+vi.mock('@/components/waveform-player', () => ({
+  WaveformPlayer: ({ src, autoPlay }: { src: string; autoPlay: boolean }) => (
+    <div data-testid="chapter-player" data-src={src} data-autoplay={String(autoPlay)} />
+  ),
+}));
+
 const idle: GenerateSession = {
   active: null,
   stage: 'idle',
@@ -80,4 +86,45 @@ it('explains that the other longform mode is rendering', () => {
   );
   expect(screen.getByRole('button', { name: 'Generate' })).toBeDisabled();
   expect(screen.getByText(/already rendering/i)).toBeVisible();
+});
+
+it('plays a finished audiobook chapter while later chapters still render', () => {
+  const session: GenerateSession = {
+    ...idle,
+    active: 'audiobook',
+    stage: 'rendering',
+    total: 2,
+    completed: 1,
+    chapters: [
+      { title: 'One', status: 'done', output: 'longform_cache/one.wav' },
+      { title: 'Two', status: 'rendering' },
+    ],
+  };
+  const view = render(
+    <GeneratePanel
+      mode="audiobook"
+      session={session}
+      blocker={null}
+      onGenerate={vi.fn()}
+      onStop={vi.fn()}
+    />,
+  );
+  expect(screen.getByRole('button', { name: 'Preview chapter: One' })).toBeEnabled();
+  expect(screen.queryByRole('button', { name: 'Preview chapter: Two' })).toBeNull();
+  fireEvent.click(screen.getByRole('button', { name: 'Preview chapter: One' }));
+  expect(screen.getByTestId('chapter-player')).toHaveAttribute('data-autoplay', 'true');
+  expect(screen.getByTestId('chapter-player').getAttribute('data-src')).toContain(
+    'longform_cache%2Fone.wav',
+  );
+  expect(screen.getByRole('button', { name: 'Stop' })).toBeEnabled();
+  view.rerender(
+    <GeneratePanel
+      mode="audiobook"
+      session={{ ...session, active: null, stage: 'done' }}
+      blocker={null}
+      onGenerate={vi.fn()}
+      onStop={vi.fn()}
+    />,
+  );
+  expect(screen.getByTestId('chapter-player')).toBeVisible();
 });

@@ -1,5 +1,8 @@
+import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
+import { WaveformPlayer } from '@/components/waveform-player';
+import { apiPath } from '@/lib/api/client';
 import { GenerationProgress } from './generation-progress';
 import type { GenerateBlocker } from './generate-blocker';
 import type { AudiobookRenderChapter } from './longform-session';
@@ -34,7 +37,11 @@ export function GeneratePanel({
   onStop: () => void;
 }) {
   const { t } = useTranslation();
+  const [previewOutput, setPreviewOutput] = useState<string | null>(null);
   const active = session.active === mode;
+  const playableOutput = session.chapters.some((chapter) => chapter.output === previewOutput)
+    ? previewOutput
+    : null;
   const status = active
     ? session.stage === 'assembling'
       ? t('audiobook.assembling')
@@ -64,8 +71,19 @@ export function GeneratePanel({
           <GenerationProgress
             chapters={session.chapters}
             assembling={session.stage === 'assembling'}
+            onPreview={mode === 'audiobook' ? setPreviewOutput : undefined}
           />
         </div>
+      )}
+      {mode === 'audiobook' && playableOutput && (
+        <WaveformPlayer
+          key={playableOutput}
+          src={apiPath('/audio/' + encodeURIComponent(playableOutput))}
+          source="chapter-preview"
+          showWaveform={false}
+          autoPlay
+          compact
+        />
       )}
       {status && (
         <p id="generate-status" role="status" className="shrink-0 text-xs text-muted-foreground">

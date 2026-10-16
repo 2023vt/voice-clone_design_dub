@@ -95,8 +95,9 @@ export interface DubSegment {
   };
   sync_ratio?: number;
   fit_status?: {
-    status: 'fits' | 'overflows' | 'video_stretched' | 'audio_slowed';
+    status: 'fits' | 'overflows' | 'video_stretched' | 'audio_slowed' | 'cue_extended';
     overflow_s?: number;
+    cue_overflow_s?: number;
     stretch_ratio?: number;
     audio_rate?: number;
   };
@@ -155,7 +156,7 @@ export interface DubSession {
   taskId: string | null;
   filename: string;
   duration?: number;
-  inputType: 'audio' | 'video';
+  inputType: 'audio' | 'video' | 'subtitle';
   phase:
     | 'idle'
     | 'preparing'
@@ -209,11 +210,18 @@ class DubAsrModelMissingError extends Error {
     this.name = 'DubAsrModelMissingError';
   }
 }
-function readDraft() {
+const SUBTITLE_DUB_DRAFT_KEY = `${DUB_DRAFT_KEY}.subtitles`;
+const draftKey = (inputType: DubSession['inputType']) =>
+  inputType === 'subtitle' ? SUBTITLE_DUB_DRAFT_KEY : DUB_DRAFT_KEY;
+
+function readDraft(subtitleOnly = false): DubSession {
   try {
-    return restoreDubDraft(localStorage.getItem(DUB_DRAFT_KEY), initial);
+    return restoreDubDraft(
+      localStorage.getItem(subtitleOnly ? SUBTITLE_DUB_DRAFT_KEY : DUB_DRAFT_KEY),
+      { ...initial, inputType: subtitleOnly ? 'subtitle' : 'video' } as DubSession,
+    );
   } catch {
-    return initial;
+    return { ...initial, inputType: subtitleOnly ? 'subtitle' : 'video' } as DubSession;
   }
 }
 export const dubSession = new Store<DubSession>(readDraft());
@@ -225,7 +233,7 @@ const persist = () => {
   persistTimer = null;
   try {
     localStorage.setItem(
-      DUB_DRAFT_KEY,
+      draftKey(dubSession.state.inputType),
       JSON.stringify({
         ...dubSession.state,
         event: null,
@@ -249,6 +257,15 @@ export function clearDubDraftForReset(): void {
   if (persistTimer) clearTimeout(persistTimer);
   persistTimer = null;
   localStorage.removeItem(DUB_DRAFT_KEY);
+  localStorage.removeItem(SUBTITLE_DUB_DRAFT_KEY);
+}
+export function activateDubWorkspace(subtitleOnly: boolean): boolean {
+  if ((dubSession.state.inputType === 'subtitle') === subtitleOnly) return true;
+  if (controller || cancelling) return false;
+  persist();
+  clearDubEditHistory();
+  dubSession.setState(() => readDraft(subtitleOnly));
+  return true;
 }
 let previousDraft = dubSession.state;
 const unsubscribeDraft = dubSession.subscribe(() => {
@@ -1018,6 +1035,53 @@ export async function uploadDub(file: File) {
       signal,
     });
     await prepareAndTranscribe(upload, signal);
+  });
+}
+
+export async function uploadSubtitleDub(file: File) {
+  if (controller || cancelling || dubSession.state.recovery) return;
+  clearDubEditHistory();
+  dubSession.setState((current) => ({
+    ...initial,
+    target: current.target,
+    multiTargets: current.multiTargets,
+    quality: current.quality,
+    agentCli: current.agentCli,
+    autoGlossary: current.autoGlossary,
+    reflectPass: current.reflectPass,
+    condenseSuggest: current.condenseSuggest,
+    dialect: current.dialect,
+    translationInstructions: current.translationInstructions,
+    voiceMatch: current.voiceMatch,
+    sourceLanguage: current.sourceLanguage,
+    steps: current.steps,
+    guidance: current.guidance,
+    speed: current.speed,
+    instruct: current.instruct,
+    timingStrategy: 'strict_slot',
+    inputType: 'subtitle',
+    filename: file.name,
+  }));
+  await run('importing', async (signal) => {
+    const body = new FormData();
+    body.set('file', file);
+    const result = await apiJson<{
+      job_id: string;
+      duration: number;
+      segments: DubSegment[];
+      stats: Record<string, number>;
+    }>('/dub/upload-subtitles', { method: 'POST', body, signal });
+    if (signal.aborted) return;
+    patch({
+      jobId: result.job_id,
+      duration: result.duration,
+      segments: result.segments.map((segment, index) => ({
+        ...segment,
+        id: String(segment.id ?? index),
+      })),
+      subtitleImport: { file: file.name, stats: result.stats },
+      phase: 'editing',
+    });
   });
 }
 async function prepareAndTranscribe(job: { job_id: string; task_id: string }, signal: AbortSignal) {
@@ -1886,6 +1950,7 @@ export function resetDubSession(): boolean {
   clearDubEditHistory();
   dubSession.setState(() => ({
     ...initial,
+    inputType: current.inputType === 'subtitle' ? 'subtitle' : 'video',
     target: current.target,
     multiTargets: current.multiTargets,
     quality: current.quality,

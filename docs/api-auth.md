@@ -440,6 +440,8 @@ call the API directly need their origin in `OMNIVOICE_ALLOWED_ORIGINS`.
 
 ## See also
 
+- [docs/integrations/subtitle-dub-api.md](integrations/subtitle-dub-api.md) —
+  SRT/VTT dubbing API for third-party applications using a saved cloned voice.
 - [docs/remote-gpu.md](remote-gpu.md) — end-to-end remote-backend setup over
   Tailscale, with the API key.
 - [docs/sharing.md](sharing.md) — the in-app LAN share + PIN flow.

@@ -427,8 +427,10 @@ def build_report(
     venv_items.sort(key=lambda m: m["bytes"], reverse=True)
     venv_cat = {
         "id": "engine_venvs",
-        "path": engines_dir,
-        "exists": os.path.isdir(engines_dir),
+        # The app environment may be on another volume. Do not label its size
+        # as belonging to DATA_DIR/engines when no sidecars are installed.
+        "path": engines_dir if engine_dirs or not app_venv else app_venv,
+        "exists": bool(engine_dirs) or bool(app_venv and os.path.isdir(app_venv)),
         "bytes": venv_total,
         "items": venv_items,
     }
@@ -456,9 +458,12 @@ def build_report(
     categories.append(tmp_cat)
 
     # ── Volumes: group category roots by device, disk_usage once each ──────
-    roots = {"hf_cache": hf_cache_dir, "data": data_dir, "engine_venvs": engines_dir, "temp": temp_root}
+    roots = [("hf_cache", hf_cache_dir), ("data", data_dir),
+             ("engine_venvs", engines_dir), ("temp", temp_root)]
+    if app_venv:
+        roots.append(("engine_venvs", app_venv))
     by_dev: dict[object, dict] = {}
-    for cid, root in roots.items():
+    for cid, root in roots:
         anchor = _existing_ancestor(root)
         try:
             dev: object = os.stat(anchor).st_dev
@@ -477,7 +482,8 @@ def build_report(
                 "used_percent": round(usage.used / usage.total * 100.0, 1) if usage.total else 0.0,
                 "roots": [],
             }
-        by_dev[dev]["roots"].append(cid)
+        if cid not in by_dev[dev]["roots"]:
+            by_dev[dev]["roots"].append(cid)
     volumes = list(by_dev.values())
 
     # ── Server-side warnings ────────────────────────────────────────────────

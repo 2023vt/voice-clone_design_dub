@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { CheckIcon, CircleIcon, LoaderCircleIcon, XIcon, ZapIcon } from 'lucide-react';
+import { CheckIcon, CircleIcon, LoaderCircleIcon, PlayIcon, XIcon, ZapIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
+import { Button } from '@/components/ui/button';
 import type { AudiobookRenderChapter } from './longform-session';
 
 function formatElapsed(seconds: number): string {
@@ -20,9 +21,11 @@ function ChapterStatusIcon({ status }: { status: string }) {
 export function GenerationProgress({
   chapters,
   assembling,
+  onPreview,
 }: {
   chapters: AudiobookRenderChapter[];
   assembling: boolean;
+  onPreview?: (output: string) => void;
 }) {
   const { t } = useTranslation();
   const start = useRef(performance.now());
@@ -106,6 +109,20 @@ export function GenerationProgress({
                   · {t('audiobook.failed_tag')}
                   {chapter.error ? `: ${chapter.error}` : ''}
                 </span>
+              )}
+              {onPreview && chapter.output && (
+                <Button
+                  type="button"
+                  size="icon-xs"
+                  variant="ghost"
+                  className="ml-auto shrink-0"
+                  aria-label={t('audiobook.preview_chapter', {
+                    title: chapter.title || t('audiobook.chapter_n', { n: index + 1 }),
+                  })}
+                  onClick={() => onPreview(chapter.output!)}
+                >
+                  <PlayIcon />
+                </Button>
               )}
             </li>
           ))}

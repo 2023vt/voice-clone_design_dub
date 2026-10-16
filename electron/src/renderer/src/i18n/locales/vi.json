@@ -3459,5 +3459,6 @@
     "gateIntro": "Hãy chấp nhận giấy phép của từng mô hình bên dưới trước khi sử dụng. Hãy xem từng giấy phép rồi đánh dấu ô tương ứng.",
     "retryHint": "Đã chấp nhận giấy phép. Nếu có thao tác đang chờ, hãy chạy lại.",
     "detailsFailed": "Không thể tải chi tiết giấy phép. Hãy đóng hộp thoại này và thử lại."
-  }
+  },
+  "subtitleDub": {"title": "Lồng tiếng từ phụ đề", "import": "Nhập phụ đề", "choose": "Chọn tệp SRT hoặc VTT", "hint": "Nhập phụ đề và chọn giọng đã lưu cho các cue. Chỉ tăng tốc đoạn tiếng dài hơn thời lượng cue.", "remove": "Xóa phụ đề", "removeConfirm": "Xóa phụ đề, các cue và chỉnh sửa chưa lưu? Không thể hoàn tác."}
 }

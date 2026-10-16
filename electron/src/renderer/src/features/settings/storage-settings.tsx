@@ -15,10 +15,7 @@ import { ModelsDirectorySettings } from './models-directory-settings';
 import { ResetSettings } from './reset-settings';
 import { DataDirectorySettings } from './data-directory-settings';
 import { UninstallSettings } from './uninstall-settings';
-import {
-  warningText,
-  type StorageWarning,
-} from '@shared/utils/storageWarnings';
+import { warningText, type StorageWarning } from '@shared/utils/storageWarnings';
 interface Item {
   id: string;
   path?: string;
@@ -83,8 +80,6 @@ export function StorageSettings() {
     });
   return (
     <>
-      <DataDirectorySettings />
-      <ModelsDirectorySettings />
       <SettingsSection icon={HardDriveIcon} title={t('settings.storage_usage')}>
         <div className="flex items-center justify-between gap-3 p-4">
           <p className="text-sm text-muted-foreground">{t('settings.storage_desc')}</p>
@@ -171,6 +166,16 @@ export function StorageSettings() {
                   <FolderOpenIcon />
                   {t('settings.storage_open_folder')}
                 </Button>
+              )}
+              {category.id === 'hf_cache' && <ModelsDirectorySettings inline />}
+              {category.id === 'data' && <DataDirectorySettings inline />}
+              {category.id === 'engine_venvs' && (
+                <>
+                  <DataDirectorySettings inline />
+                  <p className="w-full text-xs text-muted-foreground">
+                    {t('settings.storage_engines_move_with_data')}
+                  </p>
+                </>
               )}
               {category.id === 'hf_cache' && (
                 <Link

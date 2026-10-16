@@ -102,6 +102,9 @@ const bridge: VoiceStudioBridge = {
     chooseDataDirectory: () => ipcRenderer.invoke('maintenance:chooseDataDirectory'),
     relocateDataDirectory: (authorization) =>
       ipcRenderer.invoke('maintenance:relocateDataDirectory', authorization),
+    chooseModelsDirectory: () => ipcRenderer.invoke('maintenance:chooseModelsDirectory'),
+    relocateModelsDirectory: (authorization) =>
+      ipcRenderer.invoke('maintenance:relocateModelsDirectory', authorization),
     onRelocationProgress: (cb) =>
       subscribe<{ stage: DataRelocationStage }>('maintenance:relocationProgress', ({ stage }) =>
         cb(stage),

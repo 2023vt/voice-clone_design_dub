@@ -12,7 +12,8 @@ import {
   statfs,
   writeFile,
 } from 'node:fs/promises';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
+import { createReadStream } from 'node:fs';
 import { homedir } from 'node:os';
 import { basename, dirname, isAbsolute, join, parse, relative, resolve } from 'node:path';
 import { DIRECTORY_RENAME, renameWithRetry } from './rename-retry';
@@ -110,6 +111,13 @@ function manifestBytes(entries: ManifestEntry[]): number {
   return entries.reduce((total, entry) => total + entry.size, 0);
 }
 
+function containsManifest(source: ManifestEntry[], target: ManifestEntry[]): boolean {
+  const targetByPath = new Map(target.map((entry) => [entry.path, entry]));
+  return source.every(
+    (entry) => JSON.stringify(targetByPath.get(entry.path)) === JSON.stringify(entry),
+  );
+}
+
 async function targetIsEmpty(path: string): Promise<boolean> {
   try {
     const info = await lstat(path);
@@ -123,6 +131,7 @@ async function targetIsEmpty(path: string): Promise<boolean> {
 export async function inspectDataRelocation(
   source: string,
   target: string,
+  allowExistingCopy = false,
 ): Promise<DataRelocationPlan> {
   if (!isAbsolute(source) || !safeDestination(target)) throw new Error('unsafe_path');
   const canonicalSource = await realpath(source);
@@ -132,12 +141,17 @@ export async function inspectDataRelocation(
   }
   const sourceInfo = await lstat(canonicalSource);
   if (!sourceInfo.isDirectory() || sourceInfo.isSymbolicLink()) throw new Error('invalid_source');
-  if (!(await targetIsEmpty(canonicalTarget))) throw new Error('target_not_empty');
+  const emptyTarget = await targetIsEmpty(canonicalTarget);
+  if (!emptyTarget && !allowExistingCopy) throw new Error('target_not_empty');
   const entries = await manifest(canonicalSource);
   const size = manifestBytes(entries);
-  const capacity = await statfs(dirname(canonicalTarget));
-  const available = Number(capacity.bavail) * Number(capacity.bsize);
-  if (available < size + MOVE_RESERVE_BYTES) throw new Error('insufficient_space');
+  if (emptyTarget) {
+    const capacity = await statfs(dirname(canonicalTarget));
+    const available = Number(capacity.bavail) * Number(capacity.bsize);
+    if (available < size + MOVE_RESERVE_BYTES) throw new Error('insufficient_space');
+  } else if (!containsManifest(entries, await manifest(canonicalTarget))) {
+    throw new Error('target_not_empty');
+  }
   return {
     source: canonicalSource,
     target: canonicalTarget,
@@ -149,9 +163,29 @@ export async function inspectDataRelocation(
 export async function prepareDataRelocation(
   source: string,
   target: string,
+  allowExistingCopy = false,
 ): Promise<PreparedDataRelocation> {
-  const plan = await inspectDataRelocation(source, target);
+  const plan = await inspectDataRelocation(source, target, allowExistingCopy);
   const sourceManifest = await manifest(plan.source);
+  if (!(await targetIsEmpty(plan.target))) {
+    for (const entry of sourceManifest) {
+      if (entry.kind !== 'file') continue;
+      if (
+        (await fileHash(join(plan.source, entry.path))) !==
+        (await fileHash(join(plan.target, entry.path)))
+      ) {
+        throw new Error('target_not_empty');
+      }
+    }
+    if (!containsManifest(sourceManifest, await manifest(plan.target))) {
+      throw new Error('target_not_empty');
+    }
+    return {
+      ...plan,
+      removeSource: () => rm(plan.source, { recursive: true, force: false }),
+      rollback: async () => undefined,
+    };
+  }
   const parent = dirname(plan.target);
   const staging = join(parent, `.${basename(plan.target)}.voicestudio-moving-${randomUUID()}`);
   await mkdir(staging, { recursive: false });
@@ -250,13 +284,26 @@ export function userEnvironmentPath(): string {
 export async function readDataDirectorySetting(
   path = userEnvironmentPath(),
 ): Promise<string | null> {
+  return readDirectorySetting(DATA_KEY, path);
+}
+
+async function fileHash(path: string): Promise<string> {
+  const hash = createHash('sha256');
+  for await (const chunk of createReadStream(path)) hash.update(chunk);
+  return hash.digest('hex');
+}
+
+export async function readDirectorySetting(
+  key: 'OMNIVOICE_DATA_DIR' | 'OMNIVOICE_CACHE_DIR',
+  path = userEnvironmentPath(),
+): Promise<string | null> {
   let text = '';
   try {
     text = await readFile(path, 'utf8');
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
-  const prefix = `${DATA_KEY}=`;
+  const prefix = `${key}=`;
   const line = text.split(/\r?\n/).find((value) => value.startsWith(prefix));
   if (!line) return null;
   const value = line.slice(prefix.length);
@@ -270,18 +317,26 @@ export async function writeDataDirectorySetting(
   value: string | null,
   path = userEnvironmentPath(),
 ): Promise<void> {
+  return writeDirectorySetting(DATA_KEY, value, path);
+}
+
+export async function writeDirectorySetting(
+  key: 'OMNIVOICE_DATA_DIR' | 'OMNIVOICE_CACHE_DIR',
+  value: string | null,
+  path = userEnvironmentPath(),
+): Promise<void> {
   let text = '';
   try {
     text = await readFile(path, 'utf8');
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
   }
-  const prefix = `${DATA_KEY}=`;
+  const prefix = `${key}=`;
   const lines = text.split(/\r?\n/).filter((line) => line && !line.startsWith(prefix));
   if (value) {
     if (/[\0\r\n]/.test(value)) throw new Error('unsafe_path');
     const encoded = value.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-    lines.push(`${DATA_KEY}='${encoded}'`);
+    lines.push(`${key}='${encoded}'`);
   }
   const body = lines.length ? `${lines.join('\n')}\n` : '';
   await mkdir(dirname(path), { recursive: true });

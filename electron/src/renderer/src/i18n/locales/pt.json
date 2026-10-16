@@ -3461,5 +3461,6 @@
     "gateIntro": "Aceite a licença de cada modelo abaixo antes de usá-lo. Revise cada uma e marque a caixa correspondente.",
     "retryHint": "Licenças aceitas. Se algo estava aguardando, inicie novamente.",
     "detailsFailed": "Não foi possível carregar os detalhes da licença. Feche esta janela e tente novamente."
-  }
+  },
+  "subtitleDub": {"title": "Dublagem de legendas", "import": "Importar legendas", "choose": "Escolher SRT ou VTT", "hint": "Importe legendas e atribua uma voz salva a cada trecho. Apenas o áudio longo demais será acelerado.", "remove": "Remover legendas", "removeConfirm": "Remover estas legendas, os trechos e as edições não salvas? Esta ação não pode ser desfeita."}
 }

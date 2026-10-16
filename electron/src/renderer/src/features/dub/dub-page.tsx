@@ -99,6 +99,8 @@ import {
   useDubSession,
   useDubCancelling,
   uploadDub,
+  uploadSubtitleDub,
+  activateDubWorkspace,
   translateDub,
   translateDubBatch,
   translateDubWithAgent,
@@ -209,10 +211,17 @@ export function fingerprintRevision(values?: Record<string, string>) {
   return (hash >>> 0).toString(36);
 }
 
-export function DubPage() {
+export function SubtitleDubPage() {
+  return <DubPage subtitleOnly />;
+}
+
+export function DubPage({ subtitleOnly = false }: { subtitleOnly?: boolean }) {
   const { t, i18n } = useTranslation();
   const reviewMode = useReviewMode();
   const session = useDubSession();
+  useLayoutEffect(() => {
+    activateDubWorkspace(subtitleOnly);
+  }, [subtitleOnly, session.phase]);
   const cancelling = useDubCancelling();
   const editHistory = useDubEditHistory();
   const input = useRef<HTMLInputElement>(null);
@@ -314,7 +323,7 @@ export function DubPage() {
   });
   const timelineOnsets = useDubOnsets(
     session.jobId,
-    session.segments.length > 0 && ['editing', 'done'].includes(session.phase),
+    session.inputType !== 'subtitle' && session.segments.length > 0 && ['editing', 'done'].includes(session.phase),
   );
   const segmentVirtualizer = useVirtualizer({
     count: session.segments.length,
@@ -487,11 +496,11 @@ export function DubPage() {
   );
   const source = useMemo(
     () =>
-      session.inputType === 'audio'
+      session.inputType !== 'video'
         ? apiPath(
-            preview === 'original'
+            preview === 'original' && session.inputType !== 'subtitle'
               ? `/dub/audio/${job}`
-              : `/dub/download-audio/${job}?lang=${encodeURIComponent(preview)}`,
+              : `/dub/download-audio/${job}?lang=${encodeURIComponent(preview)}${session.inputType === 'subtitle' ? '&preserve_bg=false' : ''}`,
           )
         : apiPath(
             preview === 'original'
@@ -520,6 +529,10 @@ export function DubPage() {
       : null;
     setPreview(next);
   }, []);
+  useEffect(() => {
+    if (session.inputType === 'subtitle' && session.tracks.length && preview === 'original')
+      setPreview(session.tracks[0]);
+  }, [session.inputType, session.tracks, preview]);
   const restorePreviewPosition = useCallback(() => {
     const player = previewPlayer.current;
     const handoff = previewHandoff.current;
@@ -652,7 +665,7 @@ export function DubPage() {
 
   const sourceRemovable = dubSourceRemovable(session, cancelling);
   const isAudioSource = session.inputType === 'audio';
-  const removeSourceLabel = t(isAudioSource ? 'dub.remove_audio' : 'dub.remove_video');
+  const removeSourceLabel = t(subtitleOnly ? 'subtitleDub.remove' : isAudioSource ? 'dub.remove_audio' : 'dub.remove_video');
   const removeVideo = async () => {
     if (!sourceRemovable || !(await removeDubSource())) return;
     livePreview.stop();
@@ -688,7 +701,7 @@ export function DubPage() {
           profile_id: inputs.profile_id || undefined,
           speed: inputs.speed || session.speed || 1,
           duration:
-            (session.timingStrategy || 'strict_slot') === 'strict_slot'
+            !subtitleOnly && (session.timingStrategy || 'strict_slot') === 'strict_slot'
               ? Math.max(0.3, segment.end - segment.start)
               : undefined,
         }),
@@ -852,7 +865,7 @@ export function DubPage() {
   return (
     <div className="flex h-full min-h-0 flex-col">
       <WorkspaceHeader>
-        <h1 className="text-sm font-medium">{t('dubWorkspace.title')}</h1>
+        <h1 className="text-sm font-medium">{t(subtitleOnly ? 'subtitleDub.title' : 'dubWorkspace.title')}</h1>
         <Link to="/projects" className={buttonVariants({ variant: 'ghost', size: 'sm' })}>
           {t('projects.title')}
         </Link>
@@ -894,7 +907,7 @@ export function DubPage() {
       />
       <div className="flex min-h-0 flex-1 @max-[40rem]:flex-col">
         <SecondarySidebar
-          title={t('dubWorkspace.title')}
+          title={t(subtitleOnly ? 'subtitleDub.title' : 'dubWorkspace.title')}
           icon={FilmIcon}
           size="spacious"
           variant="controls"
@@ -921,7 +934,7 @@ export function DubPage() {
               const file = event.dataTransfer.files[0];
               if (file && !busy && !session.recovery) {
                 setPreview('original');
-                void uploadDub(file);
+                void (subtitleOnly ? uploadSubtitleDub(file) : uploadDub(file));
               }
             }}
           >
@@ -929,19 +942,19 @@ export function DubPage() {
               <span className="grid size-5 place-items-center rounded-full bg-primary/12 text-[11px] font-semibold text-primary">
                 1
               </span>
-              {t('dub.upload_transcribe')}
+              {t(subtitleOnly ? 'subtitleDub.import' : 'dub.upload_transcribe')}
             </h2>
             <input
               ref={input}
               type="file"
-              accept="audio/*,video/*,.mkv,.mov,.mp4,.wav,.mp3"
+              accept={subtitleOnly ? '.srt,.vtt,text/vtt,application/x-subrip' : 'audio/*,video/*,.mkv,.mov,.mp4,.wav,.mp3'}
               className="hidden"
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 event.target.value = '';
                 if (file) {
                   setPreview('original');
-                  void uploadDub(file);
+                  void (subtitleOnly ? uploadSubtitleDub(file) : uploadDub(file));
                 }
               }}
             />
@@ -953,10 +966,11 @@ export function DubPage() {
                   onClick={() => input.current?.click()}
                 >
                   <UploadIcon />
-                  {t('settings.audio_tools_choose_file')}
+                  {t(subtitleOnly ? 'subtitleDub.choose' : 'settings.audio_tools_choose_file')}
                 </Button>
                 <p className="text-center text-xs text-muted-foreground">{t('dub.drop_here')}</p>
-                <form
+                {subtitleOnly && <p className="text-xs text-muted-foreground">{t('subtitleDub.hint')}</p>}
+                {!subtitleOnly && <form
                   className="space-y-2"
                   onSubmit={(event) => {
                     event.preventDefault();
@@ -1055,11 +1069,11 @@ export function DubPage() {
                       {t('dub.ingest')}
                     </Button>
                   )}
-                </form>
+                </form>}
               </>
             ) : (
               <div className="flex min-w-0 items-center gap-2 rounded-lg bg-background/35 px-2.5 py-2">
-                <FilmIcon className="size-4 shrink-0 text-primary" />
+                {subtitleOnly ? <AudioWaveformIcon className="size-4 shrink-0 text-primary" /> : <FilmIcon className="size-4 shrink-0 text-primary" />}
                 <span className="min-w-0 flex-1 truncate text-xs" title={session.filename}>
                   {compactSourceLabel(session.filename)}
                 </span>
@@ -1076,7 +1090,9 @@ export function DubPage() {
                   onOpenChange={setRemoveVideoOpen}
                   title={removeSourceLabel}
                   description={t(
-                    session.recovery
+                    subtitleOnly
+                      ? 'subtitleDub.removeConfirm'
+                      : session.recovery
                       ? 'dub.remove_interrupted_confirm'
                       : isAudioSource
                         ? 'dub.remove_audio_confirm'
@@ -1177,7 +1193,7 @@ export function DubPage() {
             <input
               ref={subtitles}
               type="file"
-              accept=".srt,application/x-subrip"
+              accept=".srt,.vtt,text/vtt,application/x-subrip"
               className="hidden"
               onChange={(event) => {
                 const file = event.target.files?.[0];
@@ -1188,14 +1204,14 @@ export function DubPage() {
                 }
               }}
             />
-            {session.jobId && (
+            {session.jobId && !subtitleOnly && (
               <Button
                 variant="ghost"
                 disabled={busy || Boolean(session.recovery)}
                 onClick={() => subtitles.current?.click()}
               >
                 <UploadIcon />
-                {t('dub.import_srt')}
+                {t('subtitleDub.import')}
               </Button>
             )}
             {session.subtitleImport && (
@@ -1217,13 +1233,13 @@ export function DubPage() {
               </p>
             )}
           </section>
-          {session.jobId && !['idle', 'preparing'].includes(session.phase) && (
+          {session.jobId && (session.inputType !== 'subtitle' || session.tracks.length > 0) && !['idle', 'preparing'].includes(session.phase) && (
             <section className="-mt-1 space-y-3 rounded-xl rounded-t-md border border-border/60 bg-muted/15 p-3">
               <h2 className="flex items-center gap-2 text-sm font-medium">
                 <PlayIcon className="size-4 text-muted-foreground" />
                 {t('dub.preview')}
               </h2>
-              {session.inputType === 'audio' ? (
+              {session.inputType !== 'video' ? (
                 <WaveformPlayer
                   src={source}
                   source="dub-preview"
@@ -1243,7 +1259,7 @@ export function DubPage() {
                 />
               )}
               <div className="flex flex-wrap gap-1 rounded-lg bg-background/35 p-1">
-                <Button
+                {session.inputType !== 'subtitle' && <Button
                   size="xs"
                   className="min-w-0 flex-1"
                   variant={preview === 'original' ? 'secondary' : 'ghost'}
@@ -1251,7 +1267,7 @@ export function DubPage() {
                   onClick={() => switchPreview('original')}
                 >
                   {t('dub.original_audio')}
-                </Button>
+                </Button>}
                 {session.tracks.map((track) => (
                   <Button
                     key={track}
@@ -1584,7 +1600,7 @@ export function DubPage() {
             disabled={busy || Boolean(session.recovery)}
             onAssign={assignDubSpeakerProfile}
           />
-          <details className="group rounded-xl border border-border/60 bg-muted/20 p-3">
+          {!subtitleOnly && <details className="group rounded-xl border border-border/60 bg-muted/20 p-3">
             <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium">
               <Clock3Icon className="size-4 text-muted-foreground" />
               {t('dub.timing_label')}
@@ -1629,7 +1645,7 @@ export function DubPage() {
                 ))}
               </div>
             </div>
-          </details>
+          </details>}
           <details className="group rounded-xl border border-border/60 bg-muted/20 p-3">
             <summary className="flex cursor-pointer list-none items-center gap-2 text-sm font-medium">
               <SlidersHorizontalIcon className="size-4 text-muted-foreground" />
@@ -1820,7 +1836,7 @@ export function DubPage() {
                     <p className="mt-2 text-sm text-muted-foreground">
                       {t('dub.supported_formats')}
                     </p>
-                    {!session.jobId && !demoDismissed && (
+                    {!subtitleOnly && !session.jobId && !demoDismissed && (
                       <div className="mt-4 w-full">
                         <DubbingDemo
                           onTry={() => input.current?.click()}
@@ -2301,7 +2317,7 @@ export function DubPage() {
                 <DubTimeline
                   segments={session.segments}
                   disabled={busy || Boolean(session.recovery)}
-                  mediaDuration={session.duration}
+                  mediaDuration={session.inputType === 'subtitle' ? session.segments.reduce((duration, segment) => Math.max(duration, segment.end), 0) : session.duration}
                   onsets={timelineOnsets.onsets}
                   peaks={timelineOnsets.peaks}
                   previewingId={previewingSegmentId}
@@ -2424,8 +2440,8 @@ export function DubPage() {
                               )}
                               {(segment.translate_error ||
                                 segment.translate_degraded ||
-                                segment.plan?.status === 'tight' ||
-                                segment.plan?.status === 'impossible' ||
+                                (session.inputType !== 'subtitle' && segment.plan?.status === 'tight') ||
+                                (session.inputType !== 'subtitle' && segment.plan?.status === 'impossible') ||
                                 segment.fit_status?.status === 'overflows') && (
                                 <div className="ml-auto flex shrink-0 flex-wrap justify-end gap-1">
                                   {segment.translate_error && (
@@ -2450,7 +2466,7 @@ export function DubPage() {
                                       {t('dub.fast_quality')}
                                     </span>
                                   )}
-                                  {segment.plan?.status === 'tight' && (
+                                  {session.inputType !== 'subtitle' && segment.plan?.status === 'tight' && (
                                     <span
                                       className="inline-flex items-center gap-1 rounded-full bg-warning/10 px-1.5 py-0.5 text-[10px] font-medium text-warning"
                                       title={t('segment.plan_tight_title', {
@@ -2462,7 +2478,7 @@ export function DubPage() {
                                       {t('segment.plan_tight')}
                                     </span>
                                   )}
-                                  {segment.plan?.status === 'impossible' && (
+                                  {session.inputType !== 'subtitle' && segment.plan?.status === 'impossible' && (
                                     <span
                                       className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-1.5 py-0.5 text-[10px] font-medium text-destructive"
                                       title={t('segment.plan_impossible_title', {

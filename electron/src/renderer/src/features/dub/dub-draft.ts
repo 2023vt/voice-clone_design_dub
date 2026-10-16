@@ -101,7 +101,7 @@ export function restoreDubDraft(raw: string | null, defaults: DubSession): DubSe
           ? Number(value.duration)
           : Math.max(0, ...segments.map((segment: DubSession['segments'][number]) => segment.end)),
       sourceLang: typeof value.sourceLang === 'string' ? value.sourceLang : '',
-      inputType: value.inputType === 'audio' ? 'audio' : 'video',
+      inputType: value.inputType === 'subtitle' ? 'subtitle' : value.inputType === 'audio' ? 'audio' : 'video',
       tracks: Array.isArray(value.tracks)
         ? value.tracks.filter((track: unknown) => typeof track === 'string')
         : [],

@@ -3459,5 +3459,6 @@
     "gateIntro": "Accepteer de licentie van elk model hieronder voordat je het gebruikt. Bekijk ze een voor een en vink dan het bijbehorende vakje aan.",
     "retryHint": "Licenties geaccepteerd. Als iets hierop wachtte, start het dan opnieuw.",
     "detailsFailed": "De licentiegegevens konden niet worden geladen. Sluit dit venster en probeer het opnieuw."
-  }
+  },
+  "subtitleDub": {"title": "Ondertitels inspreken", "import": "Ondertitels importeren", "choose": "SRT of VTT kiezen", "hint": "Importeer ondertitels en wijs opgeslagen stemmen toe. Alleen audio die te lang is, wordt versneld.", "remove": "Ondertitels verwijderen", "removeConfirm": "Deze ondertitels, hun fragmenten en niet-opgeslagen wijzigingen verwijderen? Dit kan niet ongedaan worden gemaakt."}
 }

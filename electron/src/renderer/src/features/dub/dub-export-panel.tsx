@@ -14,15 +14,15 @@ export function DubExportPanel({ session, disabled }: { session: DubSession; dis
   const { t } = useTranslation();
   const preferences = session.exportOptions || {};
   const format =
-    session.inputType === 'audio' && preferences.format === 'mp4'
+    session.inputType !== 'video' && preferences.format === 'mp4'
       ? 'wav'
-      : preferences.format || (session.inputType === 'audio' ? 'wav' : 'mp4');
+      : preferences.format || (session.inputType !== 'video' ? 'wav' : 'mp4');
   const setFormat = (format: DubExportFormat) => setDubExportPreferences({ format });
   const trackChoice = preferences.track || '';
   const setTrack = (track: string) => setDubExportPreferences({ track });
   const excluded = preferences.excluded || [];
   const setExcluded = (excluded: string[]) => setDubExportPreferences({ excluded });
-  const preserveBg = preferences.preserveBg ?? true;
+  const preserveBg = session.inputType !== 'subtitle' && (preferences.preserveBg ?? true);
   const setPreserveBg = (preserveBg: boolean) => setDubExportPreferences({ preserveBg });
   const burn = preferences.burn ?? false;
   const setBurn = (burn: boolean) => setDubExportPreferences({ burn });
@@ -35,7 +35,7 @@ export function DubExportPanel({ session, disabled }: { session: DubSession; dis
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const pending = useRef(false);
-  const tracks = ['original', ...session.tracks];
+  const tracks = session.inputType === 'subtitle' ? session.tracks : ['original', ...session.tracks];
   const selected = tracks.filter((code) => !excluded.includes(code));
   const choices = format === 'mp4' ? selected : session.tracks;
   const track = choices.includes(trackChoice)
@@ -166,7 +166,7 @@ export function DubExportPanel({ session, disabled }: { session: DubSession; dis
             ))}
           </div>
         </div>
-        {['mp4', 'wav', 'mp3'].includes(format) &&
+        {session.inputType !== 'subtitle' && ['mp4', 'wav', 'mp3'].includes(format) &&
           toggle(t('exportModal.bg_audio'), preserveBg, setPreserveBg)}
         {format === 'mp3' && (
           <div className="space-y-2">

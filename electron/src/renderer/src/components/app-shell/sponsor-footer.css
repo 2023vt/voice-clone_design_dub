@@ -189,6 +189,9 @@
   object-fit: contain;
 }
 
+.sponsor-support-icon[data-brand='githubsponsors'] {
+  color: #ea4aaa;
+}
 .sponsor-support-icon[data-brand='kofi'] {
   color: #ff6433;
 }

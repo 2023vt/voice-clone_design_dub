@@ -2,6 +2,7 @@
   <img src="docs/logo.png" alt="VoiceStudio Logo" width="96" height="96" />
   <h1>Sponsor VoiceStudio</h1>
   <p><b>Keep the open-source ElevenLabs alternative free, local, and shipping.</b></p>
+  <p><a href="https://github.com/sponsors/debpalash"><img src="https://img.shields.io/badge/Sponsor-GitHub%20Sponsors-ea4aaa?logo=githubsponsors&logoColor=white" alt="Sponsor on GitHub Sponsors" /></a></p>
 </div>
 
 ---
@@ -45,10 +46,11 @@ Placements marked "as that page ships" (the in-app Sponsors page and the project
 
 **2. Or start recurring support directly:**
 
+- **GitHub Sponsors (monthly or one-time, recommended):** [github.com/sponsors/debpalash](https://github.com/sponsors/debpalash) — credited with a sponsor badge on your GitHub profile
 - **Ko-fi (recurring or one-time):** [ko-fi.com/debpalash](https://ko-fi.com/debpalash)
 - **PayPal (one-time):** [paypal.me/palashCoder](https://paypal.me/palashCoder)
 
-If you sponsor via Ko-fi/PayPal and want a logo slot, still open an inquiry (or drop a note there) so we know who to credit and where to link.
+If you sponsor via GitHub Sponsors, Ko-fi or PayPal and want a logo slot, still open an inquiry (or drop a note there) so we know who to credit and where to link.
 
 **3. Prefer to talk first?** Reach out directly:
 

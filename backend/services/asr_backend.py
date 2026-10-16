@@ -2964,7 +2964,14 @@ def _ctranslate2_cuda_ok() -> bool:
         # the #1529 crash. CPU always works.
         logger.warning("device probe failed — CTranslate2 taking the CPU path", exc_info=True)
         return False
-    return _cuda_reported_available() and not _rocm_torch()
+    # Availability checks are not a load-time guarantee: an already selected
+    # or directly constructed adapter can bypass them. Missing cuDNN aborts
+    # inside native CUDA code, so choose the supported CPU path before loading.
+    return (
+        _cuda_reported_available()
+        and not _rocm_torch()
+        and _ctranslate2_cudnn_ok()[0]
+    )
 
 
 def _auto_detect() -> str:

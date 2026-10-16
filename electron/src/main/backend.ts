@@ -32,6 +32,7 @@ import { rm } from 'node:fs/promises';
 import { cpus, homedir, totalmem } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { app } from 'electron';
+import { APP_ORIGIN } from './protocol';
 import type {
   BackendConnection,
   BackendStage,
@@ -605,7 +606,13 @@ export class BackendSupervisor extends EventEmitter<{
 
   requestHeaders(): Record<string, string> {
     const session = this.activeSession();
-    return session ? { Authorization: `Bearer ${session.token}` } : {};
+    // Both proxies discard the renderer's Origin. Assert our own identity so
+    // backend transport gates can recognize the desktop. Chromium forbids
+    // overriding Origin itself in net.fetch.
+    return {
+      'X-VoiceStudio-Desktop-Origin': APP_ORIGIN,
+      ...(session ? { Authorization: `Bearer ${session.token}` } : {}),
+    };
   }
 
   private activeSession(): RemoteSession | null {

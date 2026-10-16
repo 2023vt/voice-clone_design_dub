@@ -10,6 +10,7 @@ import { TERMINAL_MODEL_INSTALL_STATES, useModelInstallJobs } from '@/hooks/use-
 import { apiJson, describeError } from '@/lib/api/client';
 import { openRepairAgent } from '@/lib/repair-agent-events';
 import type { EnginesResponse } from '@/lib/api/types';
+import type { ModelCatalogueResponse } from '@/features/settings/model-catalogue-query';
 
 interface RecommendedModel {
   repo_id: string;
@@ -62,25 +63,28 @@ export function EngineNotice({
     [operation],
   );
 
-  const activateAvailableEngine = useCallback(async (): Promise<boolean> => {
-    const engines = await apiJson<EnginesResponse>('/engines');
-    const current = engines.tts.backends.find((backend) => backend.id === engines.tts.active);
-    if (current?.available) {
+  const activateAvailableEngine = useCallback(
+    async (known?: EnginesResponse): Promise<boolean> => {
+      const engines = known ?? (await apiJson<EnginesResponse>('/engines'));
+      const current = engines.tts.backends.find((backend) => backend.id === engines.tts.active);
+      if (current?.available) {
+        await refreshReadiness();
+        return true;
+      }
+      const available = engines.tts.backends.filter(
+        (backend) => backend.available && backend.routing_status !== 'unavailable',
+      );
+      const candidate = available.find((backend) => backend.id === 'omnivoice') ?? available[0];
+      if (!candidate) return false;
+      await apiJson('/engines/select', {
+        method: 'POST',
+        body: JSON.stringify({ family: 'tts', backend_id: candidate.id }),
+      });
       await refreshReadiness();
       return true;
-    }
-    const available = engines.tts.backends.filter(
-      (backend) => backend.available && backend.routing_status !== 'unavailable',
-    );
-    const candidate = available.find((backend) => backend.id === 'omnivoice') ?? available[0];
-    if (!candidate) return false;
-    await apiJson('/engines/select', {
-      method: 'POST',
-      body: JSON.stringify({ family: 'tts', backend_id: candidate.id }),
-    });
-    await refreshReadiness();
-    return true;
-  }, [refreshReadiness]);
+    },
+    [refreshReadiness],
+  );
 
   useEffect(() => {
     if (!install || !jobs.data) return;
@@ -111,37 +115,54 @@ export function EngineNotice({
   }, [activateAvailableEngine, install, job, jobs.data, refreshReadiness, repair]);
 
   if (blocker !== 'engine') return null;
+  const startInstall = async (repo: string) => {
+    const existing = jobs.data?.jobs.find(
+      (item) => item.repo_id === repo && !TERMINAL_MODEL_INSTALL_STATES.has(item.state),
+    );
+    installSeen.current = false;
+    setInstall({ repo });
+    if (existing) {
+      installSeen.current = true;
+      return;
+    }
+    await apiJson('/models/install', {
+      method: 'POST',
+      body: JSON.stringify({ repo_id: repo }),
+    });
+    await client.invalidateQueries({ queryKey: ['model-install-jobs'] });
+    toast.success(t('models.started_downloading', { count: 1 }));
+  };
   const fix = async () => {
     setFixing(true);
     try {
+      // Readiness also blocks when the selected engine is available but the
+      // model chosen for it is not downloaded. Download that model first,
+      // keeping the user's engine choice; a recommended model alone would not
+      // unblock that engine.
+      const engines = await apiJson<EnginesResponse>('/engines');
+      const active = engines.tts?.backends?.find((backend) => backend.id === engines.tts.active);
+      const selectedModel = active?.available ? engines.tts.active_model : null;
+      if (selectedModel) {
+        const catalogue = await apiJson<ModelCatalogueResponse>('/models');
+        const entry = catalogue.models?.find((model) => model.repo_id === selectedModel);
+        if (entry && (!entry.installed || entry.incomplete)) {
+          await startInstall(selectedModel);
+          return;
+        }
+      }
       const recommendation = await apiJson<ModelRecommendations>('/setup/recommendations');
       const missing = recommendation.models.find(
         (item) => item.required && item.role.toLowerCase() === 'tts' && !item.installed,
       );
-      if (!missing) {
-        if (!(await activateAvailableEngine())) {
-          repair(
-            'The required model is installed, but no compatible engine is ready. Diagnose the live engine state and complete supported app-level recovery.',
-          );
-        }
+      if (missing) {
+        await startInstall(missing.repo_id);
         return;
       }
-      const existing = jobs.data?.jobs.find(
-        (item) =>
-          item.repo_id === missing.repo_id && !TERMINAL_MODEL_INSTALL_STATES.has(item.state),
-      );
-      installSeen.current = false;
-      setInstall({ repo: missing.repo_id });
-      if (existing) {
-        installSeen.current = true;
-        return;
+      if (!(await activateAvailableEngine(engines))) {
+        repair(
+          'The required model is installed, but no compatible engine is ready. Diagnose the live engine state and complete supported app-level recovery.',
+        );
       }
-      await apiJson('/models/install', {
-        method: 'POST',
-        body: JSON.stringify({ repo_id: missing.repo_id }),
-      });
-      await client.invalidateQueries({ queryKey: ['model-install-jobs'] });
-      toast.success(t('models.started_downloading', { count: 1 }));
     } catch (error) {
       setInstall(null);
       installSeen.current = false;

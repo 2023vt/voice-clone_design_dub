@@ -1650,6 +1650,7 @@
     "toast_flush_failed": "Eliminazione non riuscita: {{message}}",
     "name": "VoiceStudio",
     "version": "v{{version}}",
+    "version_dev": "v{{version}} · Sviluppo",
     "tagline": "Clonazione vocale locale. Niente lascia la tua macchina.",
     "coming_soon": "Prossimamente",
     "switch_to_light": "Passa al tema chiaro",

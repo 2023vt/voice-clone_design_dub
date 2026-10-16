@@ -1648,6 +1648,7 @@
     "toast_flush_failed": "刷新失败：{{message}}",
     "name": "VoiceStudio",
     "version": "v{{version}}",
+    "version_dev": "v{{version}} · 开发版",
     "tagline": "本地语音克隆。没有任何东西离开你的机器。",
     "coming_soon": "即将推出",
     "switch_to_light": "切换到浅色主题",

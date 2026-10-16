@@ -1652,6 +1652,7 @@
     "toast_flush_failed": "Сброс не выполнен: {{message}}",
     "name": "VoiceStudio",
     "version": "v{{version}}",
+    "version_dev": "v{{version}} · Разработка",
     "tagline": "Локальное клонирование голоса. Ничто не покидает вашу машину.",
     "coming_soon": "Вскоре",
     "switch_to_light": "Переключиться на светлую тему",

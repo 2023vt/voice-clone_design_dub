@@ -150,6 +150,28 @@ def test_home_superstring_not_corrupted(monkeypatch):
     assert out == "~/secret.wav"
 
 
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        # Punctuation right after a nonstandard $HOME must still redact (#2937):
+        # only a word char continuing the name blocks the match.
+        (
+            "Cannot use models dir /mnt/md0/homes/alice: permission denied",
+            "Cannot use models dir ~: permission denied",
+        ),
+        (
+            "Cache directory /mnt/md0/homes/alice is not writable.",
+            "Cache directory ~ is not writable.",
+        ),
+        ("path (/mnt/md0/homes/alice), ok", "path (~), ok"),
+        ("see /mnt/md0/homes/alice; then retry", "see ~; then retry"),
+    ],
+)
+def test_actual_home_redacted_before_punctuation(monkeypatch, raw, expected):
+    monkeypatch.setenv("HOME", "/mnt/md0/homes/alice")
+    assert scrub_text(raw) == expected
+
+
 class _BrokenPattern:
     def sub(self, *_args, **_kwargs):
         raise RuntimeError("redaction engine failed")

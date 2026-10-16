@@ -12,6 +12,14 @@ metadata and the backend fallback mirror it.
 
 - The open-source app no longer contains a licence-key client
 
+### Added
+
+- GitHub Sponsors is now the lead way to support VoiceStudio — on the Support page, the footer support menu, the repository Sponsor button, and SPONSORS.md (#2918)
+
+### Changed
+
+- The expanded sidebar shows the installed app version beneath VoiceStudio and clearly marks development builds (#2894)
+
 ### Removed
 
 - The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
@@ -19,6 +27,15 @@ metadata and the backend fallback mirror it.
 ### Fixed
 
 - Keep combining accents, Indic conjuncts, flags and joined emoji together when spelling longform text, matching the editor preview. (#2734) — thanks @rudycelekli!
+
+- "Text-to-speech is not ready" → Fix now downloads the model chosen for the selected engine instead of doing nothing and leaving the warning up (#2918)
+- Integrations show official logos for Cursor, Claude Code, Codex CLI, OpenAI Agents, Docker and the VoiceStudio API instead of a generic placeholder or a GitHub avatar (#2918)
+- Tools → Convert includes saved Voice Design profiles and clones with locked reference audio in the target voice picker (#2899)
+- Preview voice buttons no longer freeze or stick on a warning: loading can be cancelled, errors retry on click, and repeat clicks share one render (#2915)
+
+- Snap packages follow Canonical’s strict-confinement approach to launch without manual Chromium sandbox setup (#2893) — thanks @velixio!
+- Snap launches explain missing sandbox permissions instead of crashing before startup (#2889)
+- Snap packages expand the Electron desktop runtime so they launch after installation (#2858)
 
 ## [0.5.7] — 2026-10-13
 

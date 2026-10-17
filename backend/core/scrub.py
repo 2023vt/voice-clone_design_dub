@@ -119,13 +119,14 @@ def scrub_text(text: str | None) -> str:
 
     # 3. This process's real home dir (covers symlinked/nonstandard homes
     #    the generic patterns miss), then the per-OS shapes. Boundary-aware so
-    #    a home of `/Users/john` doesn't rewrite `/Users/johnny` (a word char
-    #    continuing the name blocks the match), while punctuation right after
+    #    a home of `/Users/john` doesn't rewrite longer directory names,
+    #    including Unicode, dotted and hyphenated names, while punctuation after
     #    the path — `/mnt/homes/alice: permission denied` — still redacts.
     try:
         home = os.path.expanduser("~")
         if home and home not in ("/", "~"):
-            s = re.sub(re.escape(home) + r"(?![A-Za-z0-9_])", "~", s)
+            boundary = r"(?=[/\\\s\"':,;)\]}!?]|\.(?=\s|$)|$)"
+            s = re.sub(re.escape(home) + boundary, "~", s)
     except Exception:
         return REDACTED
     for pat in _HOME_PATTERNS:

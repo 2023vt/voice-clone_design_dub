@@ -143,7 +143,7 @@ def test_url_query_secret_value_redacted_name_kept():
 
 def test_home_superstring_not_corrupted(monkeypatch):
     # A home of /Users/john must not rewrite /Users/johnny to '~ny'.
-    monkeypatch.setenv("HOME", "/Users/john")
+    monkeypatch.setattr(scrub_module.os.path, "expanduser", lambda _path: "/Users/john")
     out = scrub_text("/Users/johnny/secret.wav")
     assert "~ny" not in out
     assert "johnny" not in out       # still redacted by the generic macOS shape
@@ -168,7 +168,7 @@ def test_home_superstring_not_corrupted(monkeypatch):
     ],
 )
 def test_actual_home_redacted_before_punctuation(monkeypatch, raw, expected):
-    monkeypatch.setenv("HOME", "/mnt/md0/homes/alice")
+    monkeypatch.setattr(scrub_module.os.path, "expanduser", lambda _path: "/mnt/md0/homes/alice")
     assert scrub_text(raw) == expected
 
 
@@ -211,3 +211,17 @@ def test_provider_exact_key_redaction_failure_is_fail_closed():
             raise RuntimeError("key inspection failed")
 
     assert scrub_provider_error("provider echoed a credential", _BrokenKey()) == REDACTED
+
+
+@pytest.mark.parametrize("suffix", ["ny", "-smith", ".smith", "é", "_smith"])
+def test_actual_home_preserves_complete_sibling_names(monkeypatch, suffix):
+    monkeypatch.setattr(scrub_module.os.path, "expanduser", lambda _path: "/Users/john")
+    assert scrub_text(f"/Users/john{suffix}/model") == "~/model"
+    monkeypatch.setattr(scrub_module.os.path, "expanduser", lambda _path: "/mnt/homes/john")
+    sibling = f"/mnt/homes/john{suffix}/model"
+    assert scrub_text(sibling) == sibling
+
+
+def test_actual_home_redacts_sentence_final_period(monkeypatch):
+    monkeypatch.setattr(scrub_module.os.path, "expanduser", lambda _path: "/mnt/homes/john")
+    assert scrub_text("Cannot use /mnt/homes/john.") == "Cannot use ~."

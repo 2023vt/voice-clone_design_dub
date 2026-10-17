@@ -187,3 +187,13 @@ it('restores the project translation brief without changing its wording', () => 
   const result = restoreDubDraft(JSON.stringify({ ...defaults, translationInstructions }), defaults);
   expect(result?.translationInstructions).toBe(translationInstructions);
 });
+
+
+it('restores the export mix level with the saved dubbing draft', () => {
+  for (const bedGain of [0, 1, 2, 4]) {
+    const draft = JSON.stringify({ ...defaults, exportOptions: { preserveBg: true, bedGain } });
+    expect(restoreDubDraft(draft, defaults).exportOptions).toMatchObject({ preserveBg: true, bedGain });
+  }
+  expect(restoreDubDraft(JSON.stringify({ ...defaults, exportOptions: { bedGain: 9 } }), defaults)
+    .exportOptions?.bedGain).toBeUndefined();
+});

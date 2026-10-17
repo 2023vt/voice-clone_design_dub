@@ -1950,6 +1950,7 @@
     "original": "原創",
     "dub_suffix": "（配音）",
     "bg_audio": "背景音訊",
+    "background_volume": "背景音量",
     "mix_bg_video": "在每個配音曲目下混合音樂/FX",
     "subs_in_video": "影片中的字幕",
     "hardsub": "將字幕刻錄到圖片中（hardsub）",

@@ -1950,6 +1950,7 @@
     "original": "Original",
     "dub_suffix": "(Dub)",
     "bg_audio": "Hintergrundaudio",
+    "background_volume": "Hintergrundlautstärke",
     "mix_bg_video": "Mischen Sie Musik/Effekte unter jedem synchronisierten Titel",
     "subs_in_video": "Untertitel im Video",
     "hardsub": "Untertitel in Bild brennen (Hardsub)",

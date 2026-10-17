@@ -1950,6 +1950,7 @@
     "original": "Orijinal",
     "dub_suffix": "(Dub)",
     "bg_audio": "Arka plan sesi",
+    "background_volume": "Arka plan ses düzeyi",
     "mix_bg_video": "Her dublajlı parçanın altında müziği/efektleri karıştırın",
     "subs_in_video": "Videodaki altyazılar",
     "hardsub": "Altyazıları resme yazın (hardsub)",

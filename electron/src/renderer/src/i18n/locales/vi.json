@@ -1950,6 +1950,7 @@
     "original": "Bản gốc",
     "dub_suffix": "(Lồng tiếng)",
     "bg_audio": "Âm thanh nền",
+    "background_volume": "Âm lượng nền",
     "mix_bg_video": "Trộn nhạc/FX dưới mỗi bản nhạc lồng tiếng",
     "subs_in_video": "Phụ đề trong video",
     "hardsub": "Ghi phụ đề thành hình ảnh (hardsub)",

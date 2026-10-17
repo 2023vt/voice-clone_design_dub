@@ -1950,6 +1950,7 @@
     "original": "Asli",
     "dub_suffix": "(sulih suara)",
     "bg_audio": "Audio latar belakang",
+    "background_volume": "Volume latar belakang",
     "mix_bg_video": "Campurkan musik/FX di bawah setiap trek yang di-dubbing",
     "subs_in_video": "Subtitle dalam video",
     "hardsub": "Bakar subtitle ke dalam gambar (hardsub)",

@@ -1958,6 +1958,7 @@
     "original": "أصلي",
     "dub_suffix": "(يصفى)",
     "bg_audio": "صوت الخلفية",
+    "background_volume": "مستوى صوت الخلفية",
     "mix_bg_video": "امزج الموسيقى/FX تحت كل مسار مدبلج",
     "subs_in_video": "ترجمات في الفيديو",
     "hardsub": "حرق الترجمة في الصورة (hardsub)",

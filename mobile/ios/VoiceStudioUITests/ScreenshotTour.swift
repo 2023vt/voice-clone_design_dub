@@ -10,6 +10,8 @@ final class ScreenshotTour: XCTestCase {
         app.launch()
 
         XCTAssertTrue(app.buttons["consent.no"].waitForExistence(timeout: 10))
+        XCTAssertTrue(app.staticTexts["consent.title"].exists)
+        XCTAssertEqual(app.sheets.firstMatch.buttons.count, 2)
         shot(app, "01-consent")
         app.buttons["consent.no"].tap()
 
@@ -24,6 +26,7 @@ final class ScreenshotTour: XCTestCase {
 
         let editor = app.textViews["speak.text"]
         XCTAssertTrue(editor.waitForExistence(timeout: 10))
+        XCTAssertEqual(editor.label, "Type what you want to hear…")
         shot(app, "04-speak")
         editor.tap(); editor.typeText("Hello from the VoiceStudio iPhone app.")
         shot(app, "05-speak-keyboard")
@@ -43,8 +46,16 @@ final class ScreenshotTour: XCTestCase {
         for (tab, name) in [("Voices", "08-voices"), ("Dub", "09-dub"), ("Dictate", "10-dictate"), ("Settings", "11-settings")] {
             app.tabBars.buttons[tab].tap()
             sleep(1)
+            if tab == "Dub" {
+                XCTAssertEqual(app.buttons["dub.languages"].value as? String, "Choose")
+                XCTAssertEqual(app.staticTexts["dub.metadata.smoke-dub"].label, "Spanish dub, 2:05 long")
+            }
+            if tab == "Dictate" { XCTAssertFalse(app.staticTexts["Hold to talk"].exists) }
             shot(app, name)
         }
+        app.buttons["settings.palette.light"].tap()
+        shot(app, "11a-palette-picker")
+        app.buttons["Close"].tap()
         app.swipeUp()
         shot(app, "12-settings-more")
 

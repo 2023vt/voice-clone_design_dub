@@ -12,6 +12,10 @@ try {
     await page.getByRole('link', { name: 'PayPal', exact: true }).getAttribute('href'),
     'https://paypal.me/palashCoder',
   );
+  assert.equal(
+    await page.getByRole('link', { name: 'GitHub Sponsors', exact: true }).first().getAttribute('href'),
+    'https://github.com/sponsors/debpalash',
+  );
   await page.getByRole('button', { name: '$50', exact: true }).click();
   assert.equal(
     await page.getByRole('link', { name: 'PayPal', exact: true }).getAttribute('href'),

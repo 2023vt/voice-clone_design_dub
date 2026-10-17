@@ -1,5 +1,6 @@
 """Execute notebook prerequisite ordering with mocked downloads (#1922)."""
 import json
+import os
 from pathlib import Path
 import sys
 import types
@@ -8,6 +9,38 @@ from unittest.mock import patch
 
 
 NOTEBOOK = Path(__file__).resolve().parents[1] / "notebooks/OmniVoice_Studio_Colab.ipynb"
+
+
+class ColabWebBuildTests(unittest.TestCase):
+    def build_source(self):
+        cells = json.loads(NOTEBOOK.read_text())["cells"]
+        source = next("".join(c["source"]) for c in cells
+                      if "# 2d." in "".join(c["source"]))
+        return source[source.index("# 2d."):source.index("# 2e.")]
+
+    def run_build(self, exists):
+        calls = []
+        with patch("os.path.exists", side_effect=exists):
+            exec(self.build_source(), {
+                "os": os, "REPO_DIR": "/content/VoiceStudio", "BUN": "bun",
+                "run": lambda cmd, **kwargs: calls.append((cmd, kwargs)),
+            })
+        return calls
+
+    def test_clean_runtime_builds_electron_web_renderer(self):
+        calls = self.run_build([False, True])
+        self.assertEqual([cmd for cmd, _ in calls], [
+            ["bun", "install", "--frozen-lockfile"],
+            ["bun", "run", "--cwd", "electron", "build:web"],
+        ])
+        self.assertTrue(all(opts["cwd"] == "/content/VoiceStudio" for _, opts in calls))
+
+    def test_existing_bundle_skips_install_and_build(self):
+        self.assertEqual(self.run_build([True]), [])
+
+    def test_missing_build_output_stops_setup(self):
+        with self.assertRaisesRegex(SystemExit, "frontend/dist/index.html is missing"):
+            self.run_build([False, False])
 
 
 class ColabASRSetupTests(unittest.TestCase):

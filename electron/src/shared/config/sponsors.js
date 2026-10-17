@@ -7,7 +7,7 @@
 // user reviews and submits it in their own browser; VoiceStudio never POSTs or
 // holds a credential.
 
-import { KOFI_URL } from '../utils/donateLinks';
+import { GITHUB_SPONSORS_URL, KOFI_URL } from '../utils/donateLinks';
 
 const REPO = 'https://github.com/debpalash/VoiceStudio';
 
@@ -46,6 +46,8 @@ export const SPONSOR_CONTACT = {
    *  blank_issues_enabled=false, so those redirect to the template chooser and
    *  drop the body — the template route carries the structured fields instead. */
   githubIssue: `${REPO}/issues/new?template=sponsor.yml`,
+  /** Recurring or one-time support with GitHub's sponsor credit and badge. */
+  githubSponsors: GITHUB_SPONSORS_URL,
   /** One-tap alternative for individuals who'd rather tip than sign a deal. */
   kofi: KOFI_URL,
   /** SPONSORS.md on GitHub — what sponsors get + the current roster. */

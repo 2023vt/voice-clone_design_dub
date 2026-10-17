@@ -34,6 +34,7 @@ import math
 import os
 import re
 import sys
+import zlib
 from dataclasses import dataclass, fields
 from functools import partial
 from typing import Any, List, Optional, Union
@@ -977,18 +978,44 @@ class OmniVoice(PreTrainedModel):
                     ) from exc
             candidates = list(ref_wav.split(max_samples, dim=-1))
 
-            def speech_score(text):
+            def speech_score(text, audio):
+                # Repetition is suspicious, not proof of silence: genuine speech
+                # can repeat, including in very quiet recordings (#2836).
+                encoded = (text or "").encode("utf-8")
+                words = re.findall(r"\w+", (text or "").casefold(), flags=re.UNICODE)
+                repetitive = (
+                    bool(encoded) and len(encoded) / len(zlib.compress(encoded)) > 2.4
+                ) or (len(words) >= 6 and len(set(words)) * 2 < len(words))
+                if repetitive:
+                    power = activity_score(audio) / audio.numel()
+                    quieter_than_other_passages = power < strongest_power * 0.01
+                    # A quiet, effectively flat recording carries no varying
+                    # voice signal. Use original gain so normalization does not
+                    # make a low-level DC/noise floor appear to be loud speech.
+                    flat_noise_floor = (
+                        power / input_gain ** 2 < 1e-5
+                        and float(audio.double().var(unbiased=False)) < power * 0.01
+                    )
+                    if quieter_than_other_passages or flat_noise_floor:
+                        return 0
                 return len(re.sub(r"[^\w]+", "", text or "", flags=re.UNICODE))
 
             transcribed = [
                 (self.transcribe((candidate, self.sampling_rate)), candidate)
                 for candidate in candidates
             ]
+            # A loud non-speech window must not disqualify the only spoken
+            # passage merely because that passage repeats a phrase.
+            strongest_power = max(
+                (activity_score(audio) / audio.numel() for text, audio in transcribed
+                 if re.search(r"\w", text or "", flags=re.UNICODE)),
+                default=0.0,
+            )
             ref_text, ref_wav = max(
                 transcribed,
-                key=lambda item: (speech_score(item[0]), activity_score(item[1])),
+                key=lambda item: (speech_score(item[0], item[1]), activity_score(item[1])),
             )
-            if speech_score(ref_text) == 0:
+            if speech_score(ref_text, ref_wav) == 0:
                 # A transcript is only accepted up to CLONE_REF_TEXT_MAX_SECONDS.
                 transcript_hint = (
                     ", or supply a matching transcript"

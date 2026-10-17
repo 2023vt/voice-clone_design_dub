@@ -225,6 +225,8 @@ export function DubPage() {
   const target = session.target;
   const setTarget = setDubTarget;
   const [url, setUrl] = useState('');
+  // Job the "Use link" form was opened for; a new or removed source closes it.
+  const [linkModeJob, setLinkModeJob] = useState<string | null>(null);
   const [dragging, setDragging] = useState(false);
   const [cookieFile, setCookieFile] = useState<File>();
   const [cookieError, setCookieError] = useState(false);
@@ -659,6 +661,7 @@ export function DubPage() {
     };
   }, [warmPreviewPaths]);
 
+  const linkMode = Boolean(session.jobId) && linkModeJob === session.jobId;
   const sourceRemovable = dubSourceRemovable(session, cancelling);
   const isAudioSource = session.inputType === 'audio';
   const removeSourceLabel = t(isAudioSource ? 'dub.remove_audio' : 'dub.remove_video');
@@ -674,6 +677,111 @@ export function DubPage() {
     setCookieFile(undefined);
     setCookieError(false);
   };
+
+  // The URL form lives in step 1 when there is no source yet, and can be
+  // reopened next to an existing source so a remote link can replace it.
+  const dubUrlForm = (
+    <form
+      className="space-y-2"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (!busy && !cancelling && !session.recovery && isDubUrl(url)) {
+          setPreview('original');
+          void ingestDubUrl(url, cookieFile, fetchSubs);
+          setCookieFile(undefined);
+          setLinkModeJob(null);
+        }
+      }}
+    >
+      <div className="flex items-center gap-2">
+        <div className="min-w-0 flex-1">
+          <Input
+            type="url"
+            value={url}
+            onChange={(event) => setUrl(event.target.value)}
+            aria-label={t('dub.paste_url')}
+            placeholder={t('dub.paste_url')}
+            autoFocus={linkMode}
+            disabled={busy || cancelling || Boolean(session.recovery)}
+          />
+        </div>
+        {url && (
+          <Button
+            type="button"
+            size="xs"
+            variant="ghost"
+            aria-label={t('common.clear')}
+            disabled={busy || cancelling || Boolean(session.recovery)}
+            onClick={() => {
+              setUrl('');
+              setCookieFile(undefined);
+              setCookieError(false);
+            }}
+          >
+            {t('common.clear')}
+          </Button>
+        )}
+      </div>
+      {url && (
+        <details className="space-y-2">
+          <summary className="cursor-pointer text-xs text-muted-foreground">
+            {t('dub.advanced')}
+          </summary>
+          <div className="flex items-center justify-between gap-2 text-xs">
+            <span>{t('dub.pull_captions')}</span>
+            <Switch
+              aria-label={t('dub.pull_captions')}
+              checked={fetchSubs}
+              onCheckedChange={setFetchSubs}
+              disabled={busy || cancelling || Boolean(session.recovery)}
+            />
+          </div>
+          <p className="text-xs text-muted-foreground">{t('dub.youtube_auth')}</p>
+          <Input
+            type="file"
+            accept=".txt,text/plain"
+            aria-label={t('dub.youtube_cookie_file')}
+            disabled={busy || cancelling || Boolean(session.recovery)}
+            onChange={(event) => {
+              const file = event.target.files?.[0];
+              event.target.value = '';
+              setCookieError(Boolean(file && file.size > MAX_COOKIE_EXPORT_BYTES));
+              setCookieFile(file && file.size <= MAX_COOKIE_EXPORT_BYTES ? file : undefined);
+            }}
+          />
+          {cookieFile && (
+            <div className="flex items-center gap-2">
+              <span className="truncate text-xs">{cookieFile.name}</span>
+              <Button
+                type="button"
+                size="xs"
+                variant="ghost"
+                aria-label={t('dub.remove_cookie_file')}
+                onClick={() => setCookieFile(undefined)}
+              >
+                {t('common.cancel')}
+              </Button>
+            </div>
+          )}
+          {cookieError && (
+            <p role="alert" className="text-xs text-destructive">
+              {t('dub.cookie_size_error')}
+            </p>
+          )}
+        </details>
+      )}
+      {url && (
+        <Button
+          type="submit"
+          variant="outline"
+          className="w-full"
+          disabled={busy || cancelling || Boolean(session.recovery) || !isDubUrl(url)}
+        >
+          {t('dub.ingest')}
+        </Button>
+      )}
+    </form>
+  );
 
   const previewDubSegment = async (segment: (typeof session.segments)[number]) => {
     if (!session.jobId || previewingSegmentId) return;
@@ -965,153 +1073,73 @@ export function DubPage() {
                   {t('settings.audio_tools_choose_file')}
                 </Button>
                 <p className="text-center text-xs text-muted-foreground">{t('dub.drop_here')}</p>
-                <form
-                  className="space-y-2"
-                  onSubmit={(event) => {
-                    event.preventDefault();
-                    if (!busy && !session.recovery && isDubUrl(url)) {
-                      setPreview('original');
-                      void ingestDubUrl(url, cookieFile, fetchSubs);
-                      setCookieFile(undefined);
-                    }
-                  }}
-                >
-                  <div className="flex items-center gap-2">
-                    <div className="min-w-0 flex-1">
-                      <Input
-                        type="url"
-                        value={url}
-                        onChange={(event) => setUrl(event.target.value)}
-                        aria-label={t('dub.paste_url')}
-                        placeholder={t('dub.paste_url')}
-                        disabled={busy || Boolean(session.recovery)}
-                      />
-                    </div>
-                    {url && (
-                      <Button
-                        type="button"
-                        size="xs"
-                        variant="ghost"
-                        aria-label={t('common.clear')}
-                        disabled={busy || Boolean(session.recovery)}
-                        onClick={() => {
-                          setUrl('');
-                          setCookieFile(undefined);
-                          setCookieError(false);
-                        }}
-                      >
-                        {t('common.clear')}
-                      </Button>
-                    )}
-                  </div>
-                  {url && (
-                    <details className="space-y-2">
-                      <summary className="cursor-pointer text-xs text-muted-foreground">
-                        {t('dub.advanced')}
-                      </summary>
-                      <div className="flex items-center justify-between gap-2 text-xs">
-                        <span>{t('dub.pull_captions')}</span>
-                        <Switch
-                          aria-label={t('dub.pull_captions')}
-                          checked={fetchSubs}
-                          onCheckedChange={setFetchSubs}
-                          disabled={busy || Boolean(session.recovery)}
-                        />
-                      </div>
-                      <p className="text-xs text-muted-foreground">{t('dub.youtube_auth')}</p>
-                      <Input
-                        type="file"
-                        accept=".txt,text/plain"
-                        aria-label={t('dub.youtube_cookie_file')}
-                        disabled={busy || Boolean(session.recovery)}
-                        onChange={(event) => {
-                          const file = event.target.files?.[0];
-                          event.target.value = '';
-                          setCookieError(Boolean(file && file.size > MAX_COOKIE_EXPORT_BYTES));
-                          setCookieFile(
-                            file && file.size <= MAX_COOKIE_EXPORT_BYTES ? file : undefined,
-                          );
-                        }}
-                      />
-                      {cookieFile && (
-                        <div className="flex items-center gap-2">
-                          <span className="truncate text-xs">{cookieFile.name}</span>
-                          <Button
-                            type="button"
-                            size="xs"
-                            variant="ghost"
-                            aria-label={t('dub.remove_cookie_file')}
-                            onClick={() => setCookieFile(undefined)}
-                          >
-                            {t('common.cancel')}
-                          </Button>
-                        </div>
-                      )}
-                      {cookieError && (
-                        <p role="alert" className="text-xs text-destructive">
-                          {t('dub.cookie_size_error')}
-                        </p>
-                      )}
-                    </details>
-                  )}
-                  {url && (
-                    <Button
-                      type="submit"
-                      variant="outline"
-                      className="w-full"
-                      disabled={busy || Boolean(session.recovery) || !isDubUrl(url)}
-                    >
-                      {t('dub.ingest')}
-                    </Button>
-                  )}
-                </form>
+                {dubUrlForm}
               </>
             ) : (
-              <div className="flex min-w-0 items-center gap-2 rounded-lg bg-background/35 px-2.5 py-2">
-                <FilmIcon className="size-4 shrink-0 text-primary" />
-                <span className="min-w-0 flex-1 truncate text-xs" title={session.filename}>
-                  {compactSourceLabel(session.filename)}
-                </span>
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  disabled={busy || Boolean(session.recovery)}
-                  onClick={() => input.current?.click()}
-                >
-                  {t('dub.change_file')}
-                </Button>
-                <ConfirmDialog
-                  open={removeVideoOpen}
-                  onOpenChange={setRemoveVideoOpen}
-                  title={removeSourceLabel}
-                  description={t(
-                    session.recovery
-                      ? 'dub.remove_interrupted_confirm'
-                      : isAudioSource
-                        ? 'dub.remove_audio_confirm'
-                        : 'dub.remove_video_confirm',
-                  )}
-                  confirmLabel={removeSourceLabel}
-                  onConfirm={() => void removeVideo()}
-                />
-                <Button
-                  size="xs"
-                  variant="ghost"
-                  aria-label={removeSourceLabel}
-                  disabled={!sourceRemovable}
-                  onClick={() => {
-                    if (
-                      session.recovery ||
-                      session.segments.length > 0 ||
-                      editHistory.undoDepth > 0
-                    )
-                      setRemoveVideoOpen(true);
-                    else void removeVideo();
-                  }}
-                >
-                  {removeSourceLabel}
-                </Button>
-              </div>
+              <>
+                <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 rounded-lg bg-background/35 px-2.5 py-2">
+                  <FilmIcon className="size-4 shrink-0 text-primary" />
+                  <span className="min-w-24 flex-1 truncate text-xs" title={session.filename}>
+                    {compactSourceLabel(session.filename)}
+                  </span>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    disabled={busy || Boolean(session.recovery)}
+                    onClick={() => input.current?.click()}
+                  >
+                    {t('dub.change_file')}
+                  </Button>
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    aria-expanded={linkMode}
+                    disabled={busy || Boolean(session.recovery)}
+                    onClick={() => {
+                      if (!linkMode) {
+                        setUrl('');
+                        setCookieFile(undefined);
+                        setCookieError(false);
+                      }
+                      setLinkModeJob(linkMode ? null : session.jobId);
+                    }}
+                  >
+                    {linkMode ? t('common.cancel') : t('dub.use_link')}
+                  </Button>
+                  <ConfirmDialog
+                    open={removeVideoOpen}
+                    onOpenChange={setRemoveVideoOpen}
+                    title={removeSourceLabel}
+                    description={t(
+                      session.recovery
+                        ? 'dub.remove_interrupted_confirm'
+                        : isAudioSource
+                          ? 'dub.remove_audio_confirm'
+                          : 'dub.remove_video_confirm',
+                    )}
+                    confirmLabel={removeSourceLabel}
+                    onConfirm={() => void removeVideo()}
+                  />
+                  <Button
+                    size="xs"
+                    variant="ghost"
+                    aria-label={removeSourceLabel}
+                    disabled={!sourceRemovable}
+                    onClick={() => {
+                      if (
+                        session.recovery ||
+                        session.segments.length > 0 ||
+                        editHistory.undoDepth > 0
+                      )
+                        setRemoveVideoOpen(true);
+                      else void removeVideo();
+                    }}
+                  >
+                    {removeSourceLabel}
+                  </Button>
+                </div>
+                {linkMode && dubUrlForm}
+              </>
             )}
             <details className="group space-y-3 border-t border-border/50 pt-2">
               <summary className="flex cursor-pointer list-none items-center gap-2 text-xs font-medium text-muted-foreground">

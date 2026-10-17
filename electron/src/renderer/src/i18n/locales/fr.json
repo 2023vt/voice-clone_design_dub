@@ -660,6 +660,7 @@
     "reset": "Réinitialiser",
     "save_project": "Enregistrer le projet",
     "change_file": "Changer de fichier",
+    "use_link": "Utiliser un lien",
     "import_srt": "Importer .srt",
     "import_srt_alt": "Importez plutôt .srt",
     "cast": "ACTEURS",

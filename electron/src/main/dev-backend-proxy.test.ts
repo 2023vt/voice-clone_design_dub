@@ -22,7 +22,7 @@ it('streams requests to the current backend with only main-owned authorization',
         path: request.url,
         body: Buffer.concat(chunks).toString('utf8'),
         authorization: request.headers.authorization,
-        origin: request.headers.origin,
+        origin: request.headers['x-voicestudio-desktop-origin'] as string | undefined,
       };
       response.writeHead(201, { 'content-type': 'text/plain' });
       response.end('proxied');
@@ -35,14 +35,14 @@ it('streams requests to the current backend with only main-owned authorization',
 
   const proxy: DevBackendProxy = await startDevBackendProxy(
     () => `http://127.0.0.1:${address.port}`,
-    () => ({ Authorization: 'Bearer scoped-session' }),
+    () => ({ Authorization: 'Bearer scoped-session', 'X-VoiceStudio-Desktop-Origin': 'app://voicestudio' }),
     0,
     ['http://localhost:3902'],
   );
   cleanup.push(proxy.close);
   const response = await fetch(`${proxy.url}/system/info?full=1`, {
     method: 'POST',
-    headers: { Authorization: 'Bearer renderer-secret', Origin: 'http://localhost:3902' },
+    headers: { Authorization: 'Bearer renderer-secret', Origin: 'http://localhost:3902', 'X-VoiceStudio-Desktop-Origin': 'app://forged' },
     body: 'stream me',
   });
 
@@ -52,7 +52,7 @@ it('streams requests to the current backend with only main-owned authorization',
     path: '/system/info?full=1',
     body: 'stream me',
     authorization: 'Bearer scoped-session',
-    origin: undefined,
+    origin: 'app://voicestudio',
   });
 });
 

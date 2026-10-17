@@ -32,6 +32,7 @@ from collections.abc import Awaitable, Callable
 
 from core import voice_leases
 from core.render_trace import call as trace_call, stage as trace_stage
+from core.stream_keepalive import NO_BUFFER_HEADERS, SSE_KEEPALIVE, with_keepalive
 
 from fastapi import APIRouter, File, HTTPException, Request, UploadFile
 from fastapi.responses import StreamingResponse
@@ -1326,8 +1327,10 @@ async def _public_longform_stream(plan, **render_kwargs):
         # aclosing: closing this stream must finalize the renderer now, not
         # whenever the garbage collector gets to it, so its job is retired
         # before the response is considered finished (#2536).
+        # A chapter renders as one byte-silent step that can outlast a proxy's
+        # idle timeout (#2108 class), so SSE comment keepalives fill the gaps.
         async with contextlib.aclosing(_render_longform_sse(plan, **render_kwargs)) as events:
-            async for event in events:
+            async for event in with_keepalive(events, SSE_KEEPALIVE):
                 yield event
     except asyncio.CancelledError:
         raise
@@ -1361,6 +1364,7 @@ async def audiobook_synthesize(req: AudiobookRequest, request: Request = None):
             is_disconnected=request.is_disconnected if request is not None else None,
         ),
         media_type="text/event-stream",
+        headers=NO_BUFFER_HEADERS,
     )
 
 
@@ -1427,6 +1431,7 @@ async def longform_render(req: LongformRenderRequest, request: Request = None):
             is_disconnected=request.is_disconnected if request is not None else None,
         ),
         media_type="text/event-stream",
+        headers=NO_BUFFER_HEADERS,
     )
 
 
@@ -1525,4 +1530,5 @@ async def resume_longform(job_id: str, request: Request = None):
             is_disconnected=request.is_disconnected if request is not None else None,
         ),
         media_type="text/event-stream",
+        headers=NO_BUFFER_HEADERS,
     )

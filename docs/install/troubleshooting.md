@@ -1384,3 +1384,22 @@ updated desktop build and retry **Install local runtime**. CPU and ROCm setup
 now skip the native CUDA compatibility probe; runtime imports are still verified
 before setup finishes. If verification also fails, include the new setup log in
 your report rather than deleting saved voices or projects.
+
+## Long generations fail behind Cloudflare or another reverse proxy (HTTP 524)
+
+**Symptom:** on a server reached through Cloudflare (or nginx/Apache with an
+idle timeout), a long Generate text fails in the browser — Cloudflare answers
+`524` after about 100 seconds — yet the finished take still appears in
+History.
+
+**Cause:** the streamed preview sent nothing until its first text chunk had
+rendered, and a chunk can take longer than the proxy's idle limit on a
+CPU-only host. Cloudflare's 100-second limit cannot be raised outside its
+Enterprise plan.
+
+**Fix:** update. Streamed Generate and long-form renders now send a keepalive
+every 15 seconds of silence (`OMNIVOICE_STREAM_KEEPALIVE_S`, see
+[performance.md](../performance.md#knobs-you-can-actually-turn)), so the
+connection stays open for as long as the render runs. If your proxy buffers
+responses, disable buffering for the API — the streams already send
+`X-Accel-Buffering: no` and `Cache-Control: no-transform`.

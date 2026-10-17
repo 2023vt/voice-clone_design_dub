@@ -11,7 +11,8 @@ final class ScreenshotTour: XCTestCase {
 
         XCTAssertTrue(app.buttons["consent.no"].waitForExistence(timeout: 10))
         XCTAssertTrue(app.staticTexts["consent.title"].exists)
-        XCTAssertEqual(app.sheets.firstMatch.buttons.count, 2)
+        XCTAssertTrue(app.buttons["consent.yes"].exists)
+        XCTAssertFalse(app.buttons["consent.dismiss"].exists)
         shot(app, "01-consent")
         app.buttons["consent.no"].tap()
 

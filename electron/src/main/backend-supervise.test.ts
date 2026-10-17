@@ -540,3 +540,8 @@ it('demotes a recovering remote whose credentials are rejected, even after incon
     await supervisor.shutdown();
   }
 });
+
+it('asserts the desktop origin in main-owned backend headers', () => {
+  const supervisor = new BackendSupervisor();
+  expect(supervisor.requestHeaders()).toMatchObject({ 'X-VoiceStudio-Desktop-Origin': 'app://voicestudio' });
+});

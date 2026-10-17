@@ -19,6 +19,10 @@ platforms never reports as available
 pip install mlx-audio
 ```
 
+Install the package into the Python environment that runs VoiceStudio's
+backend. This installs the MLX-Audio adapter, **not the weights for every
+curated model**. An available engine does not mean CSM is downloaded.
+
 Then select the engine via **Model Catalogue** (TTS tab → **Use**) or
 `OMNIVOICE_TTS_BACKEND=mlx-audio`.
 
@@ -40,6 +44,38 @@ Pick a model in the **Model Catalogue** curated picker
 ([#981](https://github.com/debpalash/VoiceStudio/issues/981)) or set
 `OMNIVOICE_MLX_AUDIO_MODEL` to either a curated key (`kokoro`) or any full
 HF repo id. The env var overrides the persisted UI choice.
+
+## First use of CSM
+
+1. On an Apple Silicon Mac, open **Model Catalogue** and download
+   **CSM 1B (voice cloning, mlx-audio)** (`mlx-community/csm-1b-8bit`).
+   Accept its model licence if prompted and wait for the download to finish.
+2. Select **MLX-Audio** and **CSM (voice cloning)** in its curated model picker.
+   Installing or selecting Kokoro does not prepare CSM.
+3. Generate a short clip with a reference voice. The adapter calls
+   `mlx_audio.tts.utils.load_model(...)` lazily on first synthesis, so the first
+   load can take longer than later clips. Selecting a model alone does not
+   load it into memory.
+
+If CSM still appears unusable, check the backend log for the model-load error
+and confirm the download is in the cache used by this backend. An exported
+`OMNIVOICE_MLX_AUDIO_MODEL` overrides the picker; remove it or set it to `csm`
+if it keeps selecting another model.
+
+For a **source installation**, an optional diagnostic can explicitly fetch and
+prepare CSM in the same Python environment. After reviewing its licence, run
+this from the repository root only when you want that download:
+
+```bash
+uv run --no-sync python -c "from mlx_audio.tts.utils import load_model; load_model('mlx-community/csm-1b-8bit')"
+```
+
+This command can contact Hugging Face and download model files. It uses the
+shell's Hugging Face cache settings, so pass the same `HF_HOME`/`HF_HUB_CACHE`
+values used by your backend if you customized them; warming a different cache
+will not repair the app's missing files. Restart the backend after a successful
+manual preparation and select CSM again. For packaged installations, use the
+app's model download flow rather than installing into an unrelated system Python.
 
 ## Behaviour notes
 

@@ -1041,6 +1041,7 @@
     "save": "Spara",
     "reset": "Återställ",
     "change_file": "Byt fil",
+    "use_link": "Använd länk",
     "import_srt": "Importera .srt",
     "import_srt_alt": "Importera .srt istället",
     "cast": "CAST",

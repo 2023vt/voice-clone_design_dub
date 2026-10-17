@@ -1041,6 +1041,7 @@
     "save": "保存",
     "reset": "リセット",
     "change_file": "ファイルを変更する",
+    "use_link": "リンクを使用",
     "import_srt": ".srtをインポートする",
     "import_srt_alt": "代わりに .srt をインポートしてください",
     "cast": "キャスト",

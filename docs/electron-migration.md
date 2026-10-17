@@ -30,7 +30,9 @@ setup creates a separate runtime in Electron’s default location instead of
 modifying or taking ownership of the existing environment.
 
 A new custom runtime destination remains selectable. Setup creates and owns it
-only when that directory does not already exist; existing unowned roots stay
+when that directory does not exist yet or is empty, such as a folder just
+created in the folder picker (file-manager metadata like `.DS_Store` or
+`desktop.ini` does not count). Existing unowned roots that hold other files stay
 untouched even if their `project` subdirectory is missing.
 
 Dependency checks ignore inherited `PYTHONPATH` and `PYTHONHOME`, matching backend

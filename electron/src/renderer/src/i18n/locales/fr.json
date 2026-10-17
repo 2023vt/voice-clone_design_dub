@@ -1952,6 +1952,7 @@
     "original": "Originale",
     "dub_suffix": "(Doublage)",
     "bg_audio": "Audio de fond",
+    "background_volume": "Volume de fond",
     "mix_bg_video": "Mélangez de la musique/des effets sous chaque piste doublée",
     "subs_in_video": "Sous-titres en vidéo",
     "hardsub": "Graver les sous-titres dans l'image (hardsub)",

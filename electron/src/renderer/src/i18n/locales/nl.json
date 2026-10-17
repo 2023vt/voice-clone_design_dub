@@ -1950,6 +1950,7 @@
     "original": "Origineel",
     "dub_suffix": "(kopiëren)",
     "bg_audio": "Achtergrondaudio",
+    "background_volume": "Achtergrondvolume",
     "mix_bg_video": "Mix muziek/FX onder elk nagesynchroniseerde nummer",
     "subs_in_video": "Ondertiteling in video",
     "hardsub": "Ondertitels in beeld branden (hardsub)",

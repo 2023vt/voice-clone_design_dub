@@ -1950,6 +1950,7 @@
     "original": "원본",
     "dub_suffix": "(더빙)",
     "bg_audio": "배경 오디오",
+    "background_volume": "배경음 볼륨",
     "mix_bg_video": "더빙된 모든 트랙에 음악/FX 믹스",
     "subs_in_video": "영상 속 자막",
     "hardsub": "자막을 영상에 굽기(하드섭)",

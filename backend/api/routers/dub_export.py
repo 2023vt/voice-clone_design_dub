@@ -9,7 +9,7 @@ import time
 import uuid
 import weakref
 from pathlib import Path, PureWindowsPath
-from typing import Optional
+from typing import Annotated, Optional
 
 from core.config import DUB_DIR
 from core.http_headers import content_disposition
@@ -38,6 +38,8 @@ from services.video_retime import (
 from api.routers.dub_core import _get_job, _safe_lang_or_400
 from schemas.requests import ProsodyMirrorRequest
 from core.browser_guard import reject_cross_site_get
+
+BedGain = Annotated[float, Query(ge=0, le=4, allow_inf_nan=False)]
 
 router = APIRouter()
 logger = logging.getLogger("omnivoice.api")
@@ -645,6 +647,7 @@ def _build_audio_export_cmd(
     bg_path: Optional[str],
     out_path: str,
     fmt: str,
+    bed_gain: float = 1.0,
 ) -> list[str]:
     """Build the ffmpeg command for an audio-only dub export (#119).
 
@@ -658,7 +661,7 @@ def _build_audio_export_cmd(
         # Mix the dubbed voice over the original background bed (same weights
         # as the video mux path) so ambience/music is preserved.
         cmd += ["-i", bg_path, "-filter_complex",
-                bed_mix_filter("1:a", "0:a", bed_gain=1.0),
+                bed_mix_filter("1:a", "0:a", bed_gain=bed_gain),
                 "-map", "[aout]"]
     cmd += codec
     cmd.append(out_path)
@@ -670,6 +673,7 @@ def _build_audio_export_cmd(
 async def dub_download(
     job_id: str,
     preserve_bg: bool = Query(True, description="Mix background noise into dubbed tracks"),
+    bed_gain: BedGain = 1.0,
     default_track: str = Query("", description="Default audio track; omitted selects the first dubbed track"),
     include_tracks: str = Query("", description="Comma-separated list of tracks to include (e.g. 'original,de,es'). Empty = include all."),
     save_authorization: str = Header("", alias="X-VoiceStudio-Path-Authorization"),
@@ -754,7 +758,7 @@ async def dub_download(
             output_name = f"dubbed_audio_{stamp}.m4a"
         out_path = os.path.join(exports_dir, output_name)
         bg = await _preserved_background(job, job_id, lang_code) if preserve_bg else None
-        cmd = _build_audio_export_cmd(ffmpeg, track_info["path"], bg, out_path, fmt)
+        cmd = _build_audio_export_cmd(ffmpeg, track_info["path"], bg, out_path, fmt, bed_gain=bed_gain)
         try:
             rc, _, stderr = await run_ffmpeg(cmd, timeout=1800.0)
             if rc != 0:
@@ -979,7 +983,7 @@ async def dub_download(
         for i, t in enumerate(tracks_to_process):
             tail = f",apad=whole_dur={apad_dur:.4f}" if apad_dur else ""
             filter_parts.append(bed_mix_filter(
-                f"{t['bg_idx']}:a", f"{t['idx']}:a", out=f"aout{i}", tail=tail, uniq=str(i), bed_gain=1.0,
+                f"{t['bg_idx']}:a", f"{t['idx']}:a", out=f"aout{i}", tail=tail, uniq=str(i), bed_gain=bed_gain,
             ))
             t["out_label"] = f"[aout{i}]"
         for t in tracks_to_process:
@@ -1156,10 +1160,11 @@ async def dub_preview_video(
     job_id: str,
     lang: str = Query(..., description="Language code of the dubbed track to mux in"),
     preserve_bg: bool = Query(True),
+    bed_gain: BedGain = 1.0,
 ):
     """Return an inline-playable MP4 with the chosen dubbed track as sole audio.
 
-    Caches per lang+preserve_bg combination under exports/preview_{lang}_{bg}.mp4.
+    Caches per lang+preserve_bg+bed_gain combination under exports/preview_{lang}_{bg}.mp4.
     Cache is invalidated when the underlying dubbed track mtime is newer than the cache.
     """
     # Strict allowlist on the path param BEFORE it reaches any filesystem
@@ -1193,6 +1198,8 @@ async def dub_preview_video(
         raise HTTPException(status_code=400, detail="Invalid job id")
     os.makedirs(exports_dir, exist_ok=True)
     bg_suffix = "surgical_v2_" + Path(bg_audio).stem if (preserve_bg and has_bg) else "nobg"
+    if preserve_bg and has_bg and bed_gain != 1.0:
+        bg_suffix += f"_gain_{float(bed_gain):.17g}"
     preview_path = os.path.realpath(
         os.path.join(exports_dir, f"preview_v2_{lang}_{bg_suffix}.mp4")
     )
@@ -1331,7 +1338,7 @@ async def dub_preview_video(
         audio_map = f"{track_idx}:a:0"
         if bg_idx is not None:
             tail = f",apad=whole_dur={apad_dur:.4f}" if apad_dur else ""
-            filter_parts.append(bed_mix_filter(f"{bg_idx}:a", f"{track_idx}:a", tail=tail, bed_gain=1.0))
+            filter_parts.append(bed_mix_filter(f"{bg_idx}:a", f"{track_idx}:a", tail=tail, bed_gain=bed_gain))
             audio_map = "[aout]"
         elif apad_dur:
             filter_parts.append(f"[{track_idx}:a]apad=whole_dur={apad_dur:.4f}[aout]")
@@ -1778,8 +1785,8 @@ class _LeasedMixResponse(FileResponse):
             _release_mix(self._lease)
 
 
-async def _mixed_dub_audio(exports_dir: str, lang: str, bg_audio: str, track_path: str) -> str:
-    """One reusable background + dub WAV per (background, track) version.
+async def _mixed_dub_audio(exports_dir: str, lang: str, bg_audio: str, track_path: str, bed_gain: float = 1.0) -> str:
+    """One reusable background + dub WAV per (background, track, gain) version.
 
     The audio preview streams this route with HTTP range requests, and every
     request used to re-run the full mix into a new ``mixed_dub_<stamp>.wav``
@@ -1801,7 +1808,7 @@ async def _mixed_dub_audio(exports_dir: str, lang: str, bg_audio: str, track_pat
         (os.path.basename(path), info.st_size, info.st_mtime_ns)
         for path, info in ((bg_audio, os.stat(bg_audio)), (track_path, os.stat(track_path)))
     ]
-    key = hashlib.sha256(json.dumps(identity).encode()).hexdigest()[:16]
+    key = hashlib.sha256(json.dumps(identity if bed_gain == 1.0 else [identity, float(bed_gain)]).encode()).hexdigest()[:16]
     target = os.path.realpath(os.path.join(exports, f"mixed_{lang}_{key}.wav"))
     if not target.startswith(exports + os.sep):
         raise HTTPException(status_code=400, detail="Invalid export path")
@@ -1813,7 +1820,7 @@ async def _mixed_dub_audio(exports_dir: str, lang: str, bg_audio: str, track_pat
             partial = target + ".tmp.wav"
             cmd = [
                 find_ffmpeg(), "-i", bg_audio, "-i", track_path,
-                "-filter_complex", bed_mix_filter("0:a", "1:a", bed_gain=1.0),
+                "-filter_complex", bed_mix_filter("0:a", "1:a", bed_gain=bed_gain),
                 "-map", "[aout]", "-c:a", "pcm_s16le", "-f", "wav", "-y", partial,
             ]
             try:
@@ -1855,6 +1862,7 @@ async def dub_download_audio(
     job_id: str,
     lang: str = Query(None),
     preserve_bg: bool = Query(True),
+    bed_gain: BedGain = 1.0,
     save_authorization: str = Header("", alias="X-VoiceStudio-Path-Authorization"),
 ):
     job_dir = _existing_job_dir_or_404(job_id)
@@ -1881,7 +1889,7 @@ async def dub_download_audio(
     leased = None
     if bg_audio:
         try:
-            wav_path = leased = await _mixed_dub_audio(exports_dir, lang_label, bg_audio, wav_path)
+            wav_path = leased = await _mixed_dub_audio(exports_dir, lang_label, bg_audio, wav_path, bed_gain=bed_gain)
         except Exception as exc:
             logger.exception("Failed to mix audio")
             raise HTTPException(status_code=500, detail={"code": "dub_background_unavailable", "message": "Could not preserve background audio"}) from exc
@@ -2148,6 +2156,7 @@ async def dub_download_mp3(
     job_id: str,
     lang: str = Query(None),
     preserve_bg: bool = Query(True),
+    bed_gain: BedGain = 1.0,
     save_authorization: str = Header("", alias="X-VoiceStudio-Path-Authorization"),
     bitrate: str = Query("192k"),
 ):
@@ -2178,7 +2187,7 @@ async def dub_download_mp3(
         mixed_path = os.path.join(exports_dir, f"mixed_mp3_{stamp}.wav")
         cmd_mix = [
             ffmpeg, "-i", bg_audio, "-i", wav_path,
-            "-filter_complex", bed_mix_filter("0:a", "1:a", bed_gain=1.0),
+            "-filter_complex", bed_mix_filter("0:a", "1:a", bed_gain=bed_gain),
             "-map", "[aout]", "-c:a", "pcm_s16le", "-y", mixed_path
         ]
         try:

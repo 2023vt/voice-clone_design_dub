@@ -1954,6 +1954,7 @@
     "original": "Oryginał",
     "dub_suffix": "(dubbing)",
     "bg_audio": "Dźwięk w tle",
+    "background_volume": "Głośność tła",
     "mix_bg_video": "Miksuj muzykę/FX pod każdym dubbingowanym utworem",
     "subs_in_video": "Napisy w filmie",
     "hardsub": "Nagraj napisy na obraz (Hardsub)",

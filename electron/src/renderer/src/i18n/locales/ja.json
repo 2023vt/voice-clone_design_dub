@@ -1950,6 +1950,7 @@
     "original": "オリジナル",
     "dub_suffix": "(ダブ)",
     "bg_audio": "バックグラウンドオーディオ",
+    "background_volume": "背景音の音量",
     "mix_bg_video": "ダビングしたすべてのトラックで音楽/FX をミックス",
     "subs_in_video": "ビデオの字幕",
     "hardsub": "字幕を画像に焼き込む (ハードサブ)",

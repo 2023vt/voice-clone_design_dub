@@ -238,8 +238,14 @@ def test_lazy_sample_renders_on_first_audio_request(iso, monkeypatch):
 
     # Now the engine becomes available: the next /audio request renders + caches.
     async def _ok(a, out_path):
+        import wave
+
         out_path.parent.mkdir(parents=True, exist_ok=True)
-        out_path.write_bytes(b"RIFF" + b"\x00" * 2048)
+        with wave.open(str(out_path), "wb") as wav:
+            wav.setnchannels(1)
+            wav.setsampwidth(2)
+            wav.setframerate(24_000)
+            wav.writeframes(b"\x00\x01" * 64)
 
     from api.routers import archetypes as arch
     monkeypatch.setattr(arch, "_render_archetype_wav", _ok)

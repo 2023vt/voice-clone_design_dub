@@ -14,12 +14,21 @@ vi.mock('@tanstack/react-router', () => ({
     </a>
   ),
 }));
-vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, values?: { version?: string }) =>
+      key === 'app.version_dev'
+        ? `v${values?.version} · Dev`
+        : key === 'app.version'
+          ? `v${values?.version}`
+          : key,
+  }),
+}));
 vi.mock('@/lib/store/workspace', () => ({
   useWorkspace: () => ({ libraryOpen: true, libraryTab: 'voices' }),
   setWorkspace: vi.fn(),
 }));
-vi.mock('@/components/bridge', () => ({ isMac: () => false }));
+vi.mock('@/components/bridge', () => ({ appVersion: () => '0.5.7', isMac: () => false }));
 vi.mock('@/lib/brand', () => ({ brandIcon: 'icon.png', brandArtwork: 'art.png' }));
 vi.mock('@/hooks/use-pane-resize', () => ({
   usePaneResize: () => ({ host: { current: null }, width: 280, separatorProps: {} }),
@@ -42,7 +51,7 @@ vi.mock('./use-workspace-sidebar', () => ({
     setOpen: sidebar.setOpen,
   }),
 }));
-import { WorkspaceSidebar } from './workspace-sidebar';
+import { versionTranslationKey, WorkspaceSidebar } from './workspace-sidebar';
 
 beforeEach(() => {
   sidebar.compact = false;
@@ -73,4 +82,16 @@ it('places the navigation above the voice library in the expanded sidebar', () =
     navigation.compareDocumentPosition(library) & Node.DOCUMENT_POSITION_FOLLOWING,
   ).toBeTruthy();
   expect(library.compareDocumentPosition(status) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+});
+
+it('shows the app version beneath the brand name in the expanded sidebar', () => {
+  render(<WorkspaceSidebar />);
+  const brand = screen.getByRole('link', { name: 'app.name v0.5.7 · Dev' });
+  expect(brand).toHaveTextContent('app.name');
+  expect(brand).toHaveTextContent('v0.5.7 · Dev');
+});
+
+it('uses the plain version label outside development builds', () => {
+  expect(versionTranslationKey(true)).toBe('app.version_dev');
+  expect(versionTranslationKey(false)).toBe('app.version');
 });

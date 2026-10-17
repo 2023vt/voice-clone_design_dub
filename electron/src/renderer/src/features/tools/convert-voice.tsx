@@ -66,7 +66,11 @@ export function ConvertVoice() {
     };
   }, [file]);
   useEffect(() => () => request.current?.abort(), []);
-  const voices = (profiles.data ?? []).filter((p) => p.kind === 'clone' && p.ref_audio_path);
+  // Match the backend's profile conditioning: designs use their saved sample
+  // or instructions; clones need a reference (a locked take takes precedence).
+  const voices = (profiles.data ?? []).filter(
+    (p) => p.kind === 'design' || p.ref_audio_path || (p.is_locked && p.locked_audio_path),
+  );
   const valid = canClone && file && voices.some((p) => p.id === voice) && !recordingBusy;
   const run = async () => {
     if (!valid || request.current) return;

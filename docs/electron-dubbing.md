@@ -394,3 +394,7 @@ audio if a later import fails validation or runs out of space.
 
 Cancelling an upload waits for its copy worker to stop before closing the input
 and clearing the reserved job, so the same upload can be retried safely.
+
+Use **Use link** beside an uploaded source to replace it with a URL. **Cancel**
+closes the URL form without changing the source; changing the source also closes
+the form. URL ingestion waits until any pending cancellation finishes.

@@ -1376,3 +1376,11 @@ Accept it in the dialog that appears, or in **Model Manager → the model's
 Licence icon**. Nothing is re-downloaded. Headless and API users can accept with
 `POST /models/licenses/accept`; see
 [Licence acceptance before use](../licensing/model-review-workflow.md#licence-acceptance-before-use).
+
+### Setup stops at `VOICESTUDIO_CUDNN8_PROBE` on a CPU-only computer
+
+If an older installer exits with code `3221225477` at this probe, install the
+updated desktop build and retry **Install local runtime**. CPU and ROCm setup
+now skip the native CUDA compatibility probe; runtime imports are still verified
+before setup finishes. If verification also fails, include the new setup log in
+your report rather than deleting saved voices or projects.

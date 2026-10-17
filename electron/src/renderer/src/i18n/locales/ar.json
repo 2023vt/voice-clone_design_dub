@@ -666,6 +666,7 @@
     "reset": "إعادة تعيين",
     "save_project": "حفظ المشروع",
     "change_file": "تغيير الملف",
+    "use_link": "استخدام رابط",
     "import_srt": "استيراد .srt",
     "import_srt_alt": "قم باستيراد .srt بدلاً من ذلك",
     "cast": "يلقي",

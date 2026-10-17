@@ -658,6 +658,7 @@
     "reset": "Sıfırla",
     "save_project": "Projeyi kaydet",
     "change_file": "Dosyayı değiştir",
+    "use_link": "Bağlantı kullan",
     "import_srt": ".srt'yi içe aktar",
     "import_srt_alt": "Bunun yerine .srt dosyasını içe aktarın",
     "cast": "OYUNCULAR",

@@ -660,6 +660,7 @@
     "reset": "Reiniciar",
     "save_project": "Guardar proyecto",
     "change_file": "Cambiar archivo",
+    "use_link": "Usar enlace",
     "import_srt": "Importar .srt",
     "import_srt_alt": "Importe .srt en su lugar",
     "cast": "REPARTO",

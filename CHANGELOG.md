@@ -8,6 +8,14 @@ metadata and the backend fallback mirror it.
 
 ## [Unreleased]
 
+**Highlights**
+
+- Find and replace in the Dubbing transcript
+
+### Added
+
+- Find and replace in the Dubbing transcript: jump between spoken and original matches, replace the current spoken hit or every spoken occurrence, and undo the edit as one step — thanks @mvanhorn!
+
 ## [0.5.7] — 2026-10-17
 
 **VoiceStudio now runs on PCs without a GPU and recovers instead of giving up.** Voice cloning uses the speech-to-text model you installed from Model Catalogue, GPU-less computers get the small CPU PyTorch build, and slow or busy backends are no longer reported as failed.

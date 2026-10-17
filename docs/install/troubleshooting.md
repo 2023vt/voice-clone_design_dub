@@ -1392,12 +1392,13 @@ idle timeout), a long Generate text fails in the browser — Cloudflare answers
 `524` after about 100 seconds — yet the finished take still appears in
 History.
 
-**Cause:** the streamed preview sent nothing until its first text chunk had
-rendered, and a chunk can take longer than the proxy's idle limit on a
-CPU-only host. Cloudflare's 100-second limit cannot be raised outside its
+**Cause:** the app's Generate request sent nothing until the whole take had
+rendered (and the streamed path nothing until its first text chunk had), and a
+render can take longer than the proxy's idle limit on a CPU-only host. Cloudflare's 100-second limit cannot be raised outside its
 Enterprise plan.
 
-**Fix:** update. Streamed Generate and long-form renders now send a keepalive
+**Fix:** update, then hard-refresh the browser tab. The app now renders takes
+over the stream, and streamed Generate and long-form renders send a keepalive
 every 15 seconds of silence (`OMNIVOICE_STREAM_KEEPALIVE_S`, see
 [performance.md](../performance.md#knobs-you-can-actually-turn)), so the
 connection stays open for as long as the render runs. If your proxy buffers

@@ -227,6 +227,8 @@ export interface GenerateOptions {
   signal?: AbortSignal;
   /** Download progress 0..100 once Content-Length is known; never called otherwise. */
   onProgress?: (pct: number | null) => void;
+  /** Streaming only: play chunks live as they arrive. Defaults to true. */
+  preview?: boolean;
 }
 
 export class StreamingPreviewError extends Error {
@@ -306,10 +308,12 @@ export async function generateCloneStreaming(
       if (event.type === 'start') {
         if (!event.sample_rate) throw new StreamingPreviewError('TTS stream has no sample rate');
         total = event.total_chunks ?? 0;
-        player = createStreamingPreview(event.sample_rate, event.crossfade_ms);
+        if (opts.preview !== false)
+          player = createStreamingPreview(event.sample_rate, event.crossfade_ms);
       } else if (event.type === 'chunk') {
-        if (!event.pcm || !player) throw new StreamingPreviewError('Invalid TTS audio chunk');
-        player.appendPcm16Base64(event.pcm);
+        if (!event.pcm || (opts.preview !== false && !player))
+          throw new StreamingPreviewError('Invalid TTS audio chunk');
+        (player as ReturnType<typeof createStreamingPreview> | null)?.appendPcm16Base64(event.pcm);
         received += 1;
         if (total > 0) opts.onProgress?.(Math.min(100, Math.round((received / total) * 100)));
       } else if (event.type === 'progress' && typeof event.percent === 'number') {
@@ -388,8 +392,27 @@ export async function generateCloneStreaming(
   }
 }
 
-/** Synthesize one take through the classic whole-file path. */
+/**
+ * Synthesize one take. Rides the NDJSON stream (preview off) because the
+ * classic whole-file response stays byte-silent until the entire take has
+ * rendered, so a reverse proxy with a read timeout (Cloudflare: ~100 s) kills
+ * a long CPU render; the stream sends per-chunk progress and keepalives (#2108).
+ * A stream that breaks for a non-terminal reason falls back to the classic path.
+ */
 export async function generateClone(
+  input: CloneGenerateInput,
+  opts: GenerateOptions = {},
+): Promise<GenerateResult> {
+  try {
+    return await generateCloneStreaming(input, { ...opts, preview: false });
+  } catch (error) {
+    if (!shouldFallbackToClassic(error)) throw error;
+    return generateCloneClassic(input, opts);
+  }
+}
+
+/** Synthesize one take through the classic whole-file path. */
+export async function generateCloneClassic(
   input: CloneGenerateInput,
   opts: GenerateOptions = {},
 ): Promise<GenerateResult> {

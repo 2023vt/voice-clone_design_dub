@@ -15,6 +15,7 @@ metadata and the backend fallback mirror it.
 ### Fixed
 
 - Streamed Generate and long-form renders send keepalives during slow chunks, so proxies stop cutting them with HTTP 524 (#2108)
+- The app's Generate, voice preview, Compare and workflow takes now render over that stream, so they survive proxies too (#2108)
 
 ## [0.5.7] — 2026-10-17
 

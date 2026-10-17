@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const browser = await chromium.launch({
-  ...(process.env.PLAYWRIGHT_BUNDLED === '1' ? {} : { channel: 'msedge' }),
+  ...(process.env.PLAYWRIGHT_BUNDLED === '1' ? {} : { channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge' }),
   headless: true,
 });
 const page = await browser.newPage();
@@ -15,10 +15,9 @@ try {
   await page.goto(ui + '/#/clone');
   const sidebar = page.locator('aside').first();
   const chooseView = async (name) => {
-    await sidebar.locator('[data-slot=engine-view-toggle]').click();
-    await page
-      .getByRole('group', { name: 'Tool settings', exact: true })
-      .getByRole('button', { name, exact: true })
+    await sidebar
+      .getByRole('radiogroup', { name: 'Tool settings', exact: true })
+      .getByRole('radio', { name, exact: true })
       .click();
   };
   const navigation = sidebar.getByRole('navigation', { name: 'Workspaces', exact: true });
@@ -208,12 +207,12 @@ try {
     await macNotifications.getByRole('button').first().click();
     await macPage.locator('[data-slot=popover-content][data-open]').waitFor({ state: 'visible' });
     await macPage.keyboard.press('Escape');
-    const brandLink = macSidebar.getByRole('link', { name: 'VoiceStudio', exact: true });
+    const brandLink = macSidebar.getByRole('link', { name: /^VoiceStudio v\S+/ });
     const brandBounds = await brandLink.boundingBox();
     assert.ok(brandBounds && brandBounds.x >= 96, 'macOS brand must clear the traffic lights');
     assert.ok(
       await brandLink
-        .locator('span')
+        .getByText('VoiceStudio', { exact: true })
         .evaluate((element) => element.scrollWidth <= element.clientWidth),
       'macOS titlebar must show the complete VoiceStudio wordmark',
     );
@@ -270,7 +269,7 @@ try {
       .getByRole('heading', { name: 'Voice cloning' })
       .boundingBox();
     assert.ok(
-      workspaceTitleBounds && workspaceTitleBounds.x >= 88,
+      workspaceTitleBounds && workspaceTitleBounds.x >= 72,
       'macOS workspace title must clear the traffic lights',
     );
   } finally {

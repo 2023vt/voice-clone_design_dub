@@ -286,6 +286,21 @@ uv run pytest tests/test_app_version.py -q
 # Electron desktop validation, from the repository root
 bun run check:electron
 
+# Desktop UI tests: launch the real (unpackaged) app against a fake backend.
+# CI runs these on macOS, Windows and Linux. On Linux without a display,
+# prefix the last command with `xvfb-run -a`. Failures leave a Playwright
+# trace and screenshot in electron/test-results/.
+bun run --cwd electron build
+bun run --cwd electron test:desktop-ui
+
+# Offline renderer smokes (what CI runs): start the smoke server, then the runner.
+# New *-smoke.mjs files are classified automatically (chromium = runs here,
+# *-real-smoke = needs a live backend, _electron = drives the real app);
+# `node --test electron/tests/smoke-inventory.test.mjs` fails on an unclassified one.
+OMNIVOICE_PORT=3999 bun run --cwd electron smoke:server &
+OMNIVOICE_PORT=3999 VOICESTUDIO_UI_URL=http://localhost:3912 PLAYWRIGHT_CHANNEL=chromium \
+  node electron/tests/run-renderer-smokes.mjs [name-filter ...]
+
 # Shared native helper, when changed
 cargo check --manifest-path native/desktop-bridge/Cargo.toml
 ```

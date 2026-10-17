@@ -1,8 +1,8 @@
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
 
-const baseUrl = process.env.VOICESTUDIO_SMOKE_URL ?? 'http://localhost:3912';
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
+const baseUrl = process.env.VOICESTUDIO_UI_URL || 'http://localhost:3912';
+const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge', headless: true });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 const errors = [];
 page.on('pageerror', (error) => errors.push(String(error)));
@@ -10,6 +10,10 @@ page.on('console', (message) => {
   if (message.type() === 'error') errors.push(message.text());
 });
 try {
+  // The GitHub star badge fetches a public count; keep the smoke offline and deterministic.
+  await page.route('https://api.github.com/**', (route) =>
+    route.fulfill({ json: { stargazers_count: 1 } }),
+  );
   await page.addInitScript(() => localStorage.setItem('voicestudio.setup.complete.v1', '1'));
   await page.goto(baseUrl + '/#/stories');
   const compactSidebar = page.locator('[data-slot=compact-main-sidebar]');
@@ -40,11 +44,12 @@ try {
     const bounds = await compactSidebar.boundingBox();
     assert.equal(Math.round(bounds.x), 0);
     assert.equal(Math.round(bounds.width), 48);
-    assert.equal(await nav.locator('[aria-current=page]').count(), 1);
+    assert.equal(await nav.locator('[aria-current=page], [data-active=true]').count(), 1);
     assert.equal(await page.locator('main h1').count(), 1);
     assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
   }
-  await nav.getByRole('link', { name: 'Clone', exact: true }).click();
+  await nav.getByRole('button', { name: 'Voice', exact: true }).click();
+  await page.getByRole('link', { name: 'Clone', exact: true }).click();
   await page.waitForURL('**/#/clone');
   await compactSidebar.waitFor({ state: 'detached' });
   const expandedSidebar = page.locator('.brand-sidebar').filter({ hasText: 'Saved voices' });

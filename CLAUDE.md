@@ -8,6 +8,21 @@ temporarily shared by Electron; they are not a runnable app. New UI, IPC, setup
 instructions, tests, and browser assets belong in Electron; validate Electron on
 macOS, Windows and Linux.
 
+## Mobile: native iOS and Android (owner-set 2026-10-17)
+
+`mobile/ios/` (Swift/SwiftUI) and `mobile/android/` (Kotlin/Compose) are native
+apps that run models **on the phone** (TTS, dictation, voice cloning, dub
+translation; owner-set 2026-10-18) and can also drive a user's own VoiceStudio
+computer. Phone first: once models are downloaded they work offline with no
+computer; pairing adds the heavy engines, chosen per task. The companion-only
+build is the base, not the product. They implement one shared contract,
+`mobile/contract/SPEC.md`: a mobile feature ships on both or neither.
+Theme, API and strings are generated, never hand-copied: `bun
+scripts/export-mobile-tokens.ts` (from the Electron theme), `uv run python
+scripts/export_openapi.py` (from the backend) and the Electron locale catalogs;
+`tests/test_mobile_contract.py` fails on drift. Desktop/web UI still belongs in
+Electron only.
+
 <!-- GSD:project-start source:PROJECT.md -->
 ## Project
 

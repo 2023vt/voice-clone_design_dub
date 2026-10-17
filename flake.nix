@@ -38,6 +38,7 @@
             gtk3
             libGL
             libdrm
+            libgbm
             libpulseaudio
             libx11
             libxkbcommon
@@ -106,6 +107,7 @@
             gtk3
             libGL
             libdrm
+            libgbm
             libpulseaudio
             libx11
             libxkbcommon

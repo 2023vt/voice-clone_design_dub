@@ -8,9 +8,27 @@ metadata and the backend fallback mirror it.
 
 ## [Unreleased]
 
+**Highlights**
+
+- Preview iOS and Android companion apps for your own VoiceStudio
+
+### Added
+
+- Preview iOS and Android companion apps: drive your own VoiceStudio from your phone (speak, voices and cloning, dubbing, dictation) after pairing by QR code; build from source for now ([guide](docs/mobile.md)) (#2965)
+
 ### Fixed
 
 - Settings → System reports an Ascend NPU host's device name and VRAM, and the memory-flush snapshot reads the NPU and Intel XPU (#2582)
+
+### Docs
+
+- Contributor guides and the pull request template explain how to sign the CLA before opening a first pull request (#2676)
+
+### CI
+
+- Desktop request-guard self-tests stay deterministic when app requests arrive during cleanup (#2676)
+
+- New `mobile` workflow builds and tests both phone apps; a contract test fails when their theme or API description drifts from the desktop app (#2965)
 
 ## [0.5.7] — 2026-10-17
 

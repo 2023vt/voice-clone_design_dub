@@ -8,6 +8,25 @@ metadata and the backend fallback mirror it.
 
 ## [Unreleased]
 
+**Highlights**
+
+- File transcription keeps running when you leave the Transcribe page
+- Optional speaker labels for accurate file transcription
+
+### Added
+
+- Transcribe adds an Identify speakers switch in accurate mode, with speaker labels in segments and exports (#2691)
+
+### Fixed
+
+- File transcription no longer cancels when you leave the Transcribe page; the result is saved and a toast links back to it (#2691)
+- The open-source app no longer contains a licence-key client
+
+### Removed
+
+- The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
+
+## [0.5.7] — 2026-10-13
 ## [0.5.7] — 2026-10-17
 
 **VoiceStudio now runs on PCs without a GPU and recovers instead of giving up.** Voice cloning uses the speech-to-text model you installed from Model Catalogue, GPU-less computers get the small CPU PyTorch build, and slow or busy backends are no longer reported as failed.

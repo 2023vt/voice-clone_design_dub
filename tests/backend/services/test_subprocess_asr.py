@@ -60,6 +60,16 @@ def test_transcribe_round_trip(asr):
     assert result["segments"][0]["text"] == "echo:/tmp/clip.wav"
 
 
+def test_transcribe_exposes_chunks_from_segments(asr):
+    # Dub reads only `chunks`; a sidecar reply with just `segments` used to
+    # produce "Transcription produced no segments" (#2786).
+    result = asr.transcribe("/tmp/clip.wav", word_timestamps=False)
+    seg = result["segments"][0]
+    assert result["chunks"] == [
+        {"text": seg["text"], "timestamp": (seg.get("start"), seg.get("end"))}
+    ]
+
+
 def test_two_calls_reuse_one_sidecar(asr):
     asr.transcribe("/a.wav")
     proc1 = asr._proc.pid

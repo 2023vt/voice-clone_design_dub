@@ -658,6 +658,7 @@
     "reset": "リセット",
     "save_project": "プロジェクトの保存",
     "change_file": "ファイルを変更する",
+    "use_link": "リンクを使用",
     "import_srt": ".srtをインポートする",
     "import_srt_alt": "代わりに .srt をインポートしてください",
     "cast": "キャスト",

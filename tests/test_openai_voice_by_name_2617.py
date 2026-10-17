@@ -186,3 +186,15 @@ def test_voice_list_marks_name_addressable_profiles(client, profiles):
     assert voices[dup_b]["addressable_by_name"] is False
     assert voices[reserved]["addressable_by_name"] is False
     assert "addressable_by_name" not in voices["nova"]  # the alias entry itself
+
+
+def test_voice_list_entries_carry_an_openai_style_id(client, profiles):
+    """#2679: Open WebUI reads ``{v['id']: v['name'] for v in data['voices']}``
+    from ``/audio/voices``. Without ``id`` the lookup raised KeyError and the
+    client fell back to OpenAI's stock voices, hiding every profile."""
+    profile = profiles(f"Listed {profiles.stem}")
+    voices = client.get("/v1/audio/voices").json()["voices"]
+    assert voices and all(v["id"] == v["voice_id"] for v in voices)
+    by_id = {v["id"]: v["name"] for v in voices}
+    assert by_id[profile] == f"Listed {profiles.stem}"
+    assert by_id["nova"] == "Nova"

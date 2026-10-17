@@ -656,6 +656,7 @@
     "reset": "재설정",
     "save_project": "프로젝트 저장",
     "change_file": "파일 변경",
+    "use_link": "링크 사용",
     "import_srt": ".srt 가져오기",
     "import_srt_alt": "대신 .srt를 가져오세요.",
     "cast": "캐스트",

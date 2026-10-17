@@ -1,13 +1,13 @@
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
+const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge', headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1400, height: 1000 } });
   await page.addInitScript(() => {
     localStorage.setItem('voicestudio.setup.complete.v1', '1');
     localStorage.setItem('voicestudio.locale', 'en');
   });
-  const base = 'http://localhost:3912';
+  const base = process.env.VOICESTUDIO_UI_URL || 'http://localhost:3912';
   const [engines, models, profiles] = await Promise.all(
     ['/engines/tts', '/models', '/profiles'].map(async (path) => {
       const response = await page.request.get(base + '/api' + path);
@@ -33,7 +33,7 @@ try {
     .click();
   const source = page.getByRole('region', { name: 'Source clip', exact: true });
   const sample = await page.request.get(
-    'http://localhost:3912/api/demo_audio/dictation/en_conversational.wav',
+    base + '/api/demo_audio/dictation/en_conversational.wav',
   );
   assert.ok(sample.ok());
   await source

@@ -8,6 +8,9 @@ const browser = await chromium.launch({
 });
 try {
   const page = await browser.newPage({ viewport: { width: 1400, height: 900 } });
+  await page.addInitScript(() => {
+    localStorage.setItem('voicestudio.setup.complete.v1', '1');
+  });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
   const bodies = [];
@@ -20,6 +23,35 @@ try {
     }),
   );
   await page.route('**/api/audiobook/jobs', (route) => route.fulfill({ json: { jobs: [] } }));
+  // Creating an audiobook stays disabled until a TTS engine and model are ready.
+  await page.route('**/api/engines', (route) =>
+    route.fulfill({
+      json: {
+        tts: {
+          active: 'omnivoice',
+          active_model: 'longform-model',
+          backends: [{ id: 'omnivoice', name: 'OmniVoice', available: true }],
+        },
+      },
+    }),
+  );
+  await page.route('**/api/models', (route) =>
+    route.fulfill({
+      json: {
+        target: 'local',
+        models: [
+          {
+            repo_id: 'longform-model',
+            label: 'Longform model',
+            role: 'tts',
+            size_gb: 1,
+            installed: true,
+            supported: true,
+          },
+        ],
+      },
+    }),
+  );
   await page.route('**/api/audio/longform-fixture.m4b', (route) =>
     route.fulfill({ body: wave, contentType: 'audio/wav' }),
   );
@@ -143,15 +175,20 @@ try {
   await page
     .getByRole('button', { name: 'Renamed book fixture', exact: true })
     .waitFor({ state: 'detached' });
+  // The icon rail shows Stories as a group flyout; open it, then pick the Stories editor.
   await page
     .getByRole('navigation', { name: 'Workspaces', exact: true })
-    .getByRole('link', { name: 'Stories Editor', exact: true })
+    .getByRole('button', { name: 'Stories', exact: true })
+    .click();
+  await page
+    .getByRole('dialog')
+    .getByRole('link', { name: 'Stories', exact: true })
     .click();
   await page
     .locator('[data-slot=secondary-sidebar]')
     .getByRole('button', { name: 'Narrator fixture', exact: true })
     .click();
-  await page.getByRole('button', { name: 'Add Line', exact: true }).click();
+  await page.getByRole('button', { name: 'Add First Line', exact: true }).click();
   await page.getByRole('textbox', { name: /Enter dialogue/ }).fill('A story line [pause 0.5s]');
   await page.getByText(/assign a voice to each character/).click();
   await page.getByRole('button', { name: 'Add character', exact: true }).click();
@@ -195,6 +232,8 @@ try {
   await page.getByRole('button', { name: 'Split into lines', exact: true }).click();
   assert.equal(await page.getByRole('textbox', { name: /Enter dialogue/ }).count(), 5);
   await page.getByRole('button', { name: 'Preview this line', exact: true }).first().click();
+  // The line audition renders its own player; it does not autoplay.
+  await page.getByRole('button', { name: 'Play', exact: true }).click();
   await page.waitForFunction(() =>
     Array.from(document.querySelectorAll('audio')).some((audio) => audio.currentTime > 0),
   );
@@ -204,13 +243,18 @@ try {
     .filter({ hasText: /^Stems$/ })
     .click();
   await page.getByRole('button', { name: 'Stems', exact: true }).click();
-  const stemLinks = page.locator('a[download^="story-"]');
-  await stemLinks.nth(2).waitFor();
-  assert.equal(await stemLinks.count(), 3);
+  // Stems are save buttons; without the desktop bridge they fall back to a browser download.
+  const stemButtons = page
+    .locator('details')
+    .filter({ has: page.locator('summary', { hasText: /^Stems$/ }) })
+    .locator('li button');
+  await stemButtons.nth(2).waitFor();
+  assert.equal(await stemButtons.count(), 3);
   assert.equal(auditions, 6);
   const downloaded = page.waitForEvent('download');
-  await stemLinks.first().click();
+  await stemButtons.first().click();
   const download = await downloaded;
+  assert.match(download.suggestedFilename(), /^story-1-.+\.wav$/);
   const bytes = await readFile(await download.path());
   assert.equal(bytes.toString('ascii', 0, 4), 'RIFF');
   assert.ok(bytes.length > 44);

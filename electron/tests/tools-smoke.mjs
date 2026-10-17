@@ -6,6 +6,9 @@ const browser = await chromium.launch({
 });
 try {
   const page = await browser.newPage();
+  await page.addInitScript(() => {
+    localStorage.setItem('voicestudio.setup.complete.v1', '1');
+  });
   const requests = [];
   await page.route('**/api/tools/*', (route) => {
     const path = new URL(route.request().url()).pathname;

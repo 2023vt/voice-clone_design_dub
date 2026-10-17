@@ -6,6 +6,9 @@ const browser = await chromium.launch({
 });
 try {
   const page = await browser.newPage();
+  await page.addInitScript(() => {
+    localStorage.setItem('voicestudio.setup.complete.v1', '1');
+  });
   let submits = 0;
   let cancels = 0;
   let deletes = 0;
@@ -14,11 +17,49 @@ try {
   const job = {
     id: 'fixture',
     filename: 'one.mp4',
+    created_at: 1_700_000_000,
     status: 'running',
     langs: ['es'],
     progress: { stage: 'transcribe', percent: 35 },
     outputs: { es: 'output.mp4' },
   };
+  // Batch refuses to queue until a TTS engine and a translation engine are ready.
+  await page.route('**/api/engines', (route) =>
+    route.fulfill({
+      json: {
+        tts: {
+          active: 'omnivoice',
+          active_model: 'batch-model',
+          backends: [{ id: 'omnivoice', name: 'OmniVoice', available: true }],
+        },
+      },
+    }),
+  );
+  await page.route('**/api/models', (route) =>
+    route.fulfill({
+      json: {
+        target: 'local',
+        models: [
+          {
+            repo_id: 'batch-model',
+            label: 'Batch model',
+            role: 'tts',
+            size_gb: 1,
+            installed: true,
+            supported: true,
+          },
+        ],
+      },
+    }),
+  );
+  await page.route('**/api/engines/translation', (route) =>
+    route.fulfill({
+      json: {
+        active: 'argos',
+        engines: [{ id: 'argos', display_name: 'Argos', installed: true, category: 'offline' }],
+      },
+    }),
+  );
   await page.route('**/api/batch/jobs?*', (route) =>
     route.fulfill({
       json: submits

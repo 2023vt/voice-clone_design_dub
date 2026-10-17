@@ -33,11 +33,11 @@ try {
     ['Voice', 'Gallery', '/gallery'],
     ['Stories', 'Stories', '/stories'],
     ['Stories', 'Audiobook', '/audiobook'],
-    ['Dubbing', 'Dub', '/dub'],
-    ['Dubbing', 'Batch Dub', '/batch'],
+    ['Dubbing', 'Dubbing', '/dub'],
+    ['Dubbing', 'Batch Dubbing', '/batch'],
   ];
   for (const [group, item, path] of routes) {
-    await page.goto((process.env.VOICESTUDIO_UI_URL || 'http://localhost:3928') + '/#/design');
+    await page.goto((process.env.VOICESTUDIO_UI_URL || 'http://localhost:3912') + '/#/design');
     const rail = page.locator('[data-slot=compact-main-sidebar]');
     await rail.waitFor();
     await rail.getByRole('button', { name: group, exact: true }).click();
@@ -48,7 +48,7 @@ try {
     await link.click();
     await page.waitForURL('**/#' + path, { timeout: 3000 });
   }
-  await page.goto((process.env.VOICESTUDIO_UI_URL || 'http://localhost:3928') + '/#/design');
+  await page.goto((process.env.VOICESTUDIO_UI_URL || 'http://localhost:3912') + '/#/design');
   const rail = page.locator('[data-slot=compact-main-sidebar]');
   await rail.waitFor();
   const voice = rail.getByRole('button', { name: 'Voice', exact: true });

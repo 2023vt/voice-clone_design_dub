@@ -817,8 +817,7 @@ def _phase_a_finalize() -> None:
         _index_path = os.path.join(_frontend_path, "index.html")
         if _public_api_base and not is_valid_public_api_base(_public_api_base):
             logging.getLogger("omnivoice.api").warning(
-                "OMNIVOICE_PUBLIC_API_BASE=%r is not a valid http(s) URL; ignoring.",
-                _public_api_base,
+                "OMNIVOICE_PUBLIC_API_BASE is not a valid http(s) URL; ignoring."
             )
             _public_api_base = ""
 

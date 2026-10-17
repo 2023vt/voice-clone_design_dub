@@ -23,9 +23,8 @@ final class SmokeTests: XCTestCase {
         XCTAssertEqual(app.switches["settings.analytics"].value as? String, "1")
         app.terminate(); app.launch()
         XCTAssertTrue(app.buttons["consent.no"].waitForExistence(timeout: 10))
-        // Drag from the sheet's grabber, just above the title, rather than its content.
-        let top = app.staticTexts["consent.title"].coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: -1.2))
-        top.press(forDuration: 0.1, thenDragTo: app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.95)))
+        // Swipe the sheet down, as a person would.
+        app.staticTexts["consent.title"].swipeDown(velocity: .fast)
         XCTAssertTrue(app.textFields["connect.url"].waitForExistence(timeout: 5))
         XCTAssertFalse(app.buttons["consent.no"].exists)
         app.tabBars.buttons["Settings"].tap()

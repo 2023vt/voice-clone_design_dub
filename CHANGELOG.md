@@ -8,6 +8,24 @@ metadata and the backend fallback mirror it.
 
 ## [Unreleased]
 
+**Highlights**
+
+- Backend finishes its startup reconcile about twice as fast on Apple Silicon
+
+### Changed
+
+- The OmniVoice sidecar availability check no longer imports the model, so startup reconcile finishes about 6 s sooner (#2692)
+
+### Docs
+
+- Added a performance baseline with startup, memory and bundle measurements (#2692)
+- The open-source app no longer contains a licence-key client
+
+### Removed
+
+- The unused licence-key client and its Lemon Squeezy network call are gone from the open-source app (#2812)
+
+## [0.5.7] — 2026-10-13
 ## [0.5.7] — 2026-10-17
 
 **VoiceStudio now runs on PCs without a GPU and recovers instead of giving up.** Voice cloning uses the speech-to-text model you installed from Model Catalogue, GPU-less computers get the small CPU PyTorch build, and slow or busy backends are no longer reported as failed.

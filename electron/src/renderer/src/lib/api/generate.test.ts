@@ -4,6 +4,7 @@ import {
   CLONE_MAX_SECONDS,
   REF_HARD_MAX_SECONDS,
   generateClone,
+  generateCloneClassic,
   generateCloneStreaming,
   shouldFallbackToClassic,
   parseGenerateHeaders,
@@ -216,7 +217,7 @@ describe('parseGenerateHeaders', () => {
   });
 });
 
-describe('generateClone', () => {
+describe('generateCloneClassic', () => {
   it('posts the form, streams the WAV with progress and parses the headers', async () => {
     const bytes = new Uint8Array(1000);
     const fetchMock = vi.fn(
@@ -237,7 +238,7 @@ describe('generateClone', () => {
     vi.stubGlobal('fetch', fetchMock);
     const onProgress = vi.fn();
 
-    const result = await generateClone({ ...BASE_INPUT, profileId: 'p1' }, { onProgress });
+    const result = await generateCloneClassic({ ...BASE_INPUT, profileId: 'p1' }, { onProgress });
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
     const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
@@ -265,7 +266,7 @@ describe('generateClone', () => {
       'fetch',
       async () => new Response(JSON.stringify({ detail: 'Unsupported instruct' }), { status: 400 }),
     );
-    await expect(generateClone({ ...BASE_INPUT, profileId: 'p1' })).rejects.toMatchObject({
+    await expect(generateCloneClassic({ ...BASE_INPUT, profileId: 'p1' })).rejects.toMatchObject({
       name: 'ApiError',
       status: 400,
       detail: 'Unsupported instruct',
@@ -283,7 +284,7 @@ describe('generateClone', () => {
         }),
     );
     const controller = new AbortController();
-    const pending = generateClone(
+    const pending = generateCloneClassic(
       { ...BASE_INPUT, profileId: 'p1' },
       { signal: controller.signal },
     );
@@ -302,7 +303,7 @@ describe('generateClone', () => {
           );
         }),
     );
-    const pending = generateClone({ ...BASE_INPUT, profileId: 'p1' });
+    const pending = generateCloneClassic({ ...BASE_INPUT, profileId: 'p1' });
     let settled = false;
     pending.catch(() => {}).finally(() => (settled = true));
     const assertion = expect(pending).rejects.toMatchObject({ name: 'AbortError' });
@@ -478,4 +479,65 @@ it.each([
   } finally {
     translate.mockRestore();
   }
+});
+
+describe('generateClone', () => {
+  const ndjson = (...lines: string[]) =>
+    new Response(lines.join('\n') + '\n', { headers: { 'content-type': 'application/x-ndjson' } });
+
+  it('rides the keepalive stream without live playback and returns the saved take (#2108)', async () => {
+    const wav = new Uint8Array(64);
+    const fetchMock = vi.fn(async (url: string) =>
+      url === '/api/generate'
+        ? ndjson(
+            JSON.stringify({ type: 'start', sample_rate: 24000, total_chunks: 2 }),
+            '',
+            JSON.stringify({ type: 'chunk', pcm: 'AAA=' }),
+            '',
+            JSON.stringify({ type: 'chunk', pcm: 'AAA=' }),
+            JSON.stringify({ type: 'done', id: 'take-1', audio_path: 'take-1.wav', duration: 2 }),
+          )
+        : new Response(wav, { headers: { 'Content-Type': 'audio/wav' } }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    const onProgress = vi.fn();
+
+    const result = await generateClone(BASE_INPUT, { onProgress });
+
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe('/api/generate');
+    expect((init.body as FormData).get('stream')).toBe('true');
+    expect(fetchMock.mock.calls[1]?.[0]).toBe('/api/audio/take-1.wav');
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.id).toBe('take-1');
+    expect(result.audioPath).toBe('take-1.wav');
+    expect(result.blob.size).toBe(wav.length);
+    expect(onProgress).toHaveBeenLastCalledWith(100);
+  });
+
+  it('falls back to the classic path when the stream breaks', async () => {
+    const fetchMock = vi.fn(async (_url: string, init: RequestInit) =>
+      (init.body as FormData).get('stream') === 'true'
+        ? ndjson(JSON.stringify({ type: 'start', sample_rate: 24000 }))
+        : new Response(new Uint8Array(8), {
+            headers: { 'Content-Type': 'audio/wav', 'X-Audio-Id': 'classic-1' },
+          }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await generateClone(BASE_INPUT);
+
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+    expect(result.id).toBe('classic-1');
+  });
+
+  it('does not re-render on the classic path after a terminal stream error', async () => {
+    const fetchMock = vi.fn(async () =>
+      ndjson(JSON.stringify({ type: 'error', detail: 'bad reference', terminal: true })),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+
+    await expect(generateClone(BASE_INPUT)).rejects.toThrow('bad reference');
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
 });

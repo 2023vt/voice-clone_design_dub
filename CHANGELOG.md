@@ -8,6 +8,15 @@ metadata and the backend fallback mirror it.
 
 ## [Unreleased]
 
+**Highlights**
+
+- Long texts no longer fail behind Cloudflare or other reverse proxies.
+
+### Fixed
+
+- Streamed Generate and long-form renders send keepalives during slow chunks, so proxies stop cutting them with HTTP 524 (#2108)
+- The app's Generate, voice preview, Compare and workflow takes now render over that stream, so they survive proxies too (#2108)
+
 ## [0.5.7] — 2026-10-17
 
 **VoiceStudio now runs on PCs without a GPU and recovers instead of giving up.** Voice cloning uses the speech-to-text model you installed from Model Catalogue, GPU-less computers get the small CPU PyTorch build, and slow or busy backends are no longer reported as failed.

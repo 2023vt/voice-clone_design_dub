@@ -52,8 +52,9 @@ log line.
   install, otherwise from VoiceStudio's (where `uv sync --extra supertonic`
   puts it). Subsequent calls reuse the warm ONNX session.
 - `speed` is clamped to 0.7–2.0; quality steps clamp to 5–12.
-- Language is an ISO 639-1 code; Auto engages the SDK's multilingual
-  fallback.
+- Language accepts a supported full name (such as Portuguese or Estonian),
+  an ISO 639-1 code, or a regional tag such as `pt-BR`. Auto engages the
+  SDK's multilingual fallback.
 
 ## Known limits
 

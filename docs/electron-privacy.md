@@ -26,3 +26,9 @@ original signal, retaining its sample rate, length, and high-frequency content.
 Pending analytics initialization is invalidated when consent is withdrawn,
 including a consent lookup or SDK import already in flight. Renderer reports
 retain only validated stack frames; multiline error messages are discarded.
+
+If the AudioSeal generator fails to load, generation continues without an
+invisible watermark. Further load attempts wait ten minutes, avoiding repeated
+network timeouts on each render; a later render retries automatically. This
+cooldown does not change startup's default cache-only policy; explicitly setting
+`OMNIVOICE_PRELOAD_WATERMARK=1` allows startup to download an uncached checkpoint.

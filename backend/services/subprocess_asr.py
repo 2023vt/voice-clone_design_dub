@@ -180,7 +180,16 @@ class SubprocessASRBackend(SubprocessBackend):
                 raise RuntimeError(
                     f"{self.id} ASR sidecar returned unexpected op: {reply.get('op')!r}"
                 )
-            return reply.get("result") or {"segments": [], "language": "unknown"}
+            result = reply.get("result") or {"segments": [], "language": "unknown"}
+            # The sidecar returns only `segments`; callers such as Dub read
+            # `chunks`, so normalise like the in-process backends do (#2786).
+            if "chunks" not in result:
+                result["chunks"] = [
+                    {"text": seg.get("text", ""),
+                     "timestamp": (seg.get("start"), seg.get("end"))}
+                    for seg in result.get("segments") or []
+                ]
+            return result
         finally:
             if _held is not None:
                 _held.set()

@@ -124,3 +124,52 @@ def test_hand_written_unquoted_values_still_expand_variables(tmp_path, monkeypat
     assert os.environ["OMNIVOICE_TEST_SQ"] == "${HOME}/sq"
     assert os.environ["OMNIVOICE_TEST_LAST"] == "/home/u/second"
     assert os.environ["OMNIVOICE_TEST_PATH"] == "/chosen/${HOME}/models"
+
+
+@pytest.mark.parametrize("second", ["KEY=stale", "export KEY=stale", "KEY = 'stale' # saved manually"])
+def test_upsert_replaces_all_effective_assignments(tmp_path, monkeypatch, second):
+    from dotenv import dotenv_values
+
+    path = tmp_path / "env"
+    path.write_text(f"# kept comment\nKEY=old\nOTHER=keep\n{second}\n")
+    user_env.set_user_env("KEY", "fresh", path=str(path))
+    assert user_env.get_user_env("KEY", path=str(path)) == "fresh"
+    assert dotenv_values(path)["KEY"] == "fresh"
+    monkeypatch.setenv("KEY", "unset-sentinel")
+    monkeypatch.setenv("OTHER", "unset-sentinel")
+    user_env.load_into_environ(str(path))
+    assert os.environ["KEY"] == "fresh"
+    assert "# kept comment\n" in path.read_text()
+    assert "OTHER=keep\n" in path.read_text()
+
+
+def test_get_reports_the_last_decoded_assignment(tmp_path):
+    path = tmp_path / "env"
+    path.write_text('KEY=old\nexport KEY = "fresh value" # comment\n')
+    assert user_env.get_user_env("KEY", path=str(path)) == "fresh value"
+
+
+def test_unset_removes_all_assignment_forms_without_other_keys(tmp_path):
+    from dotenv import dotenv_values
+
+    path = tmp_path / "env"
+    path.write_text("KEY=old\nOTHER=keep\nexport KEY = 'stale'\n")
+    user_env.unset_user_env("KEY", path=str(path))
+    assert "KEY" not in dotenv_values(path)
+    assert path.read_text() == "OTHER=keep\n"
+
+
+def test_unicode_line_separators_survive_env_updates_and_restart(tmp_path, monkeypatch):
+    monkeypatch.setenv("OMNIVOICE_TEST_PATH", "fixture-baseline")
+    for separator in ("\u2028", "\u2029"):
+        path = tmp_path / ("env-" + hex(ord(separator)))
+        value = str(tmp_path / ("models" + separator + "saved"))
+        user_env.set_user_env("OMNIVOICE_TEST_PATH", value, path=str(path))
+        assert user_env.get_user_env("OMNIVOICE_TEST_PATH", path=str(path)) == value
+        user_env.set_user_env("UNRELATED", "kept", path=str(path))
+        assert user_env.get_user_env("OMNIVOICE_TEST_PATH", path=str(path)) == value
+        user_env.unset_user_env("UNRELATED", path=str(path))
+        assert user_env.get_user_env("OMNIVOICE_TEST_PATH", path=str(path)) == value
+        monkeypatch.delenv("OMNIVOICE_TEST_PATH", raising=False)
+        assert user_env.load_into_environ(str(path))
+        assert os.environ["OMNIVOICE_TEST_PATH"] == value

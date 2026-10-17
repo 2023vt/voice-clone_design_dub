@@ -8,6 +8,10 @@ metadata and the backend fallback mirror it.
 
 ## [Unreleased]
 
+**Highlights**
+
+- Saved environment changes replace duplicate and hand-written assignments so the chosen setting, including Unicode line separators in folder names, survives restart. (#2711) — thanks @rudycelekli!
+
 ## [0.5.7] — 2026-10-17
 
 **VoiceStudio now runs on PCs without a GPU and recovers instead of giving up.** Voice cloning uses the speech-to-text model you installed from Model Catalogue, GPU-less computers get the small CPU PyTorch build, and slow or busy backends are no longer reported as failed.

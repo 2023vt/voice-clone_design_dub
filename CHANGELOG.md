@@ -21,7 +21,13 @@ metadata and the backend fallback mirror it.
 
 - Invalid Smart Fit settings are rejected before dubbing starts, while default settings and zero gap guards remain supported (#2920) — thanks @harrisonoconnorhover!
 
+### Docs
+
+- Contributor guides and the pull request template explain how to sign the CLA before opening a first pull request (#2676)
+
 ### CI
+
+- Desktop request-guard self-tests stay deterministic when app requests arrive during cleanup (#2676)
 
 - New `mobile` workflow builds and tests both phone apps; a contract test fails when their theme or API description drifts from the desktop app (#2965)
 

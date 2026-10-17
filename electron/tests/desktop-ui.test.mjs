@@ -76,9 +76,13 @@ test('guard: a Node-level main-process request fails the run', async (t) => {
 
 test('guard: a run that observed no requests fails', async (t) => {
   await assert.rejects(
-    withApp(t, {}, async ({ app }) => {
-      await app.evaluate(() => {
-        globalThis.__requestLog.length = 0;
+    withApp(t, {}, async ({ app, page }) => {
+      await page.waitForFunction(() => Boolean(window.voicestudio?.files?.saveData));
+      await app.evaluate(async ({ BrowserWindow, net }) => {
+        // Detach the observed log: clearing the live array races late requests.
+        globalThis.__requestLog = [];
+        // A late app request must not undo the simulated missing hook.
+        await net.fetch(BrowserWindow.getAllWindows()[0].webContents.getURL());
       });
     }),
     /observed no app requests/,

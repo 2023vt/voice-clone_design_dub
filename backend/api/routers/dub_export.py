@@ -1144,7 +1144,9 @@ async def dub_get_media(job_id: str, request: Request):
 # against the same output path, and the mtime check below saw the half-written
 # file as a valid cache — serving a truncated MP4 that left the player stuck
 # loading forever (#281).
-_preview_mux_locks: dict[str, asyncio.Lock] = {}
+_preview_mux_locks: "weakref.WeakValueDictionary[str, asyncio.Lock]" = weakref.WeakValueDictionary()
+_preview_readers: dict[str, int] = {}
+_preview_superseded: set[str] = set()
 
 
 def _preview_lock(path: str) -> asyncio.Lock:
@@ -1152,6 +1154,54 @@ def _preview_lock(path: str) -> asyncio.Lock:
     if lock is None:
         lock = _preview_mux_locks.setdefault(path, asyncio.Lock())
     return lock
+
+
+def _release_preview(path: str) -> None:
+    left = _preview_readers.get(path, 0) - 1
+    if left > 0:
+        _preview_readers[path] = left
+        return
+    _preview_readers.pop(path, None)
+    if path in _preview_superseded:
+        _preview_superseded.discard(path)
+        try:
+            os.remove(path)
+        except OSError:
+            pass  # Windows may still have it open; the next gain retries pruning.
+
+
+class _LeasedPreviewResponse(FileResponse):
+    """Keep a chosen preview until its lazy file response finishes or fails."""
+
+    def __init__(self, path: str, **kwargs):
+        super().__init__(path, **kwargs)
+        self._lease = path
+
+    async def __call__(self, scope, receive, send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            _release_preview(self._lease)
+
+
+def _prune_preview_gains(exports: str, family: str, target: str) -> None:
+    # Only complete files generated for this exact language/background family.
+    # Default, no-background, other languages and retime/mux scratch stay intact.
+    stale = re.compile(re.escape(family) + r"_gain_(-?[0-9]+(?:\.[0-9]+)?(?:e[+-]?[0-9]+)?)\.mp4")
+    for entry in os.scandir(exports):
+        match = stale.fullmatch(entry.name)
+        if not match or entry.path == target or not entry.is_file(follow_symlinks=False):
+            continue
+        gain = float(match.group(1))
+        if not 0 <= gain <= 4 or gain == 1 or format(gain, ".17g") != match.group(1):
+            continue
+        if entry.path in _preview_readers:
+            _preview_superseded.add(entry.path)
+            continue
+        try:
+            os.remove(entry.path)
+        except OSError:
+            pass  # A later successful gain request retries a busy file.
 
 
 @router.api_route("/dub/preview-video/{job_id}", methods=["GET", "HEAD"], dependencies=[Depends(reject_cross_site_get)])
@@ -1198,7 +1248,9 @@ async def dub_preview_video(
         raise HTTPException(status_code=400, detail="Invalid job id")
     os.makedirs(exports_dir, exist_ok=True)
     bg_suffix = "surgical_v2_" + Path(bg_audio).stem if (preserve_bg and has_bg) else "nobg"
-    if preserve_bg and has_bg and bed_gain != 1.0:
+    preview_family = f"preview_v2_{lang}_{bg_suffix}"
+    gain_variant = preserve_bg and has_bg and bed_gain != 1.0
+    if gain_variant:
         bg_suffix += f"_gain_{float(bed_gain):.17g}"
     preview_path = os.path.realpath(
         os.path.join(exports_dir, f"preview_v2_{lang}_{bg_suffix}.mp4")
@@ -1394,21 +1446,29 @@ async def dub_preview_video(
                     # Best-effort scratch cleanup — never fail the export.
                     logger.debug("retime intermediate cleanup failed: %s", e)
 
-        os.replace(mux_path, preview_path)
+        try:
+            os.replace(mux_path, preview_path)
+        finally:
+            _discard_tmp()
 
-    async with _preview_lock(preview_path):
+    # Serialize this language/background family through mux, selection and
+    # pruning. Reserve the lazy response before another gain can supersede it.
+    async with _preview_lock(os.path.join(exports_dir, preview_family)):
         if not _cache_ok():
             await _mux_preview()
-
-    # The renderer includes the segment-fingerprint revision in the URL, so a
-    # regenerated track gets a fresh cache key. Keep each completed preview:
-    # switching Original/Dub then reuses local ranges instead of re-reading a
-    # multi-hundred-megabyte MP4 from the backend.
-    return FileResponse(
-        preview_path,
-        media_type="video/mp4",
-        headers={"Cache-Control": "private, max-age=31536000, immutable", "Accept-Ranges": "bytes"},
-    )
+        _preview_readers[preview_path] = _preview_readers.get(preview_path, 0) + 1
+        _preview_superseded.discard(preview_path)
+        try:
+            if gain_variant:
+                _prune_preview_gains(exports_dir, preview_family, preview_path)
+            return _LeasedPreviewResponse(
+                preview_path,
+                media_type="video/mp4",
+                headers={"Cache-Control": "private, max-age=31536000, immutable", "Accept-Ranges": "bytes"},
+            )
+        except BaseException:
+            _release_preview(preview_path)
+            raise
 
 
 def _compute_timeline_sync(src_path: str) -> tuple[list[float], list[float]]:

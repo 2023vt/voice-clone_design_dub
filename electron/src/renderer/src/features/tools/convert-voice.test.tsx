@@ -28,7 +28,20 @@ vi.mock('@/hooks/use-recording', () => ({
 }));
 vi.mock('@/hooks/use-profiles', () => ({
   useProfiles: () => ({
-    data: [{ id: 'a', name: 'Alpha', kind: 'clone', ref_audio_path: 'a.wav' }],
+    data: [
+      { id: 'a', name: 'Alpha', kind: 'clone', ref_audio_path: 'a.wav' },
+      { id: 'design', name: 'Captain Crusty', kind: 'design', ref_audio_path: 'design.wav' },
+      { id: 'legacy-design', name: 'Legacy Design', kind: 'design', ref_audio_path: null },
+      {
+        id: 'locked',
+        name: 'Locked Clone',
+        kind: 'clone',
+        ref_audio_path: null,
+        is_locked: true,
+        locked_audio_path: 'locked.wav',
+      },
+      { id: 'empty', name: 'Empty Clone', kind: 'clone', ref_audio_path: null },
+    ],
   }),
 }));
 vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => key }) }));
@@ -147,4 +160,23 @@ it('offers retry instead of model guidance when engine lookup fails', () => {
   expect(screen.getByText('Engine query failed')).toBeInTheDocument();
   fireEvent.click(screen.getByRole('button', { name: 'common.retry' }));
   expect(mock.retry).toHaveBeenCalledOnce();
+});
+
+it.each([
+  ['Captain Crusty', 'design'],
+  ['Legacy Design', 'legacy-design'],
+  ['Locked Clone', 'locked'],
+])('searches and converts the saved profile %s', async (name, id) => {
+  mock.convert.mockResolvedValue({ id: 'x', audio_url: '/audio/x.wav', text: 'Dialogue' });
+  const { upload } = mount();
+  upload();
+  expect(screen.queryByRole('button', { name: 'Empty Clone' })).not.toBeInTheDocument();
+  fireEvent.change(screen.getByRole('textbox', { name: 'convert.pick_voice' }), {
+    target: { value: name.toLowerCase() },
+  });
+  expect(screen.queryByRole('button', { name: 'Alpha' })).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole('button', { name }));
+  fireEvent.click(screen.getByRole('button', { name: 'convert.convert' }));
+  expect(await screen.findByTestId('convert-result')).toBeInTheDocument();
+  expect(mock.convert).toHaveBeenCalledWith(expect.any(File), id, true, expect.any(AbortSignal));
 });

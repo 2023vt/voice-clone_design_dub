@@ -187,7 +187,7 @@ class Supertonic3Backend(SubprocessBackend):
           * ``voice``        ‑‑ one of :data:`VOICE_PRESETS` (str). Default
                                 ``DEFAULT_VOICE``. Unknown ids log a warning
                                 and fall back.
-          * ``language``     ‑‑ ISO 639-1 code or ``"auto"`` / ``None``.
+          * ``language``     ‑‑ full language name, ISO 639-1 code or ``"auto"`` / ``None``.
                                 ``"auto"`` and ``None`` map to ``"na"`` so
                                 the SDK's multilingual fallback engages.
           * ``speed``        ‑‑ float, clamped to [0.7, 2.0].

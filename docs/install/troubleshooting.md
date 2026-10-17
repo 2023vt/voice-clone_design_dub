@@ -520,7 +520,9 @@ cookie database automatically, never saves the export in your project, and
 never uploads it anywhere except to your own VoiceStudio backend. Use an export
 limited to YouTube where your browser extension supports domain filtering.
 For a backend on another machine, the picker is enabled only over HTTPS; plain
-HTTP is accepted solely on the desktop app's loopback connection.
+HTTP is accepted solely on the desktop app's loopback connection. Electron's
+main process supplies a desktop-origin transport marker for both packaged and
+development requests; renderer-supplied origins and markers are discarded.
 Remote backends must also use `OMNIVOICE_API_KEY` as the bearer key and remain
 restricted to a private tailnet; see [API authentication](../api-auth.md).
 
@@ -565,8 +567,10 @@ restarted it, and the next attempt killed it again
 ([#1371](https://github.com/debpalash/VoiceStudio/issues/1371)). VoiceStudio now
 checks whether cuDNN 8 will load *before* selecting a CTranslate2 engine and
 falls back to PyTorch Whisper instead, so a missing library costs you WhisperX's
-word-level alignment — not the backend. The repair below is still worth doing to
-get WhisperX back.
+word-level alignment — not the backend. Direct or already-selected CTranslate2
+adapters also check the CUDA libraries before loading and use their CPU path
+when cuDNN is missing. Hosts with working CUDA libraries keep GPU acceleration.
+The repair below is still worth doing to get WhisperX back.
 
 **Cause:** WhisperX and faster-whisper run on **CTranslate2**, which needs
 **cuDNN 8**, but PyTorch 2.8 ships cuDNN 9. VoiceStudio side-loads a cuDNN-8 copy
@@ -1372,3 +1376,11 @@ Accept it in the dialog that appears, or in **Model Manager → the model's
 Licence icon**. Nothing is re-downloaded. Headless and API users can accept with
 `POST /models/licenses/accept`; see
 [Licence acceptance before use](../licensing/model-review-workflow.md#licence-acceptance-before-use).
+
+### Setup stops at `VOICESTUDIO_CUDNN8_PROBE` on a CPU-only computer
+
+If an older installer exits with code `3221225477` at this probe, install the
+updated desktop build and retry **Install local runtime**. CPU and ROCm setup
+now skip the native CUDA compatibility probe; runtime imports are still verified
+before setup finishes. If verification also fails, include the new setup log in
+your report rather than deleting saved voices or projects.

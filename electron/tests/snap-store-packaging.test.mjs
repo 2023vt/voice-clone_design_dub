@@ -33,9 +33,9 @@ test('builds the Snap Store distribution as a strictly confined store-owned pack
     plugs.some(
       (plug) =>
         plug['browser-support']?.interface === 'browser-support' &&
-        plug['browser-support']['allow-sandbox'] === true,
+        plug['browser-support']['allow-sandbox'] === false,
     ),
-    'Chromium sandboxing remains enabled inside strict confinement',
+    'Strict Snap confinement replaces the privileged Chromium sandbox',
   );
   for (const plug of [
     'home',

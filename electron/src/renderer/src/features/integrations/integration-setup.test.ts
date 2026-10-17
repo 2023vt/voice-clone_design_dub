@@ -9,6 +9,7 @@ import {
   integrationCategoryKey,
   isIntegrationCategory,
 } from './integration-categories';
+import genericLogo from '@shared/assets/integrations/integration-generic.svg';
 
 it('gives every catalog category its own label key, never one borrowed from another feature', () => {
   const labels = en.integrationCatalog.category as Record<string, string>;
@@ -302,4 +303,12 @@ it('reads the Agents SDK key only for a remote https backend', () => {
   expect(integrationSetup('openai-agents')!.blocks('http://192.168.1.5:3900')![0].hintKey).toBe(
     'integrationCatalog.apiInsecureHint',
   );
+});
+
+it('shows an official bundled logo, never the generic placeholder, on every visible integration', () => {
+  for (const slug of Object.keys(INTEGRATION_SETUPS)) {
+    const entry = getIntegrationBySlug(slug);
+    expect(entry, slug).toBeTruthy();
+    expect(entry!.logoUrl, slug).not.toBe(genericLogo);
+  }
 });

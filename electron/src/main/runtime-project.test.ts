@@ -84,6 +84,30 @@ afterEach(async () => {
 });
 
 describe('packaged runtime setup', () => {
+  it.each(['win32', 'linux'] as const)(
+    'does not import torch for the CUDA compatibility probe on a %s CPU runtime',
+    async (platform) => {
+      forcePlatform(platform);
+      vi.spyOn(process, 'arch', 'get').mockReturnValue('x64');
+      vi.stubEnv('OMNIVOICE_TORCH_VARIANT', 'cpu');
+      const { bundle, project } = await fixture();
+      const sitePackages = join(project, '.venv', 'Lib', 'site-packages');
+      const run = vi.fn(async (_command: string, args: string[]) => {
+        if (args[0] === 'sync') await interpreter(project);
+        if (args[1]?.includes('VOICESTUDIO_CUDNN8_PROBE=')) {
+          if (args[1].includes('import torch')) {
+            throw new Error('Runtime setup exited with code 3221225477');
+          }
+          return `VOICESTUDIO_CUDNN8_PROBE=${JSON.stringify({ device: 'none', sitePackages })}\n`;
+        }
+        return undefined;
+      });
+      await installRuntime(bundle, project, 'uv', run, new AbortController().signal, undefined, 'global');
+      expect(run.mock.calls.some(([, args]) => args.includes(CUDNN8_COMPAT_PIN))).toBe(false);
+      expect(run.mock.calls.some(([, args]) => args[1] === RUNTIME_IMPORT_PROBE)).toBe(true);
+      expect(await runtimeReady(bundle, project)).toBe(true);
+    },
+  );
   it.each([0, 1])(
     'verifies the runtime when .pth repair attempt %i fails',
     async (failedAttempt) => {

@@ -1330,6 +1330,11 @@ def list_voices():
     except Exception:
         logger.warning("Voice profiles could not be loaded; returning built-in aliases only")
 
+    # OpenAI-compatible clients such as Open WebUI read each voice's `id`
+    # (#2679); `voice_id` stays for existing callers.
+    for voice in voices:
+        voice["id"] = voice["voice_id"]
+
     return {"voices": voices, "engines": backends}
 
 

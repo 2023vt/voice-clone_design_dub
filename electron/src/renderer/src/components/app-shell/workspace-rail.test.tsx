@@ -26,7 +26,7 @@ vi.mock('@/lib/store/workspace', () => ({
   useWorkspace: () => layout.state,
   setWorkspace: (patch: object) => layout.setWorkspace(patch),
 }));
-vi.mock('@/components/bridge', () => ({ isMac: () => false }));
+vi.mock('@/components/bridge', () => ({ appVersion: () => '0.5.7', isMac: () => false }));
 vi.mock('@/lib/brand', () => ({ brandIcon: 'icon.png', brandArtwork: 'art.png' }));
 vi.mock('@/hooks/use-pane-resize', () => ({
   usePaneResize: () => ({ host: { current: null }, width: 280, separatorProps: {} }),

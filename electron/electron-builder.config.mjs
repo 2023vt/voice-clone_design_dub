@@ -8,6 +8,7 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { packageNativeHelper } from './native-helper-build.mjs';
+import { repairSnapArtifacts } from './snap-template-payload.mjs';
 import { APP_ID, PRODUCT_NAME } from '../config/app-config.mjs';
 import { DISTRIBUTION_PROFILE, DISTRIBUTION_TARGET } from '../config/distributions.mjs';
 
@@ -51,7 +52,7 @@ export function distributionPackaging(target = DISTRIBUTION_TARGET) {
           description: storeMetadata.listing.description,
           allowNativeWayland: true,
           plugs: [
-            { 'browser-support': { interface: 'browser-support', 'allow-sandbox': true } },
+            { 'browser-support': { interface: 'browser-support', 'allow-sandbox': false } },
             'desktop',
             'desktop-legacy',
             'home',
@@ -170,6 +171,9 @@ export default {
   ],
   asar: true,
   afterPack: packageNativeHelper,
+  ...(DISTRIBUTION_TARGET === 'snap-store'
+    ? { afterAllArtifactBuild: ({ artifactPaths }) => repairSnapArtifacts(artifactPaths) }
+    : {}),
   win: {
     icon: 'build/icons/icon.ico',
     // The CLI matrix selects one architecture per runner and updater feed

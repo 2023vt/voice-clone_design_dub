@@ -23,6 +23,7 @@ import {
   constants,
   existsSync,
   mkdirSync,
+  readdirSync,
   readFileSync,
   rmSync,
   statSync,
@@ -32,6 +33,7 @@ import { rm } from 'node:fs/promises';
 import { cpus, homedir, totalmem } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve } from 'node:path';
 import { app } from 'electron';
+import { APP_ORIGIN } from './protocol';
 import type {
   BackendConnection,
   BackendStage,
@@ -362,6 +364,24 @@ function selectedRuntimeRoot(parent: string): string {
     : join(selected, 'VoiceStudio');
 }
 
+/** File-manager metadata a new folder can hold; it is not another installation's data. */
+const FOLDER_METADATA = new Set(['.ds_store', '.localized', 'desktop.ini', 'thumbs.db']);
+
+/**
+ * Whether a selected runtime root holds files Electron must not take over. The
+ * folder picker can create the destination, so an existing empty folder is a
+ * new destination rather than another installation.
+ */
+function holdsUnownedFiles(root: string): boolean {
+  try {
+    return readdirSync(root, { withFileTypes: true }).some(
+      (entry) => !entry.isFile() || !FOLDER_METADATA.has(entry.name.toLowerCase()),
+    );
+  } catch (error) {
+    return (error as NodeJS.ErrnoException).code !== 'ENOENT';
+  }
+}
+
 /** The web UI build packaged with this app version (served to LAN devices). */
 export function bundledWebUiPath(): string {
   return join(backendRoot(), 'frontend', 'dist');
@@ -605,7 +625,13 @@ export class BackendSupervisor extends EventEmitter<{
 
   requestHeaders(): Record<string, string> {
     const session = this.activeSession();
-    return session ? { Authorization: `Bearer ${session.token}` } : {};
+    // Both proxies discard the renderer's Origin. Assert our own identity so
+    // backend transport gates can recognize the desktop. Chromium forbids
+    // overriding Origin itself in net.fetch.
+    return {
+      'X-VoiceStudio-Desktop-Origin': APP_ORIGIN,
+      ...(session ? { Authorization: `Bearer ${session.token}` } : {}),
+    };
   }
 
   private activeSession(): RemoteSession | null {
@@ -828,7 +854,7 @@ export class BackendSupervisor extends EventEmitter<{
         !configured.owned &&
         samePath(configured.root, runtimeRoot) &&
         !samePath(runtimeRoot, defaultRuntimeRoot()) &&
-        existsSync(runtimeRoot)
+        holdsUnownedFiles(runtimeRoot)
       ) {
         // An explicit setup action may create a new runtime, but must never
         // take ownership of (or repair in place) another installation's files.

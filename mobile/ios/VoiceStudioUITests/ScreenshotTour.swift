@@ -32,16 +32,17 @@ final class ScreenshotTour: XCTestCase {
         editor.tap(); editor.typeText("Hello from the VoiceStudio iPhone app.")
         shot(app, "05-speak-keyboard")
         if app.buttons["keyboard.done"].waitForExistence(timeout: 3) { app.buttons["keyboard.done"].tap() }
-        if app.buttons["speak.engine"].exists {
-            app.buttons["speak.engine"].tap()
-            shot(app, "06-engine-picker")
-            if app.buttons["Close"].waitForExistence(timeout: 3) { app.buttons["Close"].tap() }
-        }
+        let engine = app.buttons["speak.engine"]
+        XCTAssertTrue(engine.waitForExistence(timeout: 5))
+        engine.tap()
+        shot(app, "06-engine-picker")
+        XCTAssertTrue(app.buttons["Close"].waitForExistence(timeout: 3))
+        app.buttons["Close"].tap()
         app.swipeUp()
-        if app.buttons["speak.generate"].exists {
-            app.buttons["speak.generate"].tap()
-            _ = app.buttons["audio.play"].waitForExistence(timeout: 10)
-        }
+        let generate = app.buttons["speak.generate"]
+        XCTAssertTrue(generate.waitForExistence(timeout: 5))
+        generate.tap()
+        XCTAssertTrue(app.buttons["audio.play"].waitForExistence(timeout: 10))
         shot(app, "07-speak-generated")
 
         for (tab, name) in [("Voices", "08-voices"), ("Dub", "09-dub"), ("Dictate", "10-dictate"), ("Settings", "11-settings")] {
@@ -60,11 +61,6 @@ final class ScreenshotTour: XCTestCase {
         app.swipeUp()
         shot(app, "12-settings-more")
 
-        app.terminate()
-        app.launchArguments = ["--ui-smoke", "-AppleLanguages", "(en)", "-AppleInterfaceStyle", "Light"]
-        app.launch()
-        sleep(2)
-        shot(app, "13-relaunch-light")
     }
 
     @MainActor private func shot(_ app: XCUIApplication, _ name: String) {

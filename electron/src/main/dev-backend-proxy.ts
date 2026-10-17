@@ -9,6 +9,7 @@ const STRIP_HEADERS = new Set([
   'forwarded',
   'host',
   'origin',
+  'x-voicestudio-desktop-origin',
   'proxy-authorization',
   'referer',
   'te',

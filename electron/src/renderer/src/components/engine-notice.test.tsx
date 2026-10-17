@@ -50,6 +50,20 @@ function renderCompactNotice() {
   );
 }
 
+function mockMissingRecommendedModel() {
+  mock.api.mockImplementation((path: string) =>
+    Promise.resolve(
+      path === '/setup/recommendations'
+        ? {
+            models: [
+              { repo_id: 'k2-fsa/OmniVoice', role: 'TTS', required: true, installed: false },
+            ],
+          }
+        : {},
+    ),
+  );
+}
+
 afterEach(() => {
   cleanup();
   mock.api.mockReset();
@@ -58,18 +72,7 @@ afterEach(() => {
 });
 
 it('installs the required TTS model without sending the user through Settings', async () => {
-  mock.api
-    .mockResolvedValueOnce({
-      models: [
-        {
-          repo_id: 'k2-fsa/OmniVoice',
-          role: 'TTS',
-          required: true,
-          installed: false,
-        },
-      ],
-    })
-    .mockResolvedValueOnce({});
+  mockMissingRecommendedModel();
   renderNotice();
 
   fireEvent.click(screen.getByRole('button', { name: 'repairAgent.fix' }));
@@ -178,18 +181,7 @@ it('joins an existing install instead of submitting the model twice', async () =
 });
 
 it('offers the same automatic recovery on compact synthesis surfaces', async () => {
-  mock.api
-    .mockResolvedValueOnce({
-      models: [
-        {
-          repo_id: 'k2-fsa/OmniVoice',
-          role: 'TTS',
-          required: true,
-          installed: false,
-        },
-      ],
-    })
-    .mockResolvedValueOnce({});
+  mockMissingRecommendedModel();
   renderCompactNotice();
 
   expect(screen.getByText('engines.none_ready_body')).toBeInTheDocument();
@@ -201,4 +193,114 @@ it('offers the same automatic recovery on compact synthesis surfaces', async () 
       body: JSON.stringify({ repo_id: 'k2-fsa/OmniVoice' }),
     }),
   );
+});
+
+it('downloads the model chosen for an available engine instead of reporting success', async () => {
+  const selected = 'mlx-community/Llama-OuteTTS-1.0-1B-4bit';
+  mock.api.mockImplementation((path: string) => {
+    if (path === '/setup/recommendations')
+      return Promise.resolve({
+        target: 'local',
+        models: [{ repo_id: 'k2-fsa/OmniVoice', role: 'TTS', required: true, installed: true }],
+      });
+    if (path === '/engines')
+      return Promise.resolve({
+        tts: {
+          active: 'mlx-audio',
+          active_model: selected,
+          backends: [{ id: 'mlx-audio', available: true, routing_status: 'accelerated' }],
+        },
+      });
+    if (path === '/models')
+      return Promise.resolve({
+        models: [{ repo_id: selected, installed: false, incomplete: false }],
+      });
+    return Promise.resolve({});
+  });
+  renderNotice();
+
+  fireEvent.click(screen.getByRole('button', { name: 'repairAgent.fix' }));
+
+  await waitFor(() =>
+    expect(mock.api).toHaveBeenCalledWith('/models/install', {
+      method: 'POST',
+      body: JSON.stringify({ repo_id: selected }),
+    }),
+  );
+  expect(mock.api.mock.calls.some(([path]) => path === '/engines/select')).toBe(false);
+  expect(screen.getByRole('button')).toHaveTextContent('modelMaintenance.downloading');
+});
+
+it('downloads the selected model before a missing recommended model', async () => {
+  const selected = 'mlx-community/Llama-OuteTTS-1.0-1B-4bit';
+  mock.api.mockImplementation((path: string) => {
+    if (path === '/setup/recommendations')
+      return Promise.resolve({
+        target: 'local',
+        models: [{ repo_id: 'k2-fsa/OmniVoice', role: 'TTS', required: true, installed: false }],
+      });
+    if (path === '/engines')
+      return Promise.resolve({
+        tts: {
+          active: 'mlx-audio',
+          active_model: selected,
+          backends: [{ id: 'mlx-audio', available: true, routing_status: 'accelerated' }],
+        },
+      });
+    if (path === '/models')
+      return Promise.resolve({
+        models: [{ repo_id: selected, installed: false, incomplete: false }],
+      });
+    return Promise.resolve({});
+  });
+  renderNotice();
+
+  fireEvent.click(screen.getByRole('button', { name: 'repairAgent.fix' }));
+
+  await waitFor(() =>
+    expect(mock.api).toHaveBeenCalledWith('/models/install', {
+      method: 'POST',
+      body: JSON.stringify({ repo_id: selected }),
+    }),
+  );
+  const installs = mock.api.mock.calls.filter(([path]) => path === '/models/install');
+  expect(installs).toHaveLength(1);
+});
+
+it('switches engines instead of downloading the model of an unavailable engine', async () => {
+  const selected = 'mlx-community/Llama-OuteTTS-1.0-1B-4bit';
+  mock.api.mockImplementation((path: string) => {
+    if (path === '/setup/recommendations')
+      return Promise.resolve({
+        target: 'local',
+        models: [{ repo_id: 'k2-fsa/OmniVoice', role: 'TTS', required: true, installed: true }],
+      });
+    if (path === '/engines')
+      return Promise.resolve({
+        tts: {
+          active: 'mlx-audio',
+          active_model: selected,
+          backends: [
+            { id: 'mlx-audio', available: false, routing_status: 'unavailable' },
+            { id: 'omnivoice', available: true, routing_status: 'accelerated' },
+          ],
+        },
+      });
+    if (path === '/models')
+      return Promise.resolve({
+        models: [{ repo_id: selected, installed: false, incomplete: false }],
+      });
+    return Promise.resolve({});
+  });
+  renderNotice();
+
+  fireEvent.click(screen.getByRole('button', { name: 'repairAgent.fix' }));
+
+  await waitFor(() =>
+    expect(mock.api).toHaveBeenCalledWith('/engines/select', {
+      method: 'POST',
+      body: JSON.stringify({ family: 'tts', backend_id: 'omnivoice' }),
+    }),
+  );
+  expect(mock.api.mock.calls.some(([path]) => path === '/models/install')).toBe(false);
 });

@@ -1280,6 +1280,7 @@
     "save": "Save",
     "reset": "Reset",
     "change_file": "Change file",
+    "use_link": "Use link",
     "import_srt": "Import .srt",
     "import_srt_alt": "Import .srt instead",
     "cast": "CAST",

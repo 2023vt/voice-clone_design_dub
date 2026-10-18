@@ -4,11 +4,11 @@ import wave
 import numpy as np
 import pytest
 
-from services.dub_mix import pcm16_chunks
-
 
 def test_overlapping_loud_voices_keep_one_gain_across_wav_chunks(tmp_path):
     """A later 1.6 peak must attenuate the entire mix, not flatten its peaks."""
+    from services.dub_mix import pcm16_chunks
+
     samples = np.memmap(tmp_path / "mix", mode="w+", dtype=np.float32, shape=(8,))
     voice = np.array([.2, -.2, .4, -.4, .8, -.8, .6, -.6], dtype=np.float32)
     samples[:] = voice
@@ -29,6 +29,8 @@ def test_overlapping_loud_voices_keep_one_gain_across_wav_chunks(tmp_path):
 @pytest.mark.parametrize("protect", [False, True])
 def test_safe_mix_is_not_amplified(protect):
     """Protection leaves ordinary levels and silence byte-identical."""
+    from services.dub_mix import pcm16_chunks
+
     samples = np.array([0, .25, -.8, 1, -1], dtype=np.float32)
     result = b"".join(pcm16_chunks(samples, 2, prevent_clipping=protect))
     assert result == (samples * 32767).astype("<i2").tobytes()
@@ -36,6 +38,8 @@ def test_safe_mix_is_not_amplified(protect):
 
 def test_legacy_clipping_and_nonfinite_sanitization_are_preserved():
     """Other timing modes retain the existing writer behavior."""
+    from services.dub_mix import pcm16_chunks
+
     samples = np.array([2, -2, np.nan, np.inf, -np.inf], dtype=np.float32)
     result = b"".join(pcm16_chunks(samples, 2))
     assert result == np.array([32767, -32767, 0, 32767, -32767], dtype="<i2").tobytes()

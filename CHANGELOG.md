@@ -18,6 +18,7 @@ metadata and the backend fallback mirror it.
 
 ### Docs
 
+- The Windows install command now uses `irm https://voicestudio.sh/install.ps1 | iex`, so PowerShell gets the PowerShell installer instead of the shell script (#2973)
 - Contributor guides and the pull request template explain how to sign the CLA before opening a first pull request (#2676)
 
 ### CI

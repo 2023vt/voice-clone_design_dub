@@ -44,7 +44,8 @@ def test_fitted_cues_are_monotone():
     cues = fitted_cues(segs, PLAN)
     for s, e in cues:
         assert e >= s
-    assert cues[1][0] >= cues[0][1] - 1e-9
+    assert cues[1][0] >= cues[0][0] - 1e-9
+    assert cues[1][0] == pytest.approx(6.0)
 
 
 def test_empty_plan_cues_match_original():

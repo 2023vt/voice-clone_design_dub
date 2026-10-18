@@ -54,12 +54,14 @@ def fitted_cues(segments: list[dict], plan: list[dict]) -> list[tuple[float, flo
     non-monotone SRT).
     """
     out: list[tuple[float, float]] = []
-    prev_end = 0.0
+    prev_start = 0.0
     for seg in segments:
         s = map_time_to_fitted(float(seg.get("start", 0.0)), plan)
         e = map_time_to_fitted(float(seg.get("end", 0.0)), plan)
-        s = max(s, prev_end if out else 0.0)
+        # Simultaneous speakers legitimately have overlapping cues. Clamp
+        # only backwards starts, not a cue against the previous speaker's end.
+        s = max(s, prev_start if out else 0.0)
         e = max(e, s)
         out.append((s, e))
-        prev_end = e
+        prev_start = s
     return out

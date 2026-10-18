@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import asyncio
 import functools
+import inspect
 import logging
 import os
 import tempfile
@@ -111,7 +112,28 @@ async def _match_source_duration(audio_tensor, sample_rate: int, source_duration
         return audio_tensor
 
 
-async def _transcribe_source(tmp_path: str, *, source_lease=None) -> dict:
+# Names the TTS-side table in text_normalization doesn't cover but the language
+# picker offers (and Whisper supports).
+_WHISPER_LANG_EXTRA = {"armenian": "hy", "georgian": "ka", "azerbaijani": "az", "kazakh": "kk"}
+
+
+def _whisper_language(language: "str | None") -> "str | None":
+    """Language name from the picker/profile -> Whisper ISO code.
+
+    ``None`` for blank/"Auto"/unknown, which keeps Whisper's auto-detect.
+    """
+    s = str(language or "").strip().lower()
+    if not s or s == "auto":
+        return None
+    if s in _WHISPER_LANG_EXTRA:
+        return _WHISPER_LANG_EXTRA[s]
+    from services.text_normalization import _plain_lang_code
+    return _plain_lang_code(s)
+
+
+async def _transcribe_source(
+    tmp_path: str, *, source_lease=None, language: "str | None" = None,
+) -> dict:
     """Active-ASR transcription of the uploaded clip (no word timestamps).
 
     Mirrors POST /transcribe: typed 409 + download CTA before any backend
@@ -139,7 +161,14 @@ async def _transcribe_source(tmp_path: str, *, source_lease=None) -> dict:
         # past an engine whose deep import chain is broken (#1185).
         from services.asr_backend import load_active_asr_backend
         backend = load_active_asr_backend()
-        return backend.transcribe(tmp_path, word_timestamps=False)
+        kwargs = {"word_timestamps": False}
+        code = _whisper_language(language)
+        # Pin the spoken language: auto-detect on short clips misreads e.g.
+        # Armenian as Russian. Backends without a ``language`` option keep
+        # auto-detecting.
+        if code and "language" in inspect.signature(backend.transcribe).parameters:
+            kwargs["language"] = code
+        return backend.transcribe(tmp_path, **kwargs)
 
     from services.model_manager import _gpu_pool
     release = source_lease.acquire() if source_lease is not None else None
@@ -174,6 +203,7 @@ async def convert_speech(
     audio: UploadFile = File(...),
     profile_id: str = Form(...),
     match_duration: bool = Form(True),
+    language: str = Form(""),
 ):
     """Convert a spoken clip into an existing voice profile's voice.
 
@@ -226,7 +256,12 @@ async def convert_speech(
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-        result = await _transcribe_source(tmp.name, source_lease=source_lease)
+        # Spoken language of the SOURCE clip: the explicit pick, else the
+        # target profile's language (so Armenian speech isn't read as Russian).
+        source_language = language if _whisper_language(language) else cond["language"]
+        result = await _transcribe_source(
+            tmp.name, source_lease=source_lease, language=source_language,
+        )
 
         segments = result.get("segments", [])
         text = result.get("text", "")

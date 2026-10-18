@@ -10,8 +10,10 @@ use HTTPS when the tailnet actually has certs provisioned.
 """
 import json
 import logging
+import os
 import shutil
 import subprocess
+import sys
 
 from services import network_share
 
@@ -19,8 +21,19 @@ _ADMIN_DNS = "https://login.tailscale.com/admin/dns"
 logger = logging.getLogger("omnivoice.tailscale")
 
 
+# The macOS Tailscale app (Mac App Store and standalone builds) ships its CLI
+# inside the bundle and only puts `tailscale` on PATH if the user installs it
+# from the app's settings, so a signed-in Mac usually has no `tailscale` on PATH.
+_MACOS_APP_CLI = "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+
+
 def _cli():
-    return shutil.which("tailscale")
+    cli = shutil.which("tailscale")
+    if cli:
+        return cli
+    if sys.platform == "darwin" and os.access(_MACOS_APP_CLI, os.X_OK):
+        return _MACOS_APP_CLI
+    return None
 
 
 def status() -> dict:

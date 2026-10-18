@@ -5,7 +5,8 @@ from services import tailscale as ts
 
 
 def test_status_absent_cli_is_graceful():
-    with patch("services.tailscale.shutil.which", return_value=None):
+    with patch("services.tailscale.shutil.which", return_value=None), \
+         patch("services.tailscale._MACOS_APP_CLI", "/nonexistent/Tailscale"):
         s = ts.status()
     assert s["installed"] is False and s["running"] is False
 
@@ -103,3 +104,29 @@ def test_serve_enable_proxies_configured_backend_port(monkeypatch):
         r = ts.serve_enable()  # no explicit port → defaults to backend_port()
     assert r["ok"]
     assert captured["target"] == "http://127.0.0.1:4000"
+
+
+def test_macos_app_bundle_cli_is_used_when_not_on_path(tmp_path):
+    # The Mac App Store / standalone app keeps its CLI inside the bundle.
+    bundled = tmp_path / "Tailscale"
+    bundled.write_text("")
+    bundled.chmod(0o755)
+    payload = {**_RUNNING}
+    run = MagicMock(return_value=MagicMock(returncode=0, stdout=json.dumps(payload)))
+    with patch("services.tailscale.shutil.which", return_value=None), \
+         patch("services.tailscale.sys.platform", "darwin"), \
+         patch("services.tailscale._MACOS_APP_CLI", str(bundled)), \
+         patch("services.tailscale.subprocess.run", run):
+        s = ts.status()
+    assert s["installed"] and s["running"]
+    assert run.call_args.args[0][0] == str(bundled)
+
+
+def test_macos_app_bundle_is_ignored_on_other_platforms(tmp_path):
+    bundled = tmp_path / "Tailscale"
+    bundled.write_text("")
+    bundled.chmod(0o755)
+    with patch("services.tailscale.shutil.which", return_value=None), \
+         patch("services.tailscale.sys.platform", "linux"), \
+         patch("services.tailscale._MACOS_APP_CLI", str(bundled)):
+        assert ts.status()["installed"] is False

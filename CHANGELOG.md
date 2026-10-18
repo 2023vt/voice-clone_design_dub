@@ -18,7 +18,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- Streamed speech keeps IP addresses and version numbers such as "192.168.1.1" or "2.5.1" in one sentence instead of cutting them after the second dot
+- Streamed speech keeps IP addresses and version numbers such as "192.168.1.1" or "2.5.1" in one sentence instead of cutting them after the second dot (#2993)
 
 ### Docs
 

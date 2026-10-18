@@ -18,7 +18,7 @@ metadata and the backend fallback mirror it.
 
 ### Docs
 
-- Docker guide explains recovery from a lost share PIN without deleting saved data (#3003) — thanks @jonathanwxh-cell!
+- Docker guide explains recovery from a lost share PIN without deleting saved data (#3006) — thanks @jonathanwxh-cell!
 - Contributor guides and the pull request template explain how to sign the CLA before opening a first pull request (#2676)
 
 ### CI

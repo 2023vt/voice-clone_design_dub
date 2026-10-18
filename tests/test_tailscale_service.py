@@ -6,7 +6,7 @@ from services import tailscale as ts
 
 def test_status_absent_cli_is_graceful():
     with patch("services.tailscale.shutil.which", return_value=None), \
-         patch("services.tailscale._MACOS_APP_CLI", "/nonexistent/Tailscale"):
+         patch.object(ts, "_MACOS_APP_CLI", "/nonexistent/Tailscale"):
         s = ts.status()
     assert s["installed"] is False and s["running"] is False
 
@@ -106,27 +106,33 @@ def test_serve_enable_proxies_configured_backend_port(monkeypatch):
     assert captured["target"] == "http://127.0.0.1:4000"
 
 
-def test_macos_app_bundle_cli_is_used_when_not_on_path(tmp_path):
+# Patched on the module object the tests call (`ts`), not by import path:
+# another suite can purge services.* from sys.modules, and a dotted-path patch
+# would then land on a fresh copy that `ts.status()` never reads.
+_BUNDLED = "/Applications/Tailscale.app/Contents/MacOS/Tailscale"
+
+
+def _only_bundle_is_executable(path, mode):
+    return path == _BUNDLED
+
+
+def test_macos_app_bundle_cli_is_used_when_not_on_path():
     # The Mac App Store / standalone app keeps its CLI inside the bundle.
-    bundled = tmp_path / "Tailscale"
-    bundled.write_text("")
-    bundled.chmod(0o755)
     payload = {**_RUNNING}
     run = MagicMock(return_value=MagicMock(returncode=0, stdout=json.dumps(payload)))
     with patch("services.tailscale.shutil.which", return_value=None), \
-         patch("services.tailscale.sys.platform", "darwin"), \
-         patch("services.tailscale._MACOS_APP_CLI", str(bundled)), \
-         patch("services.tailscale.subprocess.run", run):
+         patch.object(ts.sys, "platform", "darwin"), \
+         patch.object(ts, "_MACOS_APP_CLI", _BUNDLED), \
+         patch.object(ts.os, "access", _only_bundle_is_executable), \
+         patch.object(ts.subprocess, "run", run):
         s = ts.status()
     assert s["installed"] and s["running"]
-    assert run.call_args.args[0][0] == str(bundled)
+    assert run.call_args.args[0][0] == _BUNDLED
 
 
-def test_macos_app_bundle_is_ignored_on_other_platforms(tmp_path):
-    bundled = tmp_path / "Tailscale"
-    bundled.write_text("")
-    bundled.chmod(0o755)
+def test_macos_app_bundle_is_ignored_on_other_platforms():
     with patch("services.tailscale.shutil.which", return_value=None), \
-         patch("services.tailscale.sys.platform", "linux"), \
-         patch("services.tailscale._MACOS_APP_CLI", str(bundled)):
+         patch.object(ts.sys, "platform", "linux"), \
+         patch.object(ts, "_MACOS_APP_CLI", _BUNDLED), \
+         patch.object(ts.os, "access", _only_bundle_is_executable):
         assert ts.status()["installed"] is False

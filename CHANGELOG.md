@@ -18,7 +18,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- A sentence ending in "etc." or "usw." keeps its full stop when spoken, so it no longer runs into the next sentence ("et cetera Then we left")
+- A sentence ending in "etc." or "usw." keeps its full stop when spoken, so it no longer runs into the next sentence ("et cetera Then we left") (#2991)
 
 ### Docs
 

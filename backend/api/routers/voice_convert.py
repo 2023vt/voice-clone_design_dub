@@ -112,23 +112,56 @@ async def _match_source_duration(audio_tensor, sample_rate: int, source_duration
         return audio_tensor
 
 
-# Names the TTS-side table in text_normalization doesn't cover but the language
-# picker offers (and Whisper supports).
-_WHISPER_LANG_EXTRA = {"armenian": "hy", "georgian": "ka", "azerbaijani": "az", "kazakh": "kk"}
+# Whisper's own language table (code -> name), plus the aliases the language
+# picker uses. Kept here (not text_normalization's number-formatting table,
+# which only knows a few dozen languages) so every Whisper-supported pick pins.
+_WHISPER_LANGUAGES = {
+    "en": "english", "zh": "chinese", "de": "german", "es": "spanish", "ru": "russian",
+    "ko": "korean", "fr": "french", "ja": "japanese", "pt": "portuguese", "tr": "turkish",
+    "pl": "polish", "ca": "catalan", "nl": "dutch", "ar": "arabic", "sv": "swedish",
+    "it": "italian", "id": "indonesian", "hi": "hindi", "fi": "finnish", "vi": "vietnamese",
+    "he": "hebrew", "uk": "ukrainian", "el": "greek", "ms": "malay", "cs": "czech",
+    "ro": "romanian", "da": "danish", "hu": "hungarian", "ta": "tamil", "no": "norwegian",
+    "th": "thai", "ur": "urdu", "hr": "croatian", "bg": "bulgarian", "lt": "lithuanian",
+    "la": "latin", "mi": "maori", "ml": "malayalam", "cy": "welsh", "sk": "slovak",
+    "te": "telugu", "fa": "persian", "lv": "latvian", "bn": "bengali", "sr": "serbian",
+    "az": "azerbaijani", "sl": "slovenian", "kn": "kannada", "et": "estonian",
+    "mk": "macedonian", "br": "breton", "eu": "basque", "is": "icelandic", "hy": "armenian",
+    "ne": "nepali", "mn": "mongolian", "bs": "bosnian", "kk": "kazakh", "sq": "albanian",
+    "sw": "swahili", "gl": "galician", "mr": "marathi", "pa": "punjabi", "si": "sinhala",
+    "km": "khmer", "sn": "shona", "yo": "yoruba", "so": "somali", "af": "afrikaans",
+    "oc": "occitan", "ka": "georgian", "be": "belarusian", "tg": "tajik", "sd": "sindhi",
+    "gu": "gujarati", "am": "amharic", "yi": "yiddish", "lo": "lao", "uz": "uzbek",
+    "fo": "faroese", "ht": "haitian creole", "ps": "pashto", "tk": "turkmen",
+    "nn": "nynorsk", "mt": "maltese", "sa": "sanskrit", "lb": "luxembourgish",
+    "my": "myanmar", "bo": "tibetan", "tl": "tagalog", "mg": "malagasy", "as": "assamese",
+    "tt": "tatar", "haw": "hawaiian", "ln": "lingala", "ha": "hausa", "ba": "bashkir",
+    "jw": "javanese", "su": "sundanese", "yue": "cantonese",
+}
+_WHISPER_NAME_TO_CODE = {name: code for code, name in _WHISPER_LANGUAGES.items()} | {
+    "burmese": "my", "valencian": "ca", "flemish": "nl", "haitian": "ht",
+    "letzeburgesch": "lb", "pushto": "ps", "panjabi": "pa", "moldavian": "ro",
+    "moldovan": "ro", "sinhalese": "si", "castilian": "es", "mandarin": "zh",
+    "filipino": "tl", "farsi": "fa",
+}
 
 
 def _whisper_language(language: "str | None") -> "str | None":
-    """Language name from the picker/profile -> Whisper ISO code.
+    """Language name (picker/profile) or ISO code -> Whisper code.
 
-    ``None`` for blank/"Auto"/unknown, which keeps Whisper's auto-detect.
+    ``None`` for blank/"Auto"/not a Whisper language, which keeps Whisper's
+    auto-detect.
     """
     s = str(language or "").strip().lower()
     if not s or s == "auto":
         return None
-    if s in _WHISPER_LANG_EXTRA:
-        return _WHISPER_LANG_EXTRA[s]
-    from services.text_normalization import _plain_lang_code
-    return _plain_lang_code(s)
+    if s in _WHISPER_NAME_TO_CODE:
+        return _WHISPER_NAME_TO_CODE[s]
+    return s if s in _WHISPER_LANGUAGES else None
+
+
+def _is_auto(language: "str | None") -> bool:
+    return str(language or "").strip().lower() in ("", "auto")
 
 
 async def _transcribe_source(
@@ -256,9 +289,11 @@ async def convert_speech(
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
 
-        # Spoken language of the SOURCE clip: the explicit pick, else the
+        # Spoken language of the SOURCE clip: the explicit pick, else (Auto) the
         # target profile's language (so Armenian speech isn't read as Russian).
-        source_language = language if _whisper_language(language) else cond["language"]
+        # A pick Whisper doesn't support keeps auto-detect rather than
+        # silently switching to the profile's language.
+        source_language = cond["language"] if _is_auto(language) else language
         result = await _transcribe_source(
             tmp.name, source_lease=source_lease, language=source_language,
         )

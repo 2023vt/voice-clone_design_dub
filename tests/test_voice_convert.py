@@ -578,6 +578,11 @@ def test_whisper_language_maps_names_and_keeps_auto():
 
     assert _whisper_language("Armenian") == "hy"
     assert _whisper_language("Russian") == "ru"
+    assert _whisper_language("Hindi") == "hi"
+    assert _whisper_language("Bengali") == "bn"
+    assert _whisper_language("Thai") == "th"
+    assert _whisper_language("Burmese") == "my"
+    assert _whisper_language("Klingon") is None
     assert _whisper_language("Auto") is None
     assert _whisper_language("") is None
     assert _whisper_language(None) is None
@@ -622,3 +627,33 @@ def test_convert_language_is_not_sent_to_asr_without_support(
     res = _post_convert(client, clone_profile, match_duration="0", language="Armenian")
     assert res.status_code == 200, res.text
     assert "language" not in asr.calls[0]
+
+
+def test_convert_explicit_language_beats_profile_language(client, monkeypatch, clone_profile):
+    """Picking Hindi on an English profile pins Hindi, not English."""
+    from core.db import db_conn
+
+    with db_conn() as conn:
+        conn.execute("UPDATE voice_profiles SET language=? WHERE id=?", ("English", clone_profile))
+    fake = _make_fake_engine(f"fake-conv-{uuid.uuid4().hex[:6]}")
+    asr = _LangASR({"text": "hello", "segments": []})
+    _wire_stubs(monkeypatch, engine_cls=fake, asr=asr)
+
+    res = _post_convert(client, clone_profile, match_duration="0", language="Hindi")
+    assert res.status_code == 200, res.text
+    assert asr.calls[0]["language"] == "hi"
+
+
+def test_convert_unsupported_pick_keeps_auto_detect(client, monkeypatch, clone_profile):
+    """A language Whisper lacks is not silently swapped for the profile's."""
+    from core.db import db_conn
+
+    with db_conn() as conn:
+        conn.execute("UPDATE voice_profiles SET language=? WHERE id=?", ("English", clone_profile))
+    fake = _make_fake_engine(f"fake-conv-{uuid.uuid4().hex[:6]}")
+    asr = _LangASR({"text": "hello", "segments": []})
+    _wire_stubs(monkeypatch, engine_cls=fake, asr=asr)
+
+    res = _post_convert(client, clone_profile, match_duration="0", language="Klingon")
+    assert res.status_code == 200, res.text
+    assert asr.calls[0]["language"] is None

@@ -18,7 +18,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- English text reads pound and euro prices as money: "£5.50" is spoken "five pounds, fifty pence" instead of "£five point five", and numbers touching another currency symbol keep their digits instead of becoming "€zwanzig" or "trois€"
+- English text reads pound and euro prices as money: "£5.50" is spoken "five pounds, fifty pence" instead of "£five point five", and numbers touching another currency symbol keep their digits instead of becoming "€zwanzig" or "trois€" (#2990)
 
 ### Docs
 

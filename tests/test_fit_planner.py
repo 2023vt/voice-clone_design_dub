@@ -251,6 +251,7 @@ def test_audio_only_mode_within_hard_limit_has_no_overflow():
 
 
 def test_video_plan_feeds_the_stretch_filter_graph_builder():
+    """Planner chunks satisfy the export router's filter-graph contract."""
     from api.routers.dub_export import _build_video_stretch_filter_graph
 
     p = plan_fit(
@@ -273,6 +274,7 @@ def test_video_plan_feeds_the_stretch_filter_graph_builder():
 
 
 def test_empty_segment_list_yields_empty_plan():
+    """An empty track retains source duration and needs no video filter."""
     from api.routers.dub_export import _build_video_stretch_filter_graph
 
     p = plan_fit([], [], 10.0)

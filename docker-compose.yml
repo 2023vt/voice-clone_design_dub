@@ -1,0 +1,49 @@
+# VoiceStudio — AI server deployment (NVIDIA GPU, RTX 3090)
+#
+# Pulls the pre-built image — the only files the server needs are this one
+# and .env (kept in Jenkins, written here at deploy time).
+#
+# Deploy:  docker compose pull && docker compose up -d
+# Access:  http://<server-ip>:3900  (admin routes require OMNIVOICE_API_KEY)
+#
+# Images: `:stable` = latest tagged release (pin this for production);
+#         `:latest` = rolling preview from main.
+
+services:
+  omnivoice:
+    image: ghcr.io/debpalash/voicestudio:stable
+    # Distinct from the repo's own compose names so the two never collide.
+    container_name: voice-studio-ai
+    ports:
+      - "3900:3900"
+    volumes:
+      - omnivoice-data:/app/omnivoice_data
+    environment:
+      HF_HOME: /app/omnivoice_data/huggingface
+      # Optional: only needed for gated features (diarization, PocketTTS).
+      HF_TOKEN: ${HF_TOKEN:-}
+      OMNIVOICE_DATA_DIR: /app/omnivoice_data
+      PYTHONPATH: /app/backend
+      PYTHONUNBUFFERED: "1"
+      # Headless server: relaxes the desktop-only loopback origin gate so the
+      # web UI's /system/* and /api/settings/* routes work (issue #261).
+      OMNIVOICE_SERVER_MODE: "1"
+      # Required for server-mode admin routes; from .env.
+      OMNIVOICE_API_KEY: ${OMNIVOICE_API_KEY:?set OMNIVOICE_API_KEY in .env}
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:3900/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 300s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
+    restart: "no"
+
+volumes:
+  omnivoice-data:

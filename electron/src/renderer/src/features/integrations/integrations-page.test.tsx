@@ -1,5 +1,4 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
-import { INTEGRATION_CATALOG } from '@shared/config/integration-catalog';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import { IntegrationsPage } from './integrations-page';

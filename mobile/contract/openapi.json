@@ -2227,6 +2227,7 @@
      "audio_rate_cap": {
       "anyOf": [
        {
+        "minimum": 1.0,
         "type": "number"
        },
        {
@@ -2238,6 +2239,7 @@
      "gap_guard_s": {
       "anyOf": [
        {
+        "minimum": 0.0,
         "type": "number"
        },
        {
@@ -2249,6 +2251,7 @@
      "max_audio_only_rate": {
       "anyOf": [
        {
+        "minimum": 1.0,
         "type": "number"
        },
        {
@@ -2260,6 +2263,7 @@
      "video_slow_cap": {
       "anyOf": [
        {
+        "minimum": 1.0,
         "type": "number"
        },
        {

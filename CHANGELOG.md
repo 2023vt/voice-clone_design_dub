@@ -11,10 +11,15 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - Preview iOS and Android companion apps for your own VoiceStudio
+- Invalid Smart Fit settings are caught before dubbing starts
 
 ### Added
 
 - Preview iOS and Android companion apps: drive your own VoiceStudio from your phone (speak, voices and cloning, dubbing, dictation) after pairing by QR code; build from source for now ([guide](docs/mobile.md)) (#2965)
+
+### Fixed
+
+- Invalid Smart Fit settings are rejected before dubbing starts, while default settings and zero gap guards remain supported (#2920) — thanks @harrisonoconnorhover!
 
 ### Docs
 

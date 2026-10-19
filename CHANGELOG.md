@@ -18,7 +18,7 @@ metadata and the backend fallback mirror it.
 
 ### Changed
 
-- The sponsor footer is gone from the app; sponsored integrations keep a Featured badge on their card in Integrations
+- The sponsor footer is gone from the app; sponsored integrations keep a Featured badge on their card in Integrations (#3031)
 
 ### Docs
 

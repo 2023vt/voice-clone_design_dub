@@ -9,6 +9,16 @@ vi.mock('react-i18next', () => ({ useTranslation: () => ({ t: (key: string) => k
 vi.mock('@/components/app-shell/workspace-header', () => ({
   WorkspaceHeader: ({ children }: { children: ReactNode }) => <header>{children}</header>,
 }));
+vi.mock('@shared/config/integration-catalog', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@shared/config/integration-catalog')>();
+  return {
+    ...actual,
+    INTEGRATION_CATALOG: actual.INTEGRATION_CATALOG.map((entry) => ({
+      ...entry,
+      featured: entry.name === 'Twilio',
+    })),
+  };
+});
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
@@ -72,10 +82,10 @@ it('badges every listed integration as working with VoiceStudio', () => {
 
 it('badges only featured (sponsored) integrations', () => {
   const { container } = render(<IntegrationsPage />);
-  const cards = [...container.querySelectorAll('.integration-card')];
-  const featured = cards.filter((c) => c.querySelector('.integration-badge--featured'));
-  const expected = INTEGRATION_CATALOG.filter(
-    (e) => e.featured && cards.some((c) => c.querySelector('h3')?.textContent === e.name),
-  ).length;
-  expect(featured).toHaveLength(expected);
+  const card = (name: string) =>
+    [...container.querySelectorAll('.integration-card')].find(
+      (element) => element.querySelector('h3')?.textContent === name,
+    )!;
+  expect(card('Twilio').querySelector('.integration-badge--featured')).not.toBeNull();
+  expect(card('Codex CLI').querySelector('.integration-badge--featured')).toBeNull();
 });

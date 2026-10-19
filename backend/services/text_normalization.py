@@ -22,7 +22,7 @@ Design rules (load-bearing):
     display name from electron/src/shared/languages.json or an ISO-ish code — both
     resolve via :func:`_num2words_lang`), or through a hand-written native
     verbalizer for languages num2words lacks (``_NATIVE_VERBALIZERS``, e.g.
-    Malayalam). Everything else keeps its digits.
+    Malayalam, Urdu). Everything else keeps its digits.
     Clock times / ordinals / currency are English-only (their spoken form is
     language-specific); decimals only for locales whose num2words rendering
     was vetted. CJK scripts pass through the safety filters untouched — no
@@ -81,6 +81,7 @@ ENV_VAR = "OMNIVOICE_TEXT_NORMALIZATION"
 _FULL_NAME_TO_CODE = {
     "english": "en",
     "malayalam": "ml",
+    "urdu": "ur",
     "german": "de",
     "spanish": "es",
     "french": "fr",
@@ -614,9 +615,14 @@ def _numbers_to_words(text: str, lang: str) -> str:
 # rendering is a hand-written module. Malayalam (ml) is the first: num2words
 # ships bn/kn/te but no ml, so Malayalam dubs reached the engine with raw
 # digits. Each module exposes ``cardinal(int)``, ``decimal(int, str)`` and
-# ``percent(str)``; any exception leaves that occurrence untouched.
+# ``percent(str)``; any exception leaves that occurrence untouched. Urdu (ur)
+# followed for the same reason: OmniVoice read "1956" as "انیس سو سپنس", while
+# the sentence spelled out in Urdu words came back with 0% CER.
 
-_NATIVE_VERBALIZERS = {"ml": "services.number_words_ml"}
+_NATIVE_VERBALIZERS = {
+    "ml": "services.number_words_ml",
+    "ur": "services.number_words_ur",
+}
 
 
 def _native_lang(language: Optional[str]) -> Optional[str]:

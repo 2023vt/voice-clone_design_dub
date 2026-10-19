@@ -93,6 +93,24 @@ _CHANGE_CASES = [
     ("Malayalam", "[pause 300ms] 42 [voice:Anu]", "[pause 300ms] നാൽപത്തിരണ്ട് [voice:Anu]"),
     # Native Malayalam digits are digits too.
     ("Malayalam", "൪൨ പേർ", "നാൽപത്തിരണ്ട് പേർ"),
+    # Urdu goes through the native verbalizer too (num2words has no ur
+    # locale): an irregular 0-99 table, سو / ہزار / لاکھ, and 1100-1999 read in
+    # hundreds the way Urdu speakers say years ("انیس سو چھپن", not the
+    # "انیس سو سپنس" OmniVoice produced from raw digits).
+    ("Urdu", "سن 1956 میں 10 لوگ", "سن انیس سو چھپن میں دس لوگ"),
+    ("Urdu", "عمر 55 سال", "عمر پچپن سال"),
+    ("Urdu", "قیمت 150 روپے", "قیمت ایک سو پچاس روپے"),
+    ("Urdu", "سال 2026 میں", "سال دو ہزار چھبیس میں"),
+    ("Urdu", "سال 2000 تک", "سال دو ہزار تک"),
+    ("Urdu", "1000 لوگ", "ایک ہزار لوگ"),
+    ("Urdu", "150000 روپے", "ایک لاکھ پچاس ہزار روپے"),
+    ("Urdu", "تقریباً 50%", "تقریباً پچاس فیصد"),
+    ("Urdu", "3.5 کلومیٹر", "تین اعشاریہ پانچ کلومیٹر"),
+    ("ur", "عمر 55 سال", "عمر پچپن سال"),
+    ("ur-PK", "عمر 55 سال", "عمر پچپن سال"),
+    ("Urdu", "[pause 300ms] 42 [voice:Ali]", "[pause 300ms] بیالیس [voice:Ali]"),
+    # Urdu (Extended Arabic-Indic) digits are digits too.
+    ("Urdu", "سن ۱۹۵۶ میں", "سن انیس سو چھپن میں"),
     # Digit ranges: the tilde has to be SPOKEN or the engine mashes the two
     # numbers into one ("20~30초" was read as "이십삼"). Spacing is part of the
     # per-language form — a Korean postposition binds to its numeral, Japanese
@@ -188,6 +206,13 @@ _UNCHANGED_CASES = [
     ("Malayalam", "ക്ലാസ്10 ജയിച്ചു"),
     ("Malayalam", "കോടി150"),
     ("Malayalam", "കോഡ് ൦൦൭"),                    # native leading-zero code
+    # Urdu native path keeps the same conservative boundaries
+    ("Urdu", "1,000 روپے"),                       # thousands separator
+    ("Urdu", "صفحہ 3-5 پڑھیں"),                   # range
+    ("Urdu", "کوڈ 007"),                          # leading-zero code
+    ("Urdu", "کوڈ ۰۰۷"),                          # native leading-zero code
+    ("Urdu", "1234567 نمبر"),                     # 7+ digits: an ID
+    ("Urdu", "ورژن 3.5.1"),                       # version string
     ("ar", "الرمز ٠٠٧"),                         # same class on the num2words path
     # Digit ranges: only the tilde family is a range mark. Everything else that
     # sits between digits means something other than "to".
@@ -280,6 +305,55 @@ def test_native_language_is_outside_num2words_gate():
     assert _native_lang("Malayalam") == "ml"
     assert _native_lang("ml-IN") == "ml"
     assert _native_lang("English") is None
+
+
+def test_urdu_verbalizer_covers_full_integer_range():
+    """Every ≤ 6-digit integer renders in Urdu letters only: no digits, and
+    none of the Arabic look-alikes (ي ك ه ى) that TTS frontends treat as a
+    different language."""
+    from services import number_words_ur as ur
+    arabic_lookalikes = set("\u064a\u0643\u0647\u0649")
+    for n in range(1_000_000):
+        word = ur.cardinal(n)
+        assert word and not any(ch.isdigit() for ch in word), n
+        assert not arabic_lookalikes & set(word), n
+
+
+@pytest.mark.parametrize("n,expected", [
+    (0, "صفر"), (19, "انیس"), (29, "انتیس"), (49, "انچاس"), (55, "پچپن"),
+    (56, "چھپن"), (59, "انسٹھ"), (69, "انہتر"), (79, "اناسی"), (89, "نواسی"),
+    (99, "ننانوے"), (100, "ایک سو"), (999, "نو سو ننانوے"),
+    (1001, "ایک ہزار ایک"), (1099, "ایک ہزار ننانوے"),
+    (1100, "گیارہ سو"), (1947, "انیس سو سینتالیس"), (1999, "انیس سو ننانوے"),
+    (2001, "دو ہزار ایک"), (10_500, "دس ہزار پانچ سو"),
+    (100_000, "ایک لاکھ"), (101_956, "ایک لاکھ ایک ہزار نو سو چھپن"),
+    (999_999, "نو لاکھ ننانوے ہزار نو سو ننانوے"),
+])
+def test_urdu_cardinal_spot_checks(n, expected):
+    from services import number_words_ur as ur
+    assert ur.cardinal(n) == expected
+
+
+def test_urdu_decimal_and_percent():
+    from services import number_words_ur as ur
+    assert ur.decimal(0, "05") == "صفر اعشاریہ صفر پانچ"
+    assert ur.percent("2.5") == "دو اعشاریہ پانچ فیصد"
+    assert ur.percent("100") == "ایک سو فیصد"
+
+
+def test_urdu_language_is_outside_num2words_gate():
+    """ur resolves to the native path, never to num2words (no ur locale)."""
+    from services.text_normalization import _native_lang, _num2words_lang
+    assert _num2words_lang("Urdu") is None
+    assert _num2words_lang("ur") is None
+    assert _native_lang("Urdu") == "ur"
+    assert _native_lang("ur-PK") == "ur"
+
+
+def test_urdu_normalize_for_tts_leaves_no_digits():
+    out = normalize_for_tts("سن 1956 میں 10 لوگ", "ur")
+    assert out == "سن انیس سو چھپن میں دس لوگ"
+    assert not any(ch.isdigit() for ch in out)
 
 
 # ── Idempotency: f(f(x)) == f(x) for every table case ───────────────────────

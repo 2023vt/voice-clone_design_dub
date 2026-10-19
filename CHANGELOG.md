@@ -15,6 +15,7 @@ metadata and the backend fallback mirror it.
 ### Added
 
 - Preview iOS and Android companion apps: drive your own VoiceStudio from your phone (speak, voices and cloning, dubbing, dictation) after pairing by QR code; build from source for now ([guide](docs/mobile.md)) (#2965)
+- Urdu speech reads numbers, years, percentages, and decimals in Urdu words instead of raw digits (1956 → انیس سو چھپن) (#2989) — thanks @maatitechnologies-hue!
 
 ### Docs
 

@@ -16,6 +16,10 @@ metadata and the backend fallback mirror it.
 
 - Preview iOS and Android companion apps: drive your own VoiceStudio from your phone (speak, voices and cloning, dubbing, dictation) after pairing by QR code; build from source for now ([guide](docs/mobile.md)) (#2965)
 
+### Fixed
+
+- Space-grouped thousands ("1 234", "10 000") in French, German, Russian and the other comma-decimal languages keep their digits instead of the leading group being spoken on its own ("un 234,5")
+
 ### Docs
 
 - Contributor guides and the pull request template explain how to sign the CLA before opening a first pull request (#2676)

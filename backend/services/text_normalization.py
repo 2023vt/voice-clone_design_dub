@@ -493,6 +493,13 @@ _INTEGER_RE = re.compile(
     r"(?<![\w.,:/$%-])(?!0\d)(\d{1,6})(?![\w:/%-])(?![.,]\d)"
 )
 
+# Space-grouped thousands ("1 234", "10 000", "1 234,5") in the locales that
+# also group with a period. The run is kept as written, like "1,000" in
+# English; without this the integer rule read the leading group on its own.
+_SPACE_GROUP_RE = re.compile(
+    r"(?<![\w.,:/$%-])\d{1,3}(?: \d{3})+(?:,\d+)?(?![\w:/%-])(?![.,]\d)"
+)
+
 _ORDINAL_SUFFIX = {1: "st", 2: "nd", 3: "rd"}
 
 
@@ -590,9 +597,15 @@ def _numbers_to_words(text: str, lang: str) -> str:
 
         text = _DECIMAL_RE.sub(lambda m: _safe(m, _decimal), text)
 
+    grouped: list[tuple[int, int]] = []
+    if lang in _COMMA_DECIMAL_LANGS:
+        grouped = [g.span() for g in _SPACE_GROUP_RE.finditer(text)]
+
     def _integer(m: re.Match) -> str:
         raw = m.group(1)
         if _leading_zero(raw):
+            return m.group(0)
+        if any(start <= m.start() < end for start, end in grouped):
             return m.group(0)
         n = int(raw)
         if len(raw) == 4 and 1500 <= n <= 2099:

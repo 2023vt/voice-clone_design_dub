@@ -33,7 +33,7 @@ Or, from a regular (non-admin) PowerShell, let the
 wizard:
 
 ```powershell
-irm https://voicestudio.sh/install | iex
+irm https://voicestudio.sh/install.ps1 | iex
 ```
 
 ### PCs without an NVIDIA GPU
@@ -120,7 +120,7 @@ saying "no GPU acceleration detected".
 ## Building from source
 
 Use this for development or to run current `main`. The install script's
-`main` mode (`$env:VOICESTUDIO_INSTALL_MODE='main'; irm https://voicestudio.sh/install | iex`)
+`main` mode (`$env:VOICESTUDIO_INSTALL_MODE='main'; irm https://voicestudio.sh/install.ps1 | iex`)
 builds and installs a desktop package from `main` without a checkout; see
 [the install script guide](script.md).
 

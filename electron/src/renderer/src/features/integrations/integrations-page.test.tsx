@@ -1,4 +1,5 @@
 import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { INTEGRATION_CATALOG } from '@shared/config/integration-catalog';
 import { afterEach, expect, it, vi } from 'vitest';
 import type { ReactNode } from 'react';
 import { IntegrationsPage } from './integrations-page';
@@ -67,4 +68,14 @@ it('badges every listed integration as working with VoiceStudio', () => {
   expect(card('Twilio')).toHaveTextContent('integrationCatalog.worksWith');
   expect(card('Twilio')).toHaveTextContent('integrationCatalog.capability.phoneCalls');
   expect(container.textContent).not.toContain('directoryExamples.example');
+});
+
+it('badges only featured (sponsored) integrations', () => {
+  const { container } = render(<IntegrationsPage />);
+  const cards = [...container.querySelectorAll('.integration-card')];
+  const featured = cards.filter((c) => c.querySelector('.integration-badge--featured'));
+  const expected = INTEGRATION_CATALOG.filter(
+    (e) => e.featured && cards.some((c) => c.querySelector('h3')?.textContent === e.name),
+  ).length;
+  expect(featured).toHaveLength(expected);
 });

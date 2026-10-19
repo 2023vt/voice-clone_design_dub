@@ -18,7 +18,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
-- Space-grouped thousands ("1 234", "10 000") in French, German, Russian and the other comma-decimal languages keep their digits instead of the leading group being spoken on its own ("un 234,5")
+- Space-grouped thousands ("1 234", "10 000") in French, German, Russian and the other comma-decimal languages keep their digits instead of the leading group being spoken on its own ("un 234,5") (#3039) — thanks @NishchayMahor!
 
 ### Docs
 

@@ -194,6 +194,8 @@ _UNCHANGED_CASES = [
     ("French", "Population : 10 000 habitants."),
     ("German", "Das sind 1 234 Euro."),
     ("Russian", "Это 1 234 рубля."),
+    ("French", "soit 12 500% du total"),         # the percent rule shares it
+    ("French", "soit 1 234 % du total"),
     # Malayalam native path keeps the same conservative boundaries
     ("Malayalam", "1,000 രൂപ"),                  # thousands separator
     ("Malayalam", "പേജ് 3-5 വായിക്കുക"),           # range

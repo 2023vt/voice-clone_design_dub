@@ -140,6 +140,11 @@ jobs:
         # Docker build (deploy/Dockerfile), which is what reddened main on #485.
         run: bun install --frozen-lockfile
 
+      # Mobile theme tokens are generated from the Electron theme and need its
+      # deps installed, so the pytest copy of this check skips before this point.
+      - name: Mobile theme tokens match Electron
+        run: bun --no-install scripts/export-mobile-tokens.ts --check
+
       # node:test suites for shared renderer modules (tests/frontend/*.test.mjs).
       # Node 22 strips TypeScript types natively; imports need explicit `.ts`.
       - name: Frontend unit tests
@@ -180,10 +185,73 @@ jobs:
             cat /tmp/voicestudio-electron-smoke.log
             exit 1
           }
-          node electron/tests/playback-smoke.mjs
-          node electron/tests/dub-smoke.mjs
-          node electron/tests/longform-layout-smoke.mjs
-          node electron/tests/language-picker-smoke.mjs
+          # Every smoke must be classified (run here, or needs a backend/native app).
+          node --test electron/tests/smoke-inventory.test.mjs electron/tests/ui-crawler.test.mjs
+          # Runs every offline renderer smoke; it serves /api from a fake backend on $OMNIVOICE_PORT.
+          node electron/tests/run-renderer-smokes.mjs
+
+  # Clicks every button on every route under four backend fault modes and fails
+  # on stuck spinners, buttons left disabled, silent failures, crashes and
+  # console errors
+  # (electron/tests/ui-crawler.mjs). Sharded by route so the deep crawl runs
+  # beside the main test job instead of lengthening it.
+  ui-crawler:
+    name: UI crawler (${{ matrix.mode }} ${{ matrix.shard }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        mode: [fixture, http-500, network-error, bad-json]
+        shard: [1/3, 2/3, 3/3]
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.2'
+
+      - name: Cache bun deps
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install Electron deps
+        run: bun install --frozen-lockfile
+
+      - name: Install Playwright chromium
+        run: bunx playwright install --with-deps chromium
+
+      - name: Crawl every button
+        shell: bash
+        env:
+          OMNIVOICE_PORT: '3999'
+          VOICESTUDIO_UI_URL: http://localhost:3912
+          VOICESTUDIO_CRAWL_MODES: ${{ matrix.mode }}
+          VOICESTUDIO_CRAWL_SHARD: ${{ matrix.shard }}
+        run: |
+          set -euo pipefail
+          bun run --cwd electron smoke:server > /tmp/voicestudio-crawler-server.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for _ in {1..60}; do
+            curl --fail --silent "$VOICESTUDIO_UI_URL" >/dev/null && break
+            sleep 0.25
+          done
+          curl --fail --silent --show-error "$VOICESTUDIO_UI_URL" >/dev/null || {
+            cat /tmp/voicestudio-crawler-server.log
+            exit 1
+          }
+          node electron/tests/ui-crawler.mjs
 
   linux-native-package:
     name: Linux native package
@@ -208,6 +276,82 @@ jobs:
         run: |
           cargo build --locked --release --manifest-path native/desktop-bridge/Cargo.toml
           node electron/tests/native-linux-package.mjs
+
+  # ── Desktop UI (real Electron app on every OS) ───────────────────────────
+  # Launches the unpackaged app with Playwright against a fake backend and runs
+  # one shared suite, so preload/IPC/main-process/user-data regressions on
+  # macOS and Windows surface on the PR instead of at release time. Packaged
+  # installers are covered separately by packaged-smoke.mjs on release paths.
+  electron-ui:
+    name: Desktop UI (${{ matrix.label }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-15, label: macOS }
+          - { os: windows-2022, label: Windows }
+          - { os: ubuntu-24.04, label: Linux }
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+
+      - name: Setup Node 22
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: '22'
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: '1.4.2'
+
+      - name: Cache bun deps
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ~/.bun/install/cache
+          key: ${{ runner.os }}-bun-${{ hashFiles('bun.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-bun-
+
+      - name: Install Electron deps
+        run: bun install --frozen-lockfile
+
+      - name: Build Electron app
+        run: bun run --cwd electron build
+
+      # `bun install` does not run Electron's postinstall here, so fetch the binary the tests launch.
+      - name: Download Electron binary
+        run: node electron/node_modules/electron/install.js
+
+      # Ubuntu 24.04 restricts unprivileged user namespaces, which stops
+      # Electron's sandbox from starting. Relax it on the runner; the app
+      # itself is never launched with --no-sandbox.
+      - name: Allow Electron sandbox (Linux)
+        if: runner.os == 'Linux'
+        run: sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+
+      - name: Desktop UI tests
+        run: |
+          # The output is kept in the failure artifact: a crashed run's log is otherwise
+          # unavailable until the whole workflow finishes.
+          mkdir -p electron/test-results
+          if [ "$RUNNER_OS" = "Linux" ]; then
+            xvfb-run -a bun run --cwd electron test:desktop-ui 2>&1 | tee electron/test-results/desktop-ui.log
+          else
+            bun run --cwd electron test:desktop-ui 2>&1 | tee electron/test-results/desktop-ui.log
+          fi
+
+      - name: Upload failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: desktop-ui-${{ matrix.label }}
+          path: electron/test-results/
+          if-no-files-found: ignore
 
   # ── Cross-platform Python runtime smoke (Phase 0 GATE-02) ───────────────
   # Loads the frozen tests/fixtures/omnivoice_data/ fixture and boots the

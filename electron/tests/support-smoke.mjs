@@ -1,11 +1,11 @@
 import { chromium } from 'playwright';
 import assert from 'node:assert/strict';
-const browser = await chromium.launch({ channel: 'msedge', headless: true });
+const browser = await chromium.launch({ channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge', headless: true });
 const page = await browser.newPage({ viewport: { width: 1100, height: 760 } });
 try {
-  await page.goto('http://localhost:3912/#/settings/appearance');
+  await page.goto((process.env.VOICESTUDIO_UI_URL || 'http://localhost:3912') + '/#/settings/appearance');
   await page.getByRole('link', { name: 'Support', exact: true }).click();
-  await page.getByRole('heading', { name: 'Support VoiceStudio', exact: true }).waitFor();
+  await page.getByRole('heading', { name: 'Donate to VoiceStudio Project', exact: true }).waitFor();
   await page.getByRole('progressbar').waitFor();
   assert.equal(await page.getByRole('progressbar').getAttribute('aria-valuenow'), '5');
   assert.equal(

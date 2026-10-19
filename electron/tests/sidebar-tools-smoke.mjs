@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 
 const browser = await chromium.launch({
-  ...(process.env.PLAYWRIGHT_BUNDLED === '1' ? {} : { channel: 'msedge' }),
+  ...(process.env.PLAYWRIGHT_BUNDLED === '1' ? {} : { channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge' }),
   headless: true,
 });
 const ui = process.env.VOICESTUDIO_UI_URL || 'http://localhost:3912';
@@ -55,10 +55,9 @@ try {
       const sidebar = page.locator('aside').first();
       await sidebar.locator('[data-slot=engine-view-toggle]').waitFor();
       const chooseView = async (level) => {
-        await sidebar.locator('[data-slot=engine-view-toggle]').click();
-        await page
-          .getByRole('group', { name: strings.sidebarTools.title, exact: true })
-          .getByRole('button', {
+        await sidebar
+          .getByRole('radiogroup', { name: strings.sidebarTools.title, exact: true })
+          .getByRole('radio', {
             name: level === 'models' ? strings.modelSettings.models : strings.sidebarTools[level],
             exact: true,
           })
@@ -86,10 +85,18 @@ try {
       assert.ok(await speech.evaluate((el) => el === document.activeElement));
       assert.equal(await page.locator('[data-slot=tooltip-content][data-open]').count(), 0);
       await speech.blur();
-      const slider = footer.getByRole('slider');
-      await slider.waitFor();
-      assert.ok(await slider.getAttribute('aria-describedby'));
-      assert.ok(await slider.getAttribute('aria-valuetext'));
+      // Speed / quality is a radiogroup of tiers (Fast/Balanced/Quality/Max) with an Auto toggle.
+      const tiers = footer.getByRole('radiogroup', {
+        name: strings.performanceProfile.title,
+        exact: true,
+      });
+      await tiers.waitFor();
+      assert.ok(await tiers.getAttribute('aria-describedby'));
+      assert.equal(
+        await tiers.locator('[role=radio][aria-checked=true]').count(),
+        1,
+        'Exactly one speed/quality tier is selected',
+      );
       for (const level of ['simple', 'models', 'details']) {
         await chooseView(level);
         assert.equal(

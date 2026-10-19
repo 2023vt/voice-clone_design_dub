@@ -3,11 +3,11 @@ import assert from "node:assert/strict";
 const browser = await chromium.launch({
   ...(process.env.PLAYWRIGHT_EXECUTABLE_PATH
     ? { executablePath: process.env.PLAYWRIGHT_EXECUTABLE_PATH }
-    : { channel: "msedge" }),
+    : { channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge' }),
   headless: true,
 });
 const page = await browser.newPage();
-const baseUrl = process.env.VOICESTUDIO_SMOKE_URL ?? "http://localhost:3912";
+const baseUrl = process.env.VOICESTUDIO_UI_URL || "http://localhost:3912";
 await page.addInitScript(() => {
   localStorage.setItem("voicestudio.setup.complete.v1", "1");
 });
@@ -38,12 +38,12 @@ try {
           await compactMain.locator("button .lucide-bell").count(),
           1,
         );
-        assert.ok(
-          (await compactMain
-            .getByRole("navigation", { name: "Workspaces" })
-            .getByRole("link")
-            .count()) >= 9,
-        );
+        // Voice, Stories and Dubbing are flyout group buttons; the other five are direct links.
+        const compactNav = compactMain.getByRole("navigation", {
+          name: "Workspaces",
+        });
+        assert.equal(await compactNav.getByRole("button").count(), 3);
+        assert.equal(await compactNav.getByRole("link").count(), 5);
         assert.equal(
           await page
             .locator(".brand-sidebar")
@@ -145,8 +145,9 @@ try {
   await page.goto(baseUrl + "/#/audiobook");
   await page
     .locator("[data-slot=compact-main-sidebar]")
-    .getByRole("link", { name: "Clone", exact: true })
+    .getByRole("button", { name: "Voice", exact: true })
     .click();
+  await page.getByRole("link", { name: "Clone", exact: true }).click();
   await page.waitForURL("**/#/clone");
   assert.equal(
     await page.locator("[data-slot=compact-main-sidebar]").count(),
@@ -175,8 +176,10 @@ try {
       narrowSide && narrowSide.width >= 580 && narrowSide.height <= 360,
       `${route} controls did not stack above its workspace`,
     );
+    // Routes with their own tab bar (Gallery) push the stack down by that bar's height.
+    const extraChrome = narrowSide ? Math.max(0, narrowSide.y - 52) : 0;
     assert.ok(
-      narrowPrimary && narrowPrimary.width >= 580 && narrowPrimary.height >= 480,
+      narrowPrimary && narrowPrimary.width >= 580 && narrowPrimary.height >= 480 - extraChrome,
       `${route} primary workspace disappeared at compact width`,
     );
     assert.ok(
@@ -191,7 +194,9 @@ try {
     await row.waitFor();
     const bounds = await row.boundingBox();
     assert.ok(
-      bounds.width > width - 256 - 100,
+      // Settings now sits beside both the main sidebar and its own nav; the content must
+      // still reach the right edge of the window (minus the page gutter).
+      bounds.x + bounds.width >= width - 48,
       "Settings content should fill available width",
     );
     assert.ok(

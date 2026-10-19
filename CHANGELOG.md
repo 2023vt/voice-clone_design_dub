@@ -10,7 +10,24 @@ metadata and the backend fallback mirror it.
 
 **Highlights**
 
+- Preview iOS and Android companion apps for your own VoiceStudio
 - Keep the dubbing waveform visible and cue navigation accurate in long transcripts, even after dismissing errors (#2740) — thanks @liao942287300-cyber!
+
+### Added
+
+- Preview iOS and Android companion apps: drive your own VoiceStudio from your phone (speak, voices and cloning, dubbing, dictation) after pairing by QR code; build from source for now ([guide](docs/mobile.md)) (#2965)
+
+### Docs
+
+- Contributor guides and the pull request template explain how to sign the CLA before opening a first pull request (#2676)
+
+### CI
+
+- Desktop request-guard self-tests stay deterministic when app requests arrive during cleanup (#2676)
+
+- New `mobile` workflow builds and tests both phone apps; a contract test fails when their theme or API description drifts from the desktop app (#2965)
+
+- Gallery preview fallback smoke no longer flakes when a slower runner reads the playing clip in several byte ranges (#3018)
 
 ## [0.5.7] — 2026-10-17
 

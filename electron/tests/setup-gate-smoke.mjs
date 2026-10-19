@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 const browser = await chromium.launch({
   ...(process.env.CHROME_PATH
     ? { executablePath: process.env.CHROME_PATH }
-    : { channel: 'msedge' }),
+    : { channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge' }),
   headless: true,
 });
 const page = await browser.newPage({ viewport: { width: 1280, height: 800 } });

@@ -13,6 +13,18 @@ Thanks for your interest in improving VoiceStudio! This guide covers everything 
 
 ---
 
+> **Before your first pull request:** unless exempt under the
+> [CLA checker’s policy](#contribution-licensing), sign the
+> [Contributor License Agreement](CLA-1.0.md) once. GitHub cannot stop you opening a pull request first, so it is checked at
+> merge instead: an unsigned pull request cannot merge unless a maintainer applies
+> the `cla-override` label after manual review. You can sign now on the
+> [signing issue (#2586)](https://github.com/debpalash/VoiceStudio/issues/2586) and
+> your signature covers your future contributions. Every other non-exempt human commit
+> author and co-author must also sign before the check passes. Details are in
+> [Contribution licensing](#contribution-licensing).
+
+---
+
 ## Adding a TTS or ASR engine
 
 New engines are hired for a **named job**, not added to a list — the bar, the current job map,
@@ -286,6 +298,32 @@ uv run pytest tests/test_app_version.py -q
 # Electron desktop validation, from the repository root
 bun run check:electron
 
+# Desktop UI tests: launch the real (unpackaged) app against a fake backend.
+# CI runs these on macOS, Windows and Linux. On Linux without a display,
+# prefix the last command with `xvfb-run -a`. Failures leave a Playwright
+# trace and screenshot in electron/test-results/.
+bun run --cwd electron build
+bun run --cwd electron test:desktop-ui
+
+# Offline renderer smokes (what CI runs): start the smoke server, then the runner.
+# New *-smoke.mjs files are classified automatically (chromium = runs here,
+# *-real-smoke = needs a live backend, _electron = drives the real app);
+# `node --test electron/tests/smoke-inventory.test.mjs` fails on an unclassified one.
+OMNIVOICE_PORT=3999 bun run --cwd electron smoke:server &
+OMNIVOICE_PORT=3999 VOICESTUDIO_UI_URL=http://localhost:3912 PLAYWRIGHT_CHANNEL=chromium \
+  node electron/tests/run-renderer-smokes.mjs [name-filter ...]
+
+# UI crawler (the sharded "UI crawler" CI jobs), against the same smoke server:
+# clicks every enabled button on every route, then the buttons a filled-in form
+# enables, then one level into each dialog, while API writes answer normally,
+# with 500, with a network error, or with broken JSON. It fails on a spinner
+# left after requests settle, a button still greyed out after its write failed,
+# a failed write with no visible feedback, an uncaught error, or a
+# console.error. Fix the button; KNOWN_FINDINGS stays empty.
+OMNIVOICE_PORT=3999 VOICESTUDIO_UI_URL=http://localhost:3912 \
+  VOICESTUDIO_CRAWL_MODES=http-500 VOICESTUDIO_CRAWL_ROUTES=/clone \
+  node electron/tests/ui-crawler.mjs
+
 # Shared native helper, when changed
 cargo check --manifest-path native/desktop-bridge/Cargo.toml
 ```
@@ -396,8 +434,10 @@ hard rules from the first prompt.
 
 VoiceStudio is **AGPL-3.0-only**, and the maintainer also offers a
 **commercial license** (see [LICENSE-NOTICE.md](../LICENSE-NOTICE.md)). Before
-a pull request can merge, the person who opened it and every commit author and
-co-author sign the [Contributor License Agreement](CLA-1.0.md) once. You keep
+a pull request can merge, every non-exempt human contributor — the opener,
+commit authors and co-authors — signs the [Contributor License Agreement](CLA-1.0.md)
+once. The [checker](scripts/cla_check.py) exempts its configured maintainer and
+bot account IDs. You keep
 your copyright. The agreement lets Yupcha Softwares Private Limited, the
 company that maintains VoiceStudio, ship your work in both the AGPL-3.0 app and
 commercial builds. In return, the company commits that while your contribution
@@ -413,9 +453,15 @@ sign. To sign, post this as a new comment, on its own line:
 I have read the VoiceStudio CLA 1.0 and I hereby sign it.
 ```
 
-The signature covers your earlier and future contributions, and the check
-turns green on its own. If a maintainer folds your pull request into another
-one, you sign once there too. Contributed before and have no open pull request? Post
+The signature covers your earlier and future contributions. The CLA check
+identifies other required signers or cases needing manual review.
+New contributors can sign first: post the same line on the
+[signing issue (#2586)](https://github.com/debpalash/VoiceStudio/issues/2586)
+before opening a pull request, or on the pull request itself if you prefer. The
+same signature applies if a maintainer folds your pull request into another one.
+If a pull request contains `Supersedes #N`, its CLA check also covers the
+non-exempt human opener, commit authors and co-authors of pull request #N.
+Contributed before and have no open pull request? Post
 the same line on the [issue labelled `cla`](https://github.com/debpalash/VoiceStudio/issues?q=label%3Acla). If it lists a commit it cannot link to a GitHub
 account, either add that commit email to your account (Settings → Emails), or
 rewrite the commits with an email that is on it (`git commit --amend

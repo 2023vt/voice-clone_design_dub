@@ -11,6 +11,7 @@ metadata and the backend fallback mirror it.
 **Highlights**
 
 - Preview iOS and Android companion apps for your own VoiceStudio
+- Model downloads report overall progress you can trust while several files are in flight
 
 ### Added
 
@@ -25,6 +26,10 @@ metadata and the backend fallback mirror it.
 - Desktop request-guard self-tests stay deterministic when app requests arrive during cleanup (#2676)
 
 - New `mobile` workflow builds and tests both phone apps; a contract test fails when their theme or API description drifts from the desktop app (#2965)
+
+### Fixed
+
+- Model downloads show honest overall progress instead of a bar that jumps backwards or under-reports while several files are in flight (#2936) — thanks @rahul05ranjan!
 
 ## [0.5.7] — 2026-10-17
 

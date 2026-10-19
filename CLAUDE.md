@@ -116,7 +116,9 @@ uv run pytest tests/test_app_version.py -q          # single file; add ::test_na
 
 # Electron (from repo root)
 bun run check:electron        # full CI gate: typecheck + tests + build + build:web + packaging contract
-bun run typecheck | bun run lint | bun run format
+bun run typecheck
+bun run lint
+bun run format
 bun run test                  # locale:check + vitest (main/renderer config, then shared config)
 cd electron && bunx vp test --run src/main/updater.test.ts                       # single vitest file
 cd electron && bunx vp test --run --config vite.shared.config.ts src/shared/api/client.test.ts   # single src/shared test

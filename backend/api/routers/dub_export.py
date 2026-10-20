@@ -6,6 +6,7 @@ import ntpath
 import os
 import re
 import time
+import tempfile
 import uuid
 import weakref
 from pathlib import Path, PureWindowsPath
@@ -2172,53 +2173,59 @@ async def dub_download_mp3(
     exports_dir = os.path.join(job_dir, "exports")
     os.makedirs(exports_dir, exist_ok=True)
 
-    source_path = wav_path
-    bg_audio = await _preserved_background(job, job_id, lang_label) if preserve_bg else None
-    if bg_audio:
-        mixed_path = os.path.join(exports_dir, f"mixed_mp3_{stamp}.wav")
-        cmd_mix = [
-            ffmpeg, "-i", bg_audio, "-i", wav_path,
-            "-filter_complex", bed_mix_filter("0:a", "1:a", bed_gain=1.0),
-            "-map", "[aout]", "-c:a", "pcm_s16le", "-y", mixed_path
-        ]
+    # Uncompressed mixes and failed/partial encodes are temporary, even when
+    # the request is cancelled. Publish only a completed MP3 for download.
+    with tempfile.TemporaryDirectory(prefix=".mp3-", dir=exports_dir) as temporary:
+        source_path = wav_path
+        bg_audio = await _preserved_background(job, job_id, lang_label) if preserve_bg else None
+        if bg_audio:
+            mixed_path = os.path.join(temporary, "mixed.wav")
+            cmd_mix = [
+                ffmpeg, "-i", bg_audio, "-i", wav_path,
+                "-filter_complex", bed_mix_filter("0:a", "1:a", bed_gain=1.0),
+                "-map", "[aout]", "-c:a", "pcm_s16le", "-y", mixed_path
+            ]
+            try:
+                rc, _, _ = await run_ffmpeg(cmd_mix, timeout=900.0)
+                if rc == 0 and os.path.exists(mixed_path) and os.path.getsize(mixed_path) > 0:
+                    source_path = mixed_path
+                else:
+                    raise RuntimeError("Background mixing failed")
+            except Exception as exc:
+                logger.exception("Failed to mix audio for MP3")
+                raise HTTPException(status_code=500, detail={"code": "dub_background_unavailable", "message": "Could not preserve background audio"}) from exc
+
+        mp3_path = os.path.join(temporary, "dubbed.mp3")
+        # Accept '128', '192k' etc. — normalize to ffmpeg's 'Nk' form and clamp
+        # to a sensible range so a malformed value can't stall encoding.
+        _br = str(bitrate or "192k").lower().rstrip("k") or "192"
         try:
-            rc, _, _ = await run_ffmpeg(cmd_mix, timeout=900.0)
-            if rc == 0 and os.path.exists(mixed_path) and os.path.getsize(mixed_path) > 0:
-                source_path = mixed_path
-            else:
-                raise RuntimeError("Background mixing failed")
-        except Exception as exc:
-            logger.exception("Failed to mix audio for MP3")
-            raise HTTPException(status_code=500, detail={"code": "dub_background_unavailable", "message": "Could not preserve background audio"}) from exc
+            _br_int = max(64, min(int(_br), 320))
+        except ValueError:
+            _br_int = 192
+        br_arg = f"{_br_int}k"
+        cmd = [ffmpeg, "-i", source_path, "-codec:a", "libmp3lame", "-b:a", br_arg, "-y", mp3_path]
+        try:
+            rc, _, stderr = await run_ffmpeg(cmd, timeout=600.0)
+            if rc != 0:
+                raise Exception(stderr.decode(errors="replace") if stderr else "MP3 encode non-zero")
+        except asyncio.TimeoutError:
+            raise HTTPException(status_code=504, detail="MP3 encoding timed out")
+        except HTTPException:
+            raise
+        except Exception as e:
+            detail = explain_ffmpeg_failure(e, "encode MP3", cmd=cmd)
+            if not isinstance(e, OSError):
+                # ffmpeg ran and failed: for MP3 the classic cause is a build
+                # without libmp3lame — keep that hint for the ran-and-failed case.
+                detail += " If the error mentions libmp3lame, your ffmpeg build lacks the MP3 encoder (`ffmpeg -codecs | grep mp3`)."
+            raise HTTPException(status_code=500, detail=detail)
 
-    mp3_path = os.path.join(exports_dir, f"dubbed_{stamp}.mp3")
-    # Accept '128', '192k' etc. — normalize to ffmpeg's 'Nk' form and clamp
-    # to a sensible range so a malformed value can't stall encoding.
-    _br = str(bitrate or "192k").lower().rstrip("k") or "192"
-    try:
-        _br_int = max(64, min(int(_br), 320))
-    except ValueError:
-        _br_int = 192
-    br_arg = f"{_br_int}k"
-    cmd = [ffmpeg, "-i", source_path, "-codec:a", "libmp3lame", "-b:a", br_arg, "-y", mp3_path]
-    try:
-        rc, _, stderr = await run_ffmpeg(cmd, timeout=600.0)
-        if rc != 0:
-            raise Exception(stderr.decode(errors="replace") if stderr else "MP3 encode non-zero")
-    except asyncio.TimeoutError:
-        raise HTTPException(status_code=504, detail="MP3 encoding timed out")
-    except HTTPException:
-        raise
-    except Exception as e:
-        detail = explain_ffmpeg_failure(e, "encode MP3", cmd=cmd)
-        if not isinstance(e, OSError):
-            # ffmpeg ran and failed: for MP3 the classic cause is a build
-            # without libmp3lame — keep that hint for the ran-and-failed case.
-            detail += " If the error mentions libmp3lame, your ffmpeg build lacks the MP3 encoder (`ffmpeg -codecs | grep mp3`)."
-        raise HTTPException(status_code=500, detail=detail)
-
-    if not os.path.exists(mp3_path) or os.path.getsize(mp3_path) == 0:
-        raise HTTPException(status_code=500, detail="MP3 encoding produced no output file")
+        if not os.path.exists(mp3_path) or os.path.getsize(mp3_path) == 0:
+            raise HTTPException(status_code=500, detail="MP3 encoding produced no output file")
+        published_path = os.path.join(exports_dir, f"dubbed_{stamp}.mp3")
+        os.replace(mp3_path, published_path)
+        mp3_path = published_path
     logger.info("Dub MP3 encoding completed")
 
     base_name = os.path.splitext(job.get('filename', 'audio'))[0]

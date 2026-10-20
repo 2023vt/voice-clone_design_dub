@@ -20,7 +20,7 @@ Draft writes reuse the coalesced persistence helper and flush on lifecycle event
 
 Script voice tags now expose saved-profile assignments in the Cast section. Only names present in the current script are sent as `voice_map`; assignments persist for reuse if a tag is reintroduced. An assignment to a removed profile blocks rendering until changed or reset to Default. Chapter, word and estimated runtime counts reuse the Tauri script helpers.
 
-Pronunciation entries respect combining accents and vowel marks as part of a word. An unaccented entry does not replace the base of a decomposed accented word, and an Indic term ending in a vowel mark does not replace the prefix of a longer word. Existing substring matching for scripts written without spaces remains available.
+Pronunciation entries respect combining accents and vowel marks as part of a word. An unaccented entry does not replace the base of a decomposed accented word, and an Indic term ending in a vowel mark does not replace the prefix of a longer word. Existing substring matching for scripts written without spaces remains available, including when a base character carries a combining mark or variation selector. Leading marks are not detached from another character's grapheme.
 
 Audiobook Preview plan uses the backend parser and exposes per-chapter auditions. Auditions send the same voice, cast, language and pronunciation inputs as full renders, warming the shared cache. Editing those inputs clears stale auditions. Preview requests are aborted on navigation, never replace a full render, and expose their own Vidstack playback.
 

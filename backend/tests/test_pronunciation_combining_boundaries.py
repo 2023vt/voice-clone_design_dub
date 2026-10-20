@@ -44,3 +44,21 @@ def test_rejected_compound_allows_shorter_valid_alternative_at_same_start(pronun
     assert pronunciation.apply_lexicon(
         'cat dog\u0301', {'cat dog': 'wrong', 'cat': 'feline'}
     ) == 'feline dog\u0301'
+
+
+@pytest.mark.parametrize('mark', ['\ufe00', '\U000e0100', '\u0301'])
+def test_no_space_base_keeps_substring_matching_with_trailing_marks(pronunciation, mark):
+    term = '\u845b' + mark
+    assert pronunciation.apply_lexicon(term + '\u98fe', {term: 'katsu'}) == 'katsu\u98fe'
+
+
+def test_spaced_script_base_with_multiple_marks_keeps_word_boundary(pronunciation):
+    term = 'a\u0301\u0323'
+    assert pronunciation.apply_lexicon(term + 'b ' + term, {term: 'letter'}) == term + 'b letter'
+
+
+def test_leading_or_standalone_marks_do_not_match_inside_another_grapheme(pronunciation):
+    mark = '\u0301'
+    assert pronunciation.apply_lexicon('a' + mark + 'b ' + mark, {mark: 'accent'}) == 'a' + mark + 'b accent'
+    term = '\u3099\u304b'  # a leading dakuten is not the base of the following kana
+    assert pronunciation.apply_lexicon('\u304b' + term, {term: 'wrong'}) == '\u304b' + term

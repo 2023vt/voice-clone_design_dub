@@ -73,12 +73,20 @@ def normalize_lexicon(lexicon: Optional[dict]) -> dict[str, str]:
 
 def _boundary_prefix(key: str, word_chars: str) -> str:
     """A fixed-width word guard only on an edge of a spaced-script word."""
-    return f"(?<![{word_chars}])" if _needs_boundary(key[:1]) else ""
+    first = key[0]
+    # A leading mark has no base inside this key; never detach it from a
+    # preceding grapheme, even when the mark belongs to a no-space script.
+    needs = unicodedata.category(first).startswith("M") or _needs_boundary(first)
+    return f"(?<![{word_chars}])" if needs else ""
 
 
 def _boundary_suffix(key: str, word_chars: str) -> str:
-    """Negative lookahead also works when a key ends in a vowel/accent mark."""
-    return f"(?![{word_chars}])" if _needs_boundary(key[-1:]) else ""
+    """Trailing marks inherit the boundary policy of their base character."""
+    base = next((char for char in reversed(key)
+                 if not unicodedata.category(char).startswith("M")), None)
+    # Marks alone have no base to establish no-space-script semantics.
+    needs = base is None or _needs_boundary(base)
+    return f"(?![{word_chars}])" if needs else ""
 
 
 def _compile(lexicon: dict[str, str], text: str = "") -> tuple[Optional[re.Pattern], dict[str, str]]:

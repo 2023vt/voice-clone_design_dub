@@ -8,7 +8,7 @@ before chunking, so the engine never sees the hard-to-say original.
 This module is the engine-agnostic, pure core:
 
   * ``apply_lexicon(text, lexicon)`` — whole-word, case-insensitive replacement
-    of every key with its respelling. Word-boundary aware (``\\b``), so a key
+    of every key with its respelling. Unicode word-boundary aware, so a key
     ``cat`` never touches ``category``; surrounding punctuation/whitespace is
     preserved (``"smith,"`` → ``"Smith,"``). Longest key first, so a key
     ``Dr. Smith`` wins over ``Dr`` on overlapping input.
@@ -17,8 +17,8 @@ This module is the engine-agnostic, pure core:
 
 ReDoS safety: the matcher is a single anchored-alternation regex built from
 ``re.escape``'d keys joined by ``|`` and wrapped in word boundaries
-(``\\b(?:k1|k2|…)\\b``). No nested/overlapping quantifiers, no user-controlled
-quantifier — the keys are literals, so there is no catastrophic backtracking
+with fixed-width lookarounds. No nested/overlapping quantifiers or user-controlled
+quantifiers — the keys are literals, so there is no catastrophic backtracking
 (CodeQL py/polynomial-redos clean). Matching is done in one ``re.sub`` pass with
 a callback, so a respelling that happens to contain another key is never
 re-scanned (idempotent against its own output).
@@ -28,16 +28,15 @@ from __future__ import annotations
 
 import json
 import re
+import unicodedata
 from pathlib import Path
 from typing import Optional
 
 from services.dub_qc import _NO_SPACE_SCRIPT
 
-# A "word" character for boundary purposes. We treat the standard regex word
-# class (``\w`` = ``[A-Za-z0-9_]`` plus Unicode letters under ``re.UNICODE``,
-# the default for ``str`` patterns). A key only gets ``\b`` boundaries on a side
-# that actually abuts a word char, so a key like ``Dr.`` (ends in a non-word
-# char) still matches when followed by a space.
+# Word characters include Unicode letters/numbers, underscore and combining
+# marks. A key only gets a guard on an edge that abuts one of these, so a
+# punctuation-edged key such as "Dr." still matches before a space.
 #
 # Scripts written without spaces between words (kanji, kana, Thai, Lao, Myanmar,
 # Khmer; the same set dub_qc scores per character) are the exception: a key for
@@ -48,7 +47,8 @@ _NO_SPACE_CHAR = re.compile(f"[{_NO_SPACE_SCRIPT}]")
 
 
 def _needs_boundary(ch: str) -> bool:
-    return (ch.isalnum() or ch == "_") and not _NO_SPACE_CHAR.match(ch)
+    word = ch.isalnum() or ch == "_" or unicodedata.category(ch).startswith("M")
+    return word and not _NO_SPACE_CHAR.match(ch)
 
 
 def normalize_lexicon(lexicon: Optional[dict]) -> dict[str, str]:
@@ -72,15 +72,13 @@ def normalize_lexicon(lexicon: Optional[dict]) -> dict[str, str]:
 
 
 def _boundary_prefix(key: str) -> str:
-    """``\\b`` only if the key starts with a word char (else the boundary would
-    never match — e.g. a key opening with punctuation), and not one of a script
-    written without spaces."""
-    return r"\b" if _needs_boundary(key[:1]) else ""
+    """A fixed-width word guard only on an edge of a spaced-script word."""
+    return r"(?<!\w)" if _needs_boundary(key[:1]) else ""
 
 
 def _boundary_suffix(key: str) -> str:
-    """``\\b`` only if the key ends with a word char of a spaced script."""
-    return r"\b" if _needs_boundary(key[-1:]) else ""
+    """Negative lookahead also works when a key ends in a vowel/accent mark."""
+    return r"(?!\w)" if _needs_boundary(key[-1:]) else ""
 
 
 def _compile(lexicon: dict[str, str]) -> tuple[Optional[re.Pattern], dict[str, str]]:
@@ -126,6 +124,16 @@ def apply_lexicon(text: str, lexicon: Optional[dict]) -> str:
         return text
 
     def _repl(m: re.Match) -> str:
+        # Python's regex word class omits Unicode marks, so its guards alone would match
+        # "cafe" inside a decomposed accented word, or a letter after a combining mark.
+        # Keep marks attached to their word without normalizing user text.
+        matched = m.group(0)
+        if (_needs_boundary(matched[0]) and m.start()
+                and unicodedata.category(text[m.start() - 1]).startswith("M")):
+            return matched
+        if (_needs_boundary(matched[-1]) and m.end() < len(text)
+                and unicodedata.category(text[m.end()]).startswith("M")):
+            return matched
         return lookup[m.lastgroup]
 
     return pattern.sub(_repl, text)

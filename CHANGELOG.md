@@ -14,7 +14,7 @@ metadata and the backend fallback mirror it.
 
 ### Added
 
-- Find and replace in the Dubbing transcript: jump between spoken and original matches, replace the current spoken hit or every spoken occurrence, and undo the edit as one step — thanks @mvanhorn!
+- Find and replace in the Dubbing transcript: jump between spoken and original matches, replace the current spoken hit or every spoken occurrence, and undo the edit as one step (#2962) — thanks @mvanhorn!
 
 ## [0.5.7] — 2026-10-17
 

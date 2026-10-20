@@ -486,8 +486,8 @@ def test_overlapping_clones_do_not_release_each_others_recognizer(monkeypatch, t
 
 def test_recognizers_are_released_before_the_models_prompt_builder_runs(monkeypatch):
     """When installed recognizers find no words the model falls back to its own
-    Whisper: the installed ones must already be gone, and must not be unloaded
-    a second time when the pass ends."""
+    Whisper: the installed ones are unloaded as soon as they fail (before any
+    fallback loads), and are not unloaded a second time later in the pass."""
     from services import asr_backend as ab
 
     events = []
@@ -504,8 +504,9 @@ def test_recognizers_are_released_before_the_models_prompt_builder_runs(monkeypa
     monkeypatch.setattr(ab, "_installed_reference_fallbacks", lambda _: [])
     with ab.release_reference_asr_after():
         assert ab.transcribe_reference("window.wav") is None  # no words found
-        assert events == []  # still resident while ranking
+        assert events == ["unload"]  # released right away, not kept while fallbacks are tried
         ab.release_reference_asr_now()
+        assert events == ["unload"]  # nothing left to release: no second unload
         events.append("model prompt builder")  # the model's fallback Whisper loads here
     assert events == ["unload", "model prompt builder"]  # nothing unloaded again at exit
 

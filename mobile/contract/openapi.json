@@ -1234,6 +1234,17 @@
       ],
       "title": "Postprocess Output"
      },
+     "preset_voice": {
+      "anyOf": [
+       {
+        "type": "string"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Preset Voice"
+     },
      "profile_id": {
       "anyOf": [
        {
@@ -2256,6 +2267,19 @@
        }
       ],
       "title": "Max Audio Only Rate"
+     },
+     "min_audio_rate": {
+      "anyOf": [
+       {
+        "maximum": 1.0,
+        "minimum": 0.5,
+        "type": "number"
+       },
+       {
+        "type": "null"
+       }
+      ],
+      "title": "Min Audio Rate"
      },
      "video_slow_cap": {
       "anyOf": [

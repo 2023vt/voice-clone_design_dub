@@ -14,8 +14,6 @@ import socket
 
 import pytest
 
-from services import network_share as ns
-
 
 @pytest.mark.parametrize('second_operation', ['enable', 'disable'])
 def test_overlapping_lifecycle_calls_leave_no_listener_or_mcp_hosts(monkeypatch, second_operation):
@@ -88,6 +86,8 @@ def _wait_closed(port: int, host: str = "127.0.0.1", tries: int = 40) -> bool:
 
 
 async def _exercise_lifecycle():
+    from services import network_share as ns
+
     # A minimal FastAPI app is enough — enable() only needs an ASGI app object
     # and a place to stash app.state.network_share.
     from fastapi import FastAPI
@@ -120,6 +120,8 @@ async def _exercise_lifecycle():
 
 
 def test_share_listener_lifecycle():
+    from services import network_share as ns
+
     # Ensure a clean starting state regardless of test ordering.
     if ns.get_state().enabled:
         asyncio.run(ns.disable(__import__("fastapi").FastAPI()))
@@ -148,6 +150,7 @@ def test_share_port_bind_failure_raises_instead_of_exiting(monkeypatch):
     of reaching enable()'s "listener failed to start" handling.
     """
     from fastapi import FastAPI
+    from services import network_share as ns
 
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as taken:
         try:

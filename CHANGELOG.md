@@ -19,6 +19,8 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
+- MP3 downloads remove temporary uncompressed background mixes and partial encodes after success, failure, or cancellation (#3100) — thanks @rudycelekli!
+
 - Generated speech no longer starts and ends with silence, and `[pause]` markers give exactly the pause you asked for (Raw preset and explicit durations untouched) (#3080)
 - Engine sidecars no longer load PyTorch just to answer the Test Engine ping, and a failed test logs its reason locally (#3026) — thanks @tekay-de!
 

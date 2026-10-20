@@ -1416,7 +1416,9 @@ verification decides whether the runtime works.
 A cut-off model download makes Windows kill the backend with an access violation
 (`0xC0000005`) when the weights are read. VoiceStudio now checks each
 `.safetensors` file's header against its size before loading and re-downloads a
-truncated file automatically. If you point `OMNIVOICE_CHECKPOINT` at your own
+truncated file automatically. It checks the restored bytes again before loading;
+if the replacement is still incomplete, it stops with a recoverable error
+instead of attempting to memory-map it. If you point `OMNIVOICE_CHECKPOINT` at your own
 folder, it names the incomplete file instead; delete it and download it again.
 
 ### "Backend is running but busy / not responding on port 3900"

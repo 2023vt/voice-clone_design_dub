@@ -69,3 +69,29 @@ def test_repair_removes_truncated_blob_and_link(tmp_path, monkeypatch):
     out = repair.repair_repo_cache("test/checkpoint", cache_dir=str(tmp_path))
     assert out["found"] == 1 and out["restored"] and calls
     assert not blob.exists() and not (snap / "model.safetensors").is_symlink()
+
+
+@pytest.mark.parametrize("complete", [False, True])
+def test_cache_preflight_verifies_bytes_after_successful_repair(tmp_path, monkeypatch, complete):
+    repo = tmp_path / "models--test--checkpoint"
+    snap = repo / "snapshots" / "revision"
+    snap.mkdir(parents=True)
+    weight = _st(snap / "model.safetensors", keep=90)
+    import huggingface_hub
+    from services import hf_revisions
+
+    monkeypatch.delenv("HF_HUB_OFFLINE", raising=False)
+    monkeypatch.delenv("TRANSFORMERS_OFFLINE", raising=False)
+    monkeypatch.setattr(repair, "repo_cache_dir", lambda *args: str(repo))
+    monkeypatch.setattr(repair, "hf_cache_home", lambda: str(tmp_path))
+    monkeypatch.setitem(hf_revisions.CURATED_REVISIONS, "test/checkpoint", "a" * 40)
+
+    def restore(**kwargs):
+        _st(weight, keep=None if complete else 90)
+
+    monkeypatch.setattr(huggingface_hub, "snapshot_download", restore)
+    if complete:
+        model_manager._preflight_truncated_weights("test/checkpoint")
+    else:
+        with pytest.raises(RuntimeError, match="incomplete"):
+            model_manager._preflight_truncated_weights("test/checkpoint")

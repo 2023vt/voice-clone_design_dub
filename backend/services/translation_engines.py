@@ -490,17 +490,18 @@ def install_argos_packs(source_lang: str, target_langs: list[str]) -> dict:
                     continue
                 direct = find(source, target)
                 if direct is not None:
-                    route = [direct]
+                    route = [(source, target)]
                 elif "en" not in (source, target):
-                    # No direct pack: route through English, as Argos does.
-                    route = [find(source, "en"), find("en", target)]
+                    # Installed legs remain usable even if removed from the index.
+                    route = [(source, "en"), ("en", target)]
                 else:
-                    route = [None]
-                if any(package is None for package in route):
+                    route = [(source, target)]
+                packages = [find(*pair) for pair in route if pair not in installed]
+                if any(package is None for package in packages):
                     raise ValueError(
                         f"No Argos language pack is available for {source} → {target}"
                     )
-                for package in route:
+                for package in packages:
                     pair = (package.from_code, package.to_code)
                     if pair not in installed:
                         argostranslate.package.install_from_path(package.download())

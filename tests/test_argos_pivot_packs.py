@@ -78,3 +78,25 @@ def test_install_still_reports_a_pair_argos_cannot_reach(argos):
 
     with pytest.raises(ValueError, match="es → de"):
         translation_engines.install_argos_packs("es", ["de"])
+
+
+@pytest.mark.parametrize("existing,available", [
+    (("es", "en"), ("en", "fr")),
+    (("en", "fr"), ("es", "en")),
+])
+def test_install_reuses_pivot_leg_removed_from_index(argos, monkeypatch, existing, available):
+    """An installed pack remains usable when it is no longer indexed."""
+    from services import translation_engines
+    import argostranslate.package
+
+    argos.append(existing)
+    downloads = []
+    pack = _Pack(*available)
+    monkeypatch.setattr(pack, "download", lambda: downloads.append(available) or pack)
+    monkeypatch.setattr(argostranslate.package, "get_available_packages", lambda: [pack])
+
+    status = translation_engines.install_argos_packs("es", ["fr"])
+
+    assert argos == [existing, available]
+    assert downloads == [available]
+    assert _ready(status) == {"fr": True}

@@ -256,6 +256,13 @@ def _scope_matcher(language: Optional[str]):
     return matches
 
 
+def _prefer_term(terms: dict[str, str], term: str, replacement: str) -> None:
+    # The matcher gives later equal-length case variants precedence. Updating
+    # an existing dict key alone keeps its OLD position and loses that priority.
+    terms.pop(term, None)
+    terms[term] = replacement
+
+
 def entries_for_language(entries, language: Optional[str]) -> dict[str, str]:
     """Collapse DB rows into a ``{term: replacement}`` map for ``apply_lexicon``.
 
@@ -293,12 +300,13 @@ def entries_for_language(entries, language: Optional[str]) -> dict[str, str]:
             continue
         scope = (e["language"] or _ALL_LANG).strip() or _ALL_LANG
         if scope == _ALL_LANG:
-            glob[term] = str(replacement)
+            _prefer_term(glob, term, str(replacement))
         else:
             if scope_matches is not None and scope_matches(scope):
-                lang[term] = str(replacement)
+                _prefer_term(lang, term, str(replacement))
     merged = dict(glob)
-    merged.update(lang)  # language rows override global on the same term
+    for term, replacement in lang.items():
+        _prefer_term(merged, term, replacement)  # language rows win over global
     return merged
 
 
@@ -408,7 +416,8 @@ def apply_pronunciation(
     merged = entries_for_language(entries or [], language)
     if lexicon:
         # Project-local JSON overlays the DB defaults; project wins on conflict.
-        merged.update(normalize_lexicon(lexicon))
+        for term, replacement in normalize_lexicon(lexicon).items():
+            _prefer_term(merged, term, replacement)
     out = apply_lexicon(text, merged) if merged else text
     return apply_inline_overrides(out)
 

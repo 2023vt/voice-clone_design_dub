@@ -19,6 +19,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
+- Loaded-models inventory reports CPU-only sidecar engines as CPU on accelerated hosts (#3096) — thanks @rudycelekli!
 - Generated speech no longer starts and ends with silence, and `[pause]` markers give exactly the pause you asked for (Raw preset and explicit durations untouched) (#3080)
 - Engine sidecars no longer load PyTorch just to answer the Test Engine ping, and a failed test logs its reason locally (#3026) — thanks @tekay-de!
 

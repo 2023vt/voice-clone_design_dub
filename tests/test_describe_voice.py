@@ -227,3 +227,31 @@ def test_age_with_non_year_unit_is_not_interpreted_as_years(description):
 def test_explicit_age_units_preserve_numeric_brackets(description, expected):
     """Unit-aware ages and unqualified year ages share the normal brackets."""
     assert attrs_of(description)["Age"] == expected
+
+
+
+def test_numeric_age_scan_finishes_for_a_long_unmatched_separator():
+    """A missing age must not cause polynomial backtracking on whitespace."""
+    import os
+    from pathlib import Path
+    import subprocess
+    import sys
+
+    code = r"""
+from core.describe_voice import _AGE_NUM
+print('ready', flush=True)
+assert _AGE_NUM.search('aged' + '\n' * 100000 + '!') is None
+"""
+    process = subprocess.Popen(
+        [sys.executable, "-c", code],
+        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+        env={**os.environ, "PYTHONPATH": str(Path(__file__).resolve().parents[1] / "backend")},
+    )
+    try:
+        assert process.stdout.readline().strip() == "ready"
+        process.communicate(timeout=3)
+        assert process.returncode == 0
+    finally:
+        if process.poll() is None:
+            process.kill()
+        process.wait()

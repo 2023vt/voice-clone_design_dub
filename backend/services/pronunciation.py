@@ -71,17 +71,17 @@ def normalize_lexicon(lexicon: Optional[dict]) -> dict[str, str]:
     return out
 
 
-def _boundary_prefix(key: str) -> str:
+def _boundary_prefix(key: str, word_chars: str) -> str:
     """A fixed-width word guard only on an edge of a spaced-script word."""
-    return r"(?<!\w)" if _needs_boundary(key[:1]) else ""
+    return f"(?<![{word_chars}])" if _needs_boundary(key[:1]) else ""
 
 
-def _boundary_suffix(key: str) -> str:
+def _boundary_suffix(key: str, word_chars: str) -> str:
     """Negative lookahead also works when a key ends in a vowel/accent mark."""
-    return r"(?!\w)" if _needs_boundary(key[-1:]) else ""
+    return f"(?![{word_chars}])" if _needs_boundary(key[-1:]) else ""
 
 
-def _compile(lexicon: dict[str, str]) -> tuple[Optional[re.Pattern], dict[str, str]]:
+def _compile(lexicon: dict[str, str], text: str = "") -> tuple[Optional[re.Pattern], dict[str, str]]:
     """Build the single alternation regex + matched-group→respelling lookup.
 
     Keys are sorted longest-first so an overlapping longer key (``Dr. Smith``)
@@ -94,11 +94,18 @@ def _compile(lexicon: dict[str, str]) -> tuple[Optional[re.Pattern], dict[str, s
     keys = sorted(reversed(lexicon), key=len, reverse=True)
     if not keys:
         return None, {}
+    # Unicode marks are missing from Python's regex word class. Add marks
+    # present in this ORIGINAL input to the fixed-width guards themselves,
+    # so a rejected longer term still allows another regex alternative.
+    marks = "" if text.isascii() else "".join(sorted({
+        char for char in text if unicodedata.category(char).startswith("M")
+    }))
+    word_chars = r"\w" + re.escape(marks)
     # IGNORECASE and casefold have different Unicode equivalence classes:
     # e.g. 'i' matches dotless 'ı', while Straße/STRASSE do not regex-match.
     # Bind each literal to its replacement rather than folding matched text.
     lookup = {f"term_{i}": lexicon[k] for i, k in enumerate(keys)}
-    alts = [f"(?P<term_{i}>{_boundary_prefix(k)}{re.escape(k)}{_boundary_suffix(k)})"
+    alts = [f"(?P<term_{i}>{_boundary_prefix(k, word_chars)}{re.escape(k)}{_boundary_suffix(k, word_chars)})"
             for i, k in enumerate(keys)]
     # No nested quantifiers — pure literal alternation.
     pattern = re.compile("(?:" + "|".join(alts) + ")", re.IGNORECASE)
@@ -119,21 +126,11 @@ def apply_lexicon(text: str, lexicon: Optional[dict]) -> str:
     if not text:
         return text or ""
     clean = normalize_lexicon(lexicon)
-    pattern, lookup = _compile(clean)
+    pattern, lookup = _compile(clean, text)
     if pattern is None:
         return text
 
     def _repl(m: re.Match) -> str:
-        # Python's regex word class omits Unicode marks, so its guards alone would match
-        # "cafe" inside a decomposed accented word, or a letter after a combining mark.
-        # Keep marks attached to their word without normalizing user text.
-        matched = m.group(0)
-        if (_needs_boundary(matched[0]) and m.start()
-                and unicodedata.category(text[m.start() - 1]).startswith("M")):
-            return matched
-        if (_needs_boundary(matched[-1]) and m.end() < len(text)
-                and unicodedata.category(text[m.end()]).startswith("M")):
-            return matched
         return lookup[m.lastgroup]
 
     return pattern.sub(_repl, text)

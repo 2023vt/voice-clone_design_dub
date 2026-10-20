@@ -32,3 +32,15 @@ def test_letter_after_combining_mark_is_not_a_new_word(pronunciation):
 
 def test_nonspacing_script_keys_keep_existing_substring_semantics(pronunciation):
     assert pronunciation.apply_lexicon('\u6211\u5728\u5317\u4eac', {'\u5317\u4eac': 'Beijing'}) == '\u6211\u5728Beijing'
+
+
+def test_rejected_compound_does_not_consume_later_valid_term(pronunciation):
+    assert pronunciation.apply_lexicon(
+        'a\u0301cat dog', {'cat dog': 'wrong', 'dog': 'hound'}
+    ) == 'a\u0301cat hound'
+
+
+def test_rejected_compound_allows_shorter_valid_alternative_at_same_start(pronunciation):
+    assert pronunciation.apply_lexicon(
+        'cat dog\u0301', {'cat dog': 'wrong', 'cat': 'feline'}
+    ) == 'feline dog\u0301'

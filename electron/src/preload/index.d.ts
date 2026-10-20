@@ -35,6 +35,8 @@ export interface BackendStatus {
   setupRequiredGib?: number;
   /** A prior explicit install stopped after creating its resumable project/cache. */
   runtimeInterrupted?: boolean;
+  /** Automatic repair of a lost Python environment already ran this launch and failed. */
+  runtimeRepairFailed?: boolean;
   setupPhase?: 'checking' | 'downloading_uv' | 'installing_deps' | 'verifying';
   setupProgress?: {
     resolvedPackages?: number;
@@ -77,6 +79,8 @@ export interface BackendStatus {
   runtimePath?: string;
   runtimeCustom?: boolean;
   runtimeRegion?: RuntimeRegion;
+  /** Where data, models and temp files go when the location was chosen during setup. */
+  runtimeStorage?: { data: string; models: string; temp: string };
 }
 
 export type RuntimeRegion = 'auto' | 'global' | 'china' | 'russia' | 'restricted';

@@ -22,6 +22,9 @@
     "preset32": "Asli",
     "sizeUnknown": "Ukuran ditampilkan setelah audio dibuat."
   },
+  "presetVoice": {
+    "label": "Suara bawaan"
+  },
   "audioQuality": {
     "check": "Periksa audio",
     "failed": "Analisis audio tidak tersedia.",
@@ -352,7 +355,9 @@
   },
   "referenceAsr": {
     "busy": "Mentranskripsikan…",
-    "retry": "Coba lagi transkripsi"
+    "retry": "Coba lagi transkripsi",
+    "install": "Pasang {{label}} ({{size}} GB) untuk transkripsi otomatis",
+    "installing": "Mengunduh {{label}}. Transkripsi akan diulang setelah selesai."
   },
   "engineSidebar": {
     "tts": "TTS",
@@ -762,6 +767,9 @@
     "burn_subs_title": "Render subtitle langsung ke aliran video MP4 (hardsubs). Menggunakan format subtitle ganda saat Subtitle ganda aktif.",
     "timing_smart_fit": "Penyesuaian Cerdas",
     "timing_smart_fit_title": "Membagi beban: sedikit mempercepat audio (nada dipertahankan, hingga 1,5×) dan sedikit memperlambat segmen video itu (hingga 2×) agar suara dengan tempo alami muat. Kelebihan di luar batas dipangkas dan ditandai. Ekspor mengenkode ulang video.",
+    "fit_speed_hint": "Batas kecepatan Smart Fit. Batas yang lebih ketat menjaga ucapan tetap alami; batas yang lebih longgar memuat lebih banyak baris tanpa dipangkas. Nilai bawaan cocok untuk sebagian besar video.",
+    "fit_max_speed": "Kecepatan paling cepat",
+    "fit_min_speed": "Kecepatan paling lambat",
     "voice_match": "Pencocokan suara:",
     "voice_match_title": "Pencocokan suara — apakah setiap baris sulih suara dikloning dari klip sumbernya sendiri atau semua baris satu pembicara memakai satu referensi bersama.",
     "voice_match_per_line": "Per baris",
@@ -2042,6 +2050,7 @@
     "setup_hint": "Unduh Python dan dependensi aplikasi (beberapa GB). Model suara diinstal secara terpisah saat Anda memilihnya.",
     "installing": "Memasang…",
     "setup_space": "Kosongkan setidaknya {{gib}} GiB di drive aplikasi, lalu coba lagi.",
+    "repair_failed": "Perbaikan otomatis lingkungan Python tidak selesai. Periksa log mesin, lalu tekan Coba lagi.",
     "setup_access": "Izinkan akses tulis ke folder data aplikasi, lalu coba lagi.",
     "setup_unsupported_platform": "Mac Intel ini tidak dapat menjalankan backend AI lokal — PyTorch tidak menyediakan wheel macOS Intel. Hubungkan backend jarak jauh di bawah; instalasi lokal tidak diperlukan.",
     "setup_wrong_architecture": "Ini adalah build Intel (x64) VoiceStudio yang berjalan melalui Rosetta di Mac Apple Silicon, sehingga backend AI lokal tidak dapat dipasang. Tutup aplikasi, pasang DMG Apple Silicon (arm64) di atasnya, lalu buka kembali — suara dan proyek Anda tetap tersimpan.",
@@ -2286,6 +2295,10 @@
     "lib_show_all": "Tampilkan {{count}} model opsional",
     "env_dir": "Lingkungan aplikasi",
     "env_dir_desc": "Runtime Python dan pustaka AI.",
+    "env_dir_desc_scoped": "Runtime Python, pustaka AI, model, data Anda, dan file sementara.",
+    "storage_data": "Data",
+    "storage_models": "Model",
+    "storage_temp": "File sementara",
     "change": "Ubah…",
     "reset_default": "Atur ulang ke default",
     "region_label": "Wilayah unduhan"
@@ -2817,7 +2830,13 @@
     "audio_io_failed": "Audio tidak dapat dibaca atau disimpan. Periksa format file, ruang disk yang tersedia, dan izin file. Periksa folder di Pengaturan → Penyimpanan.",
     "no_audio_track": "File ini tidak memiliki trek audio, jadi tidak ada ucapan untuk ditranskripsi, di-dubbing, atau dikloning. Pilih file video atau audio yang berisi suara.",
     "transcription_media_tool": "Transkripsi membutuhkan ffmpeg, yang tidak dapat ditemukan atau dijalankan VoiceStudio. Buka Pengaturan → Alat audio lalu gunakan Unduh/Perbaiki, atau instal ffmpeg (macOS: brew install ffmpeg; Windows: winget install Gyan.FFmpeg; Linux: pengelola paket Anda) dan mulai ulang VoiceStudio. Anda juga dapat mengarahkan FFMPEG_PATH ke berkas ffmpeg.",
-    "transcription_pipe_lost": "Backend kehilangan saluran keluarannya ke aplikasi saat transkripsi (broken pipe). Mulai ulang VoiceStudio dan coba lagi."
+    "transcription_pipe_lost": "Backend kehilangan saluran keluarannya ke aplikasi saat transkripsi (broken pipe). Mulai ulang VoiceStudio dan coba lagi.",
+    "gpu_oom": "GPU kehabisan memori. Tutup aplikasi lain yang berat memakai GPU atau bongkar model, lalu coba lagi. Anda juga bisa memilih CPU di Pengaturan → Performa & Perangkat atau memilih mesin TTS yang lebih kecil.",
+    "host_memory_exhausted": "Komputer kehabisan memori. Tutup aplikasi dan tab peramban lain yang boros memori, bongkar model yang tidak dipakai, buat bagian yang lebih pendek, atau pilih mesin TTS yang lebih ringan.",
+    "engine_dependency_missing": "Paket Python yang dibutuhkan mesin ini belum terpasang, sehingga mesin tidak bisa dimulai. Buka Katalog Model, pilih mesin lalu gunakan Pasang / Perbaiki, kemudian mulai ulang VoiceStudio.",
+    "reference_stt_missing": "Suara ini tidak punya transkrip dan tidak ada model ucapan-ke-teks yang terpasang untuk membuatnya. Ketik isi klip referensi di kotak transkrip (klip hingga 20 detik), atau pasang model ucapan-ke-teks di Katalog Model, pilih, lalu buat lagi.",
+    "proxy_gateway_error": "Proxy atau gateway di antara Anda dan VoiceStudio menjawab HTTP {{status}} menggantikan backend. Backend mungkin masih bekerja. Naikkan batas waktu baca proxy (di nginx, proxy_read_timeout) untuk pembuatan yang panjang, lalu periksa Pengaturan → Log → Backend.",
+    "route_not_found": "Backend VoiceStudio yang berjalan tidak memiliki endpoint {{route}}. Mulai ulang VoiceStudio agar aplikasi dan backend cocok; jika masih terjadi, perbarui keduanya ke versi yang sama."
   },
   "network": {
     "copied": "Disalin",

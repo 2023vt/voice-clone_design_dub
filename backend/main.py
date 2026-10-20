@@ -33,6 +33,13 @@ from core.contained_subprocess import secure_backend_drain_fd  # noqa: E402
 
 secure_backend_drain_fd()
 
+# The shell reads our stdout/stderr through pipes; a reader that falls behind
+# would otherwise block uvicorn's access-log write on the event loop and freeze
+# /health (#2970 class). Producers get a bounded buffer instead.
+from core.nonblocking_stdio import install as _install_nonblocking_stdio  # noqa: E402
+
+_install_nonblocking_stdio()
+
 import math  # noqa: E402
 
 # Windows: run every child process (ffmpeg, engine sidecars, yt-dlp, demucs, …)
@@ -1218,7 +1225,15 @@ async def lifespan(app: FastAPI):
         # StartupGate. The watchdog stays armed until the deferred task
         # disarms it, so a hang inside Phase A/B still gets its thread dump.
         app.state.startup_task = asyncio.create_task(_deferred_startup(app))
+    try:
+        from core.loop_stall_monitor import start_loop_stall_monitor
+
+        _loop_stall_stop = start_loop_stall_monitor()
+    except Exception:
+        _loop_stall_stop = None  # diagnostics-only
     yield
+    if _loop_stall_stop is not None:
+        _loop_stall_stop.set()
     # ── Graceful shutdown (SIGTERM from Tauri, Ctrl+C, etc.) ────────────
     # Retire the run sentinel FIRST, before any bounded wait below (#1895):
     # once uvicorn has begun graceful shutdown the exit is deliberate by
@@ -1632,6 +1647,12 @@ async def global_exception_handler(request: Request, exc: Exception):
         fallback="VoiceStudio hit an internal error; check the backend log for details.",
     )
     content["error_class"] = _entry.get("error_class")
+    # The Python exception TYPE rides along with the taxonomy class. The class
+    # is "UNKNOWN" for most failures, which made every such 500 render the same
+    # fixed sentence AND the same report (#2917/#2916/#2688); the type name is
+    # VoiceStudio-safe (a type, never user text) and is what tells a
+    # RuntimeError from a KeyError. No substring of the message is copied.
+    content["error_type"] = type(exc).__name__
     return JSONResponse(
         content,
         status_code=500,

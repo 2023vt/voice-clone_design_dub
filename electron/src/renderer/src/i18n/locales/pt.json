@@ -22,6 +22,9 @@
     "preset32": "Original",
     "sizeUnknown": "O tamanho aparece após a geração."
   },
+  "presetVoice": {
+    "label": "Voz predefinida"
+  },
   "audioQuality": {
     "check": "Verificar áudio",
     "failed": "Análise de áudio indisponível.",
@@ -354,7 +357,9 @@
   },
   "referenceAsr": {
     "busy": "Transcrevendo…",
-    "retry": "Tentar novamente a transcrição"
+    "retry": "Tentar novamente a transcrição",
+    "install": "Instalar {{label}} ({{size}} GB) para transcrever automaticamente",
+    "installing": "Baixando {{label}}. A transcrição será repetida ao terminar."
   },
   "engineSidebar": {
     "tts": "TTS",
@@ -764,6 +769,9 @@
     "burn_subs_title": "Renderize legendas diretamente no stream de vídeo MP4 (hardsubs). Usa o formato de legenda dupla quando Legendas duplas está ativado.",
     "timing_smart_fit": "Ajuste inteligente",
     "timing_smart_fit_title": "Divide o ajuste: acelera ligeiramente o áudio (tom preservado, até 1,5×) e desacelera ligeiramente esse trecho do vídeo (até 2×) para que a fala em ritmo natural caiba. O que passar dos limites é cortado e sinalizado. A exportação recodifica o vídeo.",
+    "fit_speed_hint": "Limites de velocidade do Ajuste inteligente. Limites mais estreitos mantêm a fala natural; limites mais amplos encaixam mais linhas sem cortar. Os valores padrão servem para a maioria dos vídeos.",
+    "fit_max_speed": "Velocidade máxima",
+    "fit_min_speed": "Velocidade mínima",
     "voice_match": "Correspondência de voz:",
     "voice_match_title": "Correspondência de voz — se cada fala dublada é clonada do seu próprio clipe de origem ou todas as falas de um falante compartilham uma única referência.",
     "voice_match_per_line": "Por fala",
@@ -2044,6 +2052,7 @@
     "setup_hint": "Transfira Python e as dependências da aplicação (vários GB). Os modelos de voz são instalados separadamente quando os escolher.",
     "installing": "Instalando…",
     "setup_space": "Liberte pelo menos {{gib}} GiB na unidade da aplicação e tente novamente.",
+    "repair_failed": "O reparo automático do ambiente Python não terminou. Veja o registro do motor e clique em Tentar novamente.",
     "setup_access": "Permita a escrita na pasta de dados da aplicação e tente novamente.",
     "setup_unsupported_platform": "Este Mac Intel não consegue executar o backend de IA local — o PyTorch não oferece wheels para macOS Intel. Conecte um backend remoto abaixo; nenhuma instalação local é necessária.",
     "setup_wrong_architecture": "Esta é a versão Intel (x64) do VoiceStudio executada pelo Rosetta num Mac com Apple Silicon, por isso o backend de IA local não pode ser instalado. Feche o app, instale por cima o DMG para Apple Silicon (arm64) e abra-o novamente — suas vozes e projetos são mantidos.",
@@ -2288,6 +2297,10 @@
     "lib_show_all": "Mostrar {{count}} modelos opcionais",
     "env_dir": "Ambiente do aplicativo",
     "env_dir_desc": "Runtime Python e bibliotecas de IA.",
+    "env_dir_desc_scoped": "Ambiente Python, bibliotecas de IA, modelos, seus dados e arquivos temporários.",
+    "storage_data": "Dados",
+    "storage_models": "Modelos",
+    "storage_temp": "Arquivos temporários",
     "change": "Alterar…",
     "reset_default": "Redefinir para o padrão",
     "region_label": "Região de download"
@@ -2819,7 +2832,13 @@
     "audio_io_failed": "Não foi possível ler ou salvar o áudio. Verifique o formato do arquivo, o espaço livre e as permissões. Confira a pasta em Configurações → Armazenamento.",
     "no_audio_track": "Este arquivo não tem faixa de áudio, então não há fala para transcrever, dublar ou clonar. Escolha um arquivo de vídeo ou áudio que tenha som.",
     "transcription_media_tool": "A transcrição precisa do ffmpeg, que o VoiceStudio não conseguiu encontrar ou executar. Abra Configurações → Ferramentas de áudio e use Baixar/Reparar, ou instale o ffmpeg (macOS: brew install ffmpeg; Windows: winget install Gyan.FFmpeg; Linux: seu gerenciador de pacotes) e reinicie o VoiceStudio. Você também pode apontar FFMPEG_PATH para um binário do ffmpeg.",
-    "transcription_pipe_lost": "O backend perdeu o canal de saída para o aplicativo durante a transcrição (broken pipe). Reinicie o VoiceStudio e tente novamente."
+    "transcription_pipe_lost": "O backend perdeu o canal de saída para o aplicativo durante a transcrição (broken pipe). Reinicie o VoiceStudio e tente novamente.",
+    "gpu_oom": "A GPU ficou sem memória. Feche outros apps que usam muito a GPU ou descarregue modelos e tente novamente. Você também pode escolher CPU em Configurações → Desempenho e dispositivo ou selecionar um mecanismo TTS menor.",
+    "host_memory_exhausted": "O computador ficou sem memória. Feche outros apps e abas do navegador que usam muita memória, descarregue modelos que não usa, gere um trecho mais curto ou escolha um mecanismo TTS mais leve.",
+    "engine_dependency_missing": "Um pacote Python de que este mecanismo precisa não está instalado, então ele não pôde iniciar. Abra o Catálogo de modelos, selecione o mecanismo e use Instalar / Reparar; depois reinicie o VoiceStudio.",
+    "reference_stt_missing": "Esta voz não tem transcrição e nenhum modelo de fala para texto está instalado para criá-la. Digite o que o clipe de referência diz na caixa de transcrição (clipes de até 20 segundos) ou instale um modelo de fala para texto no Catálogo de modelos, selecione-o e gere novamente.",
+    "proxy_gateway_error": "Um proxy ou gateway entre você e o VoiceStudio respondeu HTTP {{status}} no lugar do backend. O backend pode ainda estar trabalhando. Aumente o tempo limite de leitura do proxy (no nginx, proxy_read_timeout) para gerações longas e depois confira Configurações → Logs → Backend.",
+    "route_not_found": "O backend do VoiceStudio em execução não tem o endpoint {{route}}. Reinicie o VoiceStudio para que o app e o backend coincidam; se persistir, atualize ambos para a mesma versão."
   },
   "network": {
     "copied": "Copiado",

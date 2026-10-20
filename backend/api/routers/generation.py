@@ -511,7 +511,8 @@ def _note_generate_progress() -> None:
         pass
 
 
-def _render_with_pauses(gen_span, segments, sample_rate):
+def _render_with_pauses(gen_span, segments, sample_rate, *, max_chunk_chars=0,
+                        crossfade_ms=0, dropped_sink=None):
     """Synthesize ``[(text, pause_ms), ...]`` spans and stitch silence between
     them (issue #276).
 
@@ -520,14 +521,38 @@ def _render_with_pauses(gen_span, segments, sample_rate):
     requested, matching the audio tensor's channel dims / dtype / device.
     Returns the concatenated waveform. Kept model-free (``gen_span`` is injected)
     so the stitching is unit-testable without loading the TTS model.
+
+    A span longer than ``max_chunk_chars`` is split with the same sentence
+    splitter as marker-free text and its chunks crossfaded, exactly like the
+    no-pause path: a pause marker does not make the text around it short, and
+    a 1,000+ char span sent in one shot degrades the same way unchunked text
+    does. Each chunk of a split span is rendered with
+    ``gen_span(chunk, chunk_index=k)`` where ``k`` counts engine calls across
+    the whole input, so callers can derive a per-chunk seed. A span that fits
+    keeps the plain ``gen_span(text)`` call. ``max_chunk_chars <= 0`` disables
+    splitting.
     """
     import torch
 
+    from services.chunked_tts import concatenate_audio_chunks, split_text_into_chunks
+
     items = []  # ('a', tensor) for audio, ('s', n_samples) for silence
+    calls = 0  # engine calls so far — the chunk index handed to gen_span
     for span_text, pause_ms in segments:
         if span_text and span_text.strip():
-            items.append(("a", gen_span(span_text)))
-            _note_generate_progress()
+            chunks = split_text_into_chunks(span_text, max_chunk_chars) if max_chunk_chars > 0 else [span_text]
+            if len(chunks) > 1:
+                parts = []
+                for chunk_text in chunks:
+                    parts.append(gen_span(chunk_text, chunk_index=calls))
+                    calls += 1
+                    _note_generate_progress()
+                items.append(("a", concatenate_audio_chunks(
+                    parts, sample_rate, crossfade_ms, texts=chunks, sink=dropped_sink)))
+            else:
+                items.append(("a", gen_span(span_text)))
+                calls += 1
+                _note_generate_progress()
         if pause_ms > 0:
             n = int(round(sample_rate * pause_ms / 1000.0))
             if n > 0:
@@ -1168,23 +1193,29 @@ def _run_inference(
         segments = parse_pause_markers(text)
         has_pause = len(segments) > 1 or (segments and segments[0][1] > 0)
 
+        from services.chunked_tts import (
+            DEFAULT_CROSSFADE_MS, DEFAULT_MAX_CHUNK_CHARS,
+            concatenate_audio_chunks, split_text_into_chunks,
+        )
+        _max_chars = DEFAULT_MAX_CHUNK_CHARS if max_chunk_chars is None else max_chunk_chars
+        _xfade_ms = DEFAULT_CROSSFADE_MS if crossfade_ms is None else crossfade_ms
+
         if has_pause:
-            def _gen_span(span_text):
+            def _gen_span(span_text, chunk_index=None):
                 # Per-span duration is left to the model; an explicit overall
-                # `duration` can't be meaningfully split across spans.
+                # `duration` can't be meaningfully split across spans. Chunks
+                # of a long span get the no-pause path's per-chunk seed.
+                if chunk_index is not None and used_seed is not None:
+                    torch.manual_seed(used_seed + chunk_index)
                 return _gen(span_text, None)[0]
-            audio_out = _render_with_pauses(_gen_span, segments, sr)
+            audio_out = _render_with_pauses(
+                _gen_span, segments, sr, max_chunk_chars=_max_chars,
+                crossfade_ms=_xfade_ms, dropped_sink=dropped_sink)
         else:
             # Wave 1.2: long text is split at sentence boundaries and the
             # per-chunk audio crossfaded — removes the length ceiling. Short
             # text takes the single-shot path below unchanged. [pause] inputs
-            # keep the dedicated stitcher above (spans are already short).
-            from services.chunked_tts import (
-                DEFAULT_CROSSFADE_MS, DEFAULT_MAX_CHUNK_CHARS,
-                concatenate_audio_chunks, split_text_into_chunks,
-            )
-            _max_chars = DEFAULT_MAX_CHUNK_CHARS if max_chunk_chars is None else max_chunk_chars
-            _xfade_ms = DEFAULT_CROSSFADE_MS if crossfade_ms is None else crossfade_ms
+            # use the stitcher above, which chunks each long span the same way.
             text_chunks = split_text_into_chunks(text, _max_chars)
             if len(text_chunks) > 1:
                 parts = []
@@ -1264,28 +1295,36 @@ def _run_backend_inference(
         segments = parse_pause_markers(text)
         has_pause = len(segments) > 1 or (segments and segments[0][1] > 0)
 
+        from services.chunked_tts import (
+            DEFAULT_CROSSFADE_MS, DEFAULT_MAX_CHUNK_CHARS,
+            concatenate_audio_chunks, split_text_into_chunks,
+        )
+        _max_chars = DEFAULT_MAX_CHUNK_CHARS if max_chunk_chars is None else max_chunk_chars
+        _xfade_ms = DEFAULT_CROSSFADE_MS if crossfade_ms is None else crossfade_ms
+
         if has_pause:
             first_span = True
 
-            def _gen_span(span_text):
+            def _gen_span(span_text, chunk_index=None):
                 nonlocal first_span
                 # Per-span duration is left to the engine; an explicit overall
-                # `duration` can't be meaningfully split across spans.
+                # `duration` can't be meaningfully split across spans. Chunks
+                # of a long span get the no-pause path's per-chunk seed.
                 span_kwargs = dict(gen_kwargs)
-                if forwards_seed and first_span and used_seed is not None:
+                if chunk_index is not None and used_seed is not None:
+                    torch.manual_seed(used_seed + chunk_index)
+                    if forwards_seed:
+                        span_kwargs["seed"] = used_seed + chunk_index
+                elif forwards_seed and first_span and used_seed is not None:
                     span_kwargs["seed"] = used_seed
                 first_span = False
                 return trace_call("synthesis", backend.generate, span_text, duration=None, **span_kwargs)
-            audio_out = _render_with_pauses(_gen_span, segments, sr)
+            audio_out = _render_with_pauses(
+                _gen_span, segments, sr, max_chunk_chars=_max_chars,
+                crossfade_ms=_xfade_ms, dropped_sink=dropped_sink)
         else:
             # Wave 1.2: sentence-boundary chunking for long text (see
             # _run_inference for the rationale; behavior is identical here).
-            from services.chunked_tts import (
-                DEFAULT_CROSSFADE_MS, DEFAULT_MAX_CHUNK_CHARS,
-                concatenate_audio_chunks, split_text_into_chunks,
-            )
-            _max_chars = DEFAULT_MAX_CHUNK_CHARS if max_chunk_chars is None else max_chunk_chars
-            _xfade_ms = DEFAULT_CROSSFADE_MS if crossfade_ms is None else crossfade_ms
             text_chunks = split_text_into_chunks(text, _max_chars)
             if len(text_chunks) > 1:
                 parts = []
@@ -2113,7 +2152,8 @@ async def generate_speech(
     # the SAME concat → effect-chain → watermark → save → history pipeline as
     # the classic path, so the on-disk take is identical to a non-streamed
     # one. [pause]-marker inputs and single-chunk (short) texts keep their
-    # unchanged single-shot pipeline and stream as one chunk. All prep above
+    # unchanged single-shot pipeline and stream as one chunk (that pipeline
+    # still splits each long [pause] span into sentence chunks). All prep above
     # (engine warm under the #1039 model-load budget, routing gate, profile /
     # seed / normalization) already ran, so per-chunk jobs spend the generate
     # budget on generation only — and each chunk gets its own budget, so a

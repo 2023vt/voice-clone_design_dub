@@ -105,3 +105,32 @@ def test_render_no_pause_single_span_passthrough():
     segs = [("just text", 0)]
     out = _render_with_pauses(_fake_gen(sr), segs, sr)
     assert out.shape == (1, sr)
+
+
+def test_render_chunks_a_long_span():
+    sr = 1000
+    calls = []
+
+    def gen(text, chunk_index=None):
+        calls.append((text, chunk_index))
+        return torch.ones(1, sr)
+
+    long_span = "A full sentence here. " * 60  # ~1,320 chars
+    out = _render_with_pauses(gen, [("short", 500), (long_span, 0)], sr,
+                              max_chunk_chars=800, crossfade_ms=0)
+    # The short span keeps the plain call; the long one is split into chunks
+    # indexed by engine-call count, all under the limit.
+    assert calls[0] == ("short", None)
+    assert len(calls) >= 3
+    assert [i for _, i in calls[1:]] == list(range(1, len(calls)))
+    assert all(len(t) <= 800 for t, _ in calls[1:])
+    assert out.shape == (1, sr * len(calls) + 500)
+
+
+def test_render_chunking_disabled_by_default():
+    sr = 1000
+    calls = []
+    long_span = "A full sentence here. " * 60
+    _render_with_pauses(lambda t: calls.append(t) or torch.ones(1, sr),
+                        [(long_span, 0), ("b", 0)], sr)
+    assert calls == [long_span, "b"]

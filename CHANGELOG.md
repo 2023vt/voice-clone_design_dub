@@ -36,6 +36,11 @@ metadata and the backend fallback mirror it.
 
 - The installed app now rebuilds a Python environment that antivirus or disk cleanup removed, once per launch with the usual setup progress, instead of stopping at a setup error; your voices and projects are untouched (#3032) — thanks @afraniohugo and @javalovelinux-cmd!
 
+### Fixed
+
+- Long Urdu, Persian, Arabic and Hindi scripts split at sentence ends (۔ ؟ ।) and clause marks (، ؛) instead of mid-sentence, even with no space after the mark (#3021) — thanks @maatitechnologies-hue!
+- Long text between `[pause]` markers is split into sentence chunks like unmarked text, so a long passage next to a pause no longer degrades into garbled audio (#3021) — thanks @maatitechnologies-hue!
+
 ### Docs
 
 - OmniVoice GGUF docs state that the installers do not ship its native binary yet (#3026) — thanks @DestinyQJY!

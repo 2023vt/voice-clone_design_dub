@@ -2262,7 +2262,7 @@ async def dub_export_stems(job_id: str, lang: str = Query(None)):
     # Older tracks without their own strategy retain the legacy fallback.
     selected_job = {
         **job,
-        "timing_strategy": (tracks[lang_label].get("timing_strategy")
+        "timing_strategy": ((tracks.get(lang_label) or {}).get("timing_strategy")
                             or job.get("timing_strategy")),
     }
     if bg_path and _video_retime_plan_for(selected_job, lang_label):

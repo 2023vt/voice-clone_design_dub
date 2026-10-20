@@ -1,16 +1,20 @@
 """XHTML namespace aliases must not change a book's narrated paragraphs."""
 
+import importlib
 import io
 import re
 import zipfile
 
 import pytest
 
-from services.longform_import import _html_to_title_body, epub_to_chapter_script
+@pytest.fixture
+def importer():
+    # Resolve after collection: other suites may replace services modules.
+    return importlib.import_module("services.longform_import")
 
 
 @pytest.mark.parametrize("prefix", ["x", "html"])
-def test_prefixed_xhtml_matches_default_namespace(prefix):
+def test_prefixed_xhtml_matches_default_namespace(prefix, importer):
     plain = (
         '<html xmlns="http://www.w3.org/1999/xhtml">'
         '<head><title>Book metadata</title><style>not spoken</style></head>'
@@ -21,23 +25,23 @@ def test_prefixed_xhtml_matches_default_namespace(prefix):
     prefixed = re.sub(r"(<\/?)([a-z][a-z0-9]*)", rf"\1{prefix}:\2", plain)
     prefixed = prefixed.replace('xmlns=', f'xmlns:{prefix}=')
     expected = ("Chapter One", "First paragraph.\n\nSecond\nline.")
-    assert _html_to_title_body(plain) == expected
-    assert _html_to_title_body(prefixed) == expected
+    assert importer._html_to_title_body(plain) == expected
+    assert importer._html_to_title_body(prefixed) == expected
 
 
-def test_xhtml_namespace_alias_is_scoped_and_does_not_strip_foreign_prefix():
+def test_xhtml_namespace_alias_is_scoped_and_does_not_strip_foreign_prefix(importer):
     document = (
         '<x:html xmlns:x="http://www.w3.org/1999/xhtml">'
         '<x:body><x:h1>Chapter</x:h1><x:p>Before '
         '<x:span xmlns:x="urn:publisher"><x:script>spoken</x:script></x:span>'
         ' after.</x:p><x:p>Next paragraph.</x:p></x:body></x:html>'
     )
-    assert _html_to_title_body(document) == (
+    assert importer._html_to_title_body(document) == (
         "Chapter", "Before spoken after.\n\nNext paragraph."
     )
 
 
-def test_prefixed_xhtml_epub_keeps_heading_and_paragraphs():
+def test_prefixed_xhtml_epub_keeps_heading_and_paragraphs(importer):
     document = (
         '<x:html xmlns:x="http://www.w3.org/1999/xhtml">'
         '<x:head><x:title>Metadata</x:title></x:head><x:body>'
@@ -57,4 +61,4 @@ def test_prefixed_xhtml_epub_keeps_heading_and_paragraphs():
             '<spine><itemref idref="chapter"/></spine></package>'
         ))
         archive.writestr("chapter.xhtml", document)
-    assert epub_to_chapter_script(stream.getvalue()) == '# The Arrival\n\nOne.\n\nTwo.'
+    assert importer.epub_to_chapter_script(stream.getvalue()) == '# The Arrival\n\nOne.\n\nTwo.'

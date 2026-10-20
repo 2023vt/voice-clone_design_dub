@@ -179,6 +179,15 @@ class _TextExtractor(HTMLParser):
                 return True
         return False
 
+    @staticmethod
+    def _xhtml_tag(tag: str, namespaces: dict[str, str]) -> str:
+        # HTMLParser preserves qualified tag names. Strip only prefixes bound
+        # to XHTML; a publisher's foreign <x:script> is not an HTML script.
+        prefix, separator, local = tag.partition(":")
+        if separator and namespaces.get(prefix) == "http://www.w3.org/1999/xhtml":
+            return local
+        return tag
+
     def handle_starttag(self, tag, attrs):
         # Resolve semantic attributes by namespace URI, preserving XML scope.
         namespaces = dict(self._elements[-1][1] if self._elements else {"epub": self._EPUB_NS})
@@ -190,8 +199,10 @@ class _TextExtractor(HTMLParser):
             prefix, separator, local = name.partition(":")
             if separator and local == "type" and namespaces.get(prefix) == self._EPUB_NS:
                 types.update((value or "").split())
+        raw_tag = tag
+        tag = self._xhtml_tag(tag, namespaces)
         if tag not in self._VOID:
-            self._elements.append((tag, namespaces))
+            self._elements.append((raw_tag, namespaces))
         if tag in self._SKIP:
             self._skip_depth += 1
         if tag in ("body", "main", "section", "article", "div"):
@@ -217,8 +228,11 @@ class _TextExtractor(HTMLParser):
                 self._parts.append("\n")
 
     def handle_endtag(self, tag):
+        raw_tag = tag
+        namespaces = self._elements[-1][1] if self._elements else {}
+        tag = self._xhtml_tag(tag, namespaces)
         for index in range(len(self._elements) - 1, -1, -1):
-            if self._elements[index][0] == tag:
+            if self._elements[index][0] == raw_tag:
                 del self._elements[index:]
                 break
         if tag in self._SKIP and self._skip_depth:

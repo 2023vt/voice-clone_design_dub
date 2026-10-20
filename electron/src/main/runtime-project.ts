@@ -272,17 +272,25 @@ async function ensureCudnn8Compat(
   run: RuntimeRunner,
   env: NodeJS.ProcessEnv,
   signal: AbortSignal,
+  variant: TorchVariant,
 ): Promise<void> {
   if (process.platform === 'darwin') return;
   const python = runtimePython(project);
   const script = [
     'import json, sysconfig',
-    "device = 'unknown'",
-    'try:',
-    '    import torch',
-    "    device = 'hip' if getattr(torch.version, 'hip', None) else ('cuda' if torch.cuda.is_available() else 'none')",
-    'except Exception:',
-    '    pass',
+    // CPU and ROCm installs cannot need CUDA compatibility libraries. Avoid
+    // importing native Torch just to rediscover that fact (#2942), while still
+    // finding site-packages for the Linux executable-stack repair below.
+    ...(variant === 'default'
+      ? [
+          "device = 'unknown'",
+          'try:',
+          '    import torch',
+          "    device = 'hip' if getattr(torch.version, 'hip', None) else ('cuda' if torch.cuda.is_available() else 'none')",
+          'except Exception:',
+          '    pass',
+        ]
+      : [`device = '${variant === 'rocm' ? 'hip' : 'none'}'`]),
     `print('${CUDNN8_PROBE_PREFIX}' + json.dumps({'device': device, 'sitePackages': sysconfig.get_paths()['purelib']}))`,
   ].join('\n');
   const probe = parseCudnn8Probe(await run(python, ['-c', script], project, env));
@@ -695,7 +703,7 @@ export async function installRuntime(
     );
     signal.throwIfAborted();
   }
-  await ensureCudnn8Compat(uv, project, run, env, signal);
+  await ensureCudnn8Compat(uv, project, run, env, signal, torch.variant);
   signal.throwIfAborted();
   // A non-English profile path in uv's editable .pth crashes Python 3.11 at
   // startup on a non-UTF-8 Windows code page (#1783).

@@ -14,6 +14,7 @@ import { fileURLToPath } from "node:url";
 
 import { PRODUCT_NAME } from "../config/app-config.mjs";
 import { verifySnapRuntimePayload } from "../electron/snap-template-payload.mjs";
+import { verifySnapLauncher } from "../electron/snap-launcher.mjs";
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const REQUIRED_PLUGS = [
@@ -52,6 +53,11 @@ export function verifySnapMetadata(source, metadata) {
   }
   if (field(source, "base") !== "core22") throw new Error("Unexpected Snap base");
   if (confinement !== "strict") throw new Error(`Unexpected Snap confinement: ${confinement}`);
+  const browserSupport = source.match(/^  browser-support:\n((?:    .*(?:\n|$))+)/m)?.[1] ?? "";
+  if (!/^    interface: browser-support$/m.test(browserSupport) ||
+      !/^    allow-sandbox: false$/m.test(browserSupport)) {
+    throw new Error("Snap browser-support must explicitly disable the privileged Chromium sandbox");
+  }
   for (const plug of REQUIRED_PLUGS) {
     if (!source.includes(`      - ${plug}\n`)) throw new Error(`Missing Snap interface: ${plug}`);
   }
@@ -96,6 +102,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
   });
   const listing = execFileSync("unsquashfs", ["-ll", artifact], { encoding: "utf8" });
   verifySnapRuntimePayload(listing);
+  const launcher = execFileSync("unsquashfs", ["-cat", artifact, "command.sh"], { encoding: "utf8" });
+  verifySnapLauncher(launcher);
   for (const path of ["resources/native/voicestudio-desktop-bridge", "resources/tools/uv"]) {
     if (!listing.includes(path)) throw new Error(`Snap payload is missing ${path}`);
   }

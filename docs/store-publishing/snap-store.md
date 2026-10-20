@@ -25,7 +25,7 @@ The Snap requests only interfaces needed by maintained desktop behaviour:
 
 | Interface | Purpose | Connection expectation |
 | --- | --- | --- |
-| `browser-support` | Chromium sandbox inside strict confinement | Automatic with `allow-sandbox: true` |
+| `browser-support` | Electron APIs under strict Snap confinement (`allow-sandbox: false`) | Automatic by default |
 | `desktop`, `desktop-legacy`, `x11`, `wayland`, `unity7`, `gsettings` | Desktop integration | Automatic on supported desktops |
 | `network` | User-started runtime and model downloads | Automatic |
 | `network-bind` | Local backend and opt-in LAN sharing | Automatic |
@@ -82,17 +82,47 @@ copy or image sources in the Snap dashboard.
 
 ## Confinement validation
 
-Install the rehearsal locally with `sudo snap install --dangerous <file>.snap`.
-Record `snap connections voicestudio` and relevant denials from the system log.
-Connect `audio-record` manually while testing until an auto-connect request is
-approved.
+Install the rehearsal locally, then connect the recording interface:
+
+```bash
+sudo snap install --dangerous <file>.snap
+sudo snap connect voicestudio:audio-record
+snap connections voicestudio
+snap run voicestudio
+```
+
+The Snap follows Canonical's [Electron guidance for browser-support](https://snapcraft.io/docs/reference/interfaces/browser-support-interface/):
+`allow-sandbox: false` and `--no-sandbox` in the packaged Snap launcher, while
+retaining `confinement: strict`. The interface auto-connects by default without
+the privileged `allow-sandbox: true` Store approval. Fresh installations should
+start from the desktop launcher without a terminal or manual sandbox setup.
+An explicitly disconnected interface is a user choice; inspect
+`snap connections voicestudio` and reconnect it manually if needed. When testing
+an upgrade from an older local revision, verify the existing connection state
+rather than assuming the metadata change reconnects it.
+
+The launcher flag is limited to Snap artifacts. AppImage, Debian, macOS,
+Windows and development launches retain their existing sandbox configuration.
+The old preflight and optional Zenity dialog are removed.
+
+Security tradeoff: strict Snap confinement still restricts the application via
+AppArmor, seccomp and namespaces, but Chromium's per-process sandbox is disabled
+for every process in this Snap, including the embedded website preview and
+sponsor form. These are different security boundaries, not equivalent layers.
+Keep context isolation, disabled Node integration for remote content, isolated
+browser sessions and denied browser permissions. Electron's general
+[guidance](https://www.electronjs.org/docs/latest/tutorial/sandbox) advises against
+production `--no-sandbox`; this package deliberately follows Canonical's
+Snap-specific approach. Do not extend this flag to other distributions or
+switch to classic/devmode confinement.
 
 Complete every item on a clean supported host:
 
-- clean install and first launch;
+- clean install, automatic `browser-support` connection and first launch from both desktop and terminal;
 - first-run managed Python installation and offline relaunch;
 - model installation followed by offline synthesis;
 - microphone capture, audio playback and dictation;
+- website preview, address-bar navigation and sponsor-form display;
 - GPU discovery and one GPU-backed generation where hardware is available;
 - file import/export in the home directory and on removable media through the portal;
 - project open/save and watch-folder access;
@@ -111,6 +141,12 @@ and add narrowly scoped Snapcraft credentials as a repository secret. Upload
 the validated artifact without releasing it, record the assigned revision, then
 release that exact revision to `candidate`. Stable promotion requires a separate
 owner approval after independent install, refresh and rollback verification.
+
+Before promoting to stable, obtain Store auto-connect approval for
+`audio-record` and verify recording on a fresh Store installation. The
+`browser-support` plug uses its default auto-connect policy without requesting
+privileged Chromium sandbox access. Record the actual connection state and
+first-launch evidence from both a fresh install and an upgrade.
 
 For each submitted revision retain:
 

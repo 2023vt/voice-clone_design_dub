@@ -56,7 +56,14 @@ it.each(['idebpalash', 'voicestudiosh'])('opens @%s in the external browser', as
 it('opens compact support links from the heart and links to the full page', async () => {
   render(<SponsorFooter />);
   fireEvent.click(screen.getByRole('button', { name: 'donate.title' }));
-  expect(await screen.findByRole('link', { name: 'Ko-fi' })).toHaveAttribute(
+  const sponsors = await screen.findByRole('link', { name: 'GitHub Sponsors' });
+  expect(sponsors).toHaveAttribute('href', 'https://github.com/sponsors/debpalash');
+  expect(document.querySelector('.sponsor-support-list a')).toBe(sponsors);
+  fireEvent.click(sponsors);
+  await waitFor(() =>
+    expect(mock.open).toHaveBeenCalledWith('https://github.com/sponsors/debpalash'),
+  );
+  expect(screen.getByRole('link', { name: 'Ko-fi' })).toHaveAttribute(
     'href',
     'https://ko-fi.com/debpalash',
   );

@@ -207,3 +207,23 @@ def test_endpoint_empty_description(client):
 def test_endpoint_rejects_oversized_description(client):
     r = client.post("/design/describe", json={"description": "x" * 2001})
     assert r.status_code == 422
+
+
+@pytest.mark.parametrize("description", [
+    "a toddler aged 18 months",
+    "a baby age: 20 weeks",
+    "a baby aged 90 days",
+])
+def test_age_with_non_year_unit_is_not_interpreted_as_years(description):
+    """Explicit infant-age units must not override child words as adult years."""
+    assert attrs_of(description)["Age"] == "child"
+
+
+@pytest.mark.parametrize("description,expected", [
+    ("a voice aged 1 month", "child"),
+    ("a voice aged 156 months", "teenager"),
+    ("a voice age: 22", "young adult"),
+])
+def test_explicit_age_units_preserve_numeric_brackets(description, expected):
+    """Unit-aware ages and unqualified year ages share the normal brackets."""
+    assert attrs_of(description)["Age"] == expected

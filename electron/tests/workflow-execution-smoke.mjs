@@ -5,7 +5,9 @@ import { chromium } from 'playwright';
 
 const base = process.env.VOICESTUDIO_UI_URL || 'http://localhost:3912';
 const browser = await chromium.launch({
-  executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
+  ...(process.env.CHROMIUM_PATH
+    ? { executablePath: process.env.CHROMIUM_PATH }
+    : { channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge' }),
   headless: true,
 });
 const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });

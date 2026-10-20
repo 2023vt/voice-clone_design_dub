@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 
 const browser = await chromium.launch({
-  ...(process.env.PLAYWRIGHT_BUNDLED === '1' ? {} : { channel: 'msedge' }),
+  ...(process.env.PLAYWRIGHT_BUNDLED === '1' ? {} : { channel: process.env.PLAYWRIGHT_CHANNEL || 'msedge' }),
   headless: true,
 });
 const page = await browser.newPage({ viewport: { width: 1280, height: 1000 } });
@@ -148,12 +148,24 @@ try {
   });
   await page.goto(ui + '/#/clone');
   const footer = page.locator('aside').first().locator('footer');
-  const slider = footer.getByRole('slider');
-  await slider.waitFor();
-  await page.waitForFunction(() => !document.querySelector('footer input[type=range]')?.disabled);
-  await slider.focus();
-  await slider.press('ArrowRight');
-  await page.waitForFunction(() => document.querySelector('footer input[type=range]')?.disabled);
+  // Speed / quality: a radiogroup of tiers (Fast/Balanced/Quality/Max) plus a separate Auto toggle.
+  const tiers = footer.getByRole('radiogroup', { name: 'Speed / quality', exact: true });
+  const tier = (name) => tiers.getByRole('radio', { name, exact: true });
+  const checkedTier = () => tiers.locator('[role=radio][aria-checked=true]').innerText();
+  await tiers.waitFor();
+  await page.waitForFunction(
+    () =>
+      document.querySelector('footer [role=radiogroup][aria-describedby$="-help"] [role=radio]') &&
+      !document.querySelector('footer [role=radiogroup][aria-describedby$="-help"] [role=radio]')
+        .disabled,
+  );
+  await tier('Fast').focus();
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(
+    () =>
+      document.querySelector('footer [role=radiogroup][aria-describedby$="-help"] [role=radio]')
+        ?.disabled,
+  );
   releaseSave();
   await footer.locator('[data-detail-level=models]').waitFor();
   const asr = footer.locator('[data-slot=engine-row]').filter({ hasText: 'Speech to text' });
@@ -166,14 +178,14 @@ try {
   releaseEngines();
   await asr.getByRole('status').filter({ hasText: 'Available' }).waitFor();
   assert.equal(await asr.getAttribute('aria-busy'), 'false');
-  assert.equal(await slider.getAttribute('aria-valuetext'), 'Balanced');
+  assert.equal(await checkedTier(), 'Balanced');
   assert.deepEqual(writes, [{ tier: 'balanced', family: null }]);
   fail = true;
-  await slider.focus();
-  await slider.press('ArrowLeft');
+  await tier('Balanced').focus();
+  await page.keyboard.press('ArrowLeft');
   await footer.getByRole('alert').waitFor();
   assert.equal(
-    await slider.getAttribute('aria-valuetext'),
+    await checkedTier(),
     'Balanced',
     'A rejected save restores the confirmed preset',
   );
@@ -182,15 +194,15 @@ try {
     'A rejected save preserves the confirmed model',
   );
   fail = false;
-  await slider.focus();
-  await slider.press('End');
+  await footer.getByRole('button', { name: 'Auto', exact: true }).click();
+  await footer.getByRole('button', { name: 'Auto', exact: true, pressed: true }).waitFor();
   await page.waitForFunction(
     () =>
-      document.querySelector('footer input[type=range]')?.getAttribute('aria-valuetext') === 'Auto',
+      !document.querySelector('footer [role=radiogroup][aria-describedby$="-help"] [role=radio]')
+        ?.disabled,
   );
-  await page.waitForFunction(() => !document.querySelector('footer input[type=range]')?.disabled);
   assert.equal(telemetryReads, 0, 'Closed hardware panel does not poll');
-  await footer.getByRole('button', { name: 'Quality · Adapted to your hardware' }).click();
+  await footer.getByRole('button', { name: 'Adapted to your hardware' }).click();
   const live = page.getByRole('region', { name: 'Live usage' });
   await live.getByText('12%', { exact: true }).waitFor();
   await live.getByText('37%', { exact: true }).waitFor();
@@ -231,7 +243,7 @@ try {
   await page.waitForTimeout(2_300);
   assert.equal(telemetryReads, afterClose, 'Polling stops when the panel closes');
   console.log(
-    'Slider: confirmed model feedback, loading, rollback, Auto selection and hardware explanation passed; all writes mocked.',
+    'Speed/quality tiers: confirmed model feedback, loading, rollback, Auto selection and hardware explanation passed; all writes mocked.',
   );
 } finally {
   releaseSave();

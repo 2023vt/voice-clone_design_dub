@@ -1218,7 +1218,7 @@ def _run_backend_inference(
     used_seed, effect_preset="broadcast",
     max_chunk_chars=None, crossfade_ms=None, *, t_shift=None,
     layer_penalty_factor=None, position_temperature=None,
-    class_temperature=None, dropped_sink=None,
+    class_temperature=None, dropped_sink=None, preset_voice=None,
 ):
     """Engine-aware twin of :func:`_run_inference` (issue #312).
 
@@ -1241,6 +1241,8 @@ def _run_backend_inference(
             instruct=instruct, num_step=num_step, guidance_scale=guidance_scale,
             speed=speed, denoise=denoise, postprocess_output=postprocess_output,
         )
+        if preset_voice:
+            gen_kwargs["voice"] = preset_voice
         native_proxy = bool(
             getattr(backend, "supports_native_omnivoice_controls", False)
         )
@@ -1697,6 +1699,9 @@ async def generate_speech(
     effect_preset: str = Form("broadcast"),
     wav_bits: Literal["16", "24", "32"] = Form("16"),
     engine: Optional[str] = Form(None),
+    # #2938: one of the engine's built-in voices (``preset_voices`` in the engine
+    # list). Only for engines that ship presets and no cloning reference.
+    preset_voice: Optional[str] = Form(None),
     # Wave 1.2 — unlimited-length generation: long text is split at sentence
     # boundaries and crossfaded. 0 disables chunking (whole text to engine).
     max_chunk_chars: int = Form(800, ge=0),
@@ -1825,6 +1830,18 @@ async def generate_speech(
         # health-check route so weights load once, not per request.
         from api.routers.engines import _get_engine_instance
         _backend = _get_engine_instance(backend_cls)
+
+    preset_voice = (preset_voice or "").strip() or None
+    if preset_voice:
+        from services.tts_backend import preset_voices_of
+        _presets = preset_voices_of(backend_cls)
+        if not _presets:
+            preset_voice = None  # engine has no presets: ignore, like other engine-specific fields
+        elif preset_voice not in _presets:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Unknown preset voice {preset_voice!r}. Valid: {', '.join(_presets)}",
+            )
 
     # ── Routing gate (#21 — no silent CPU fallback). Computed ONCE per
     # request (host caps are constant; the per-request engine= override
@@ -2013,6 +2030,32 @@ async def generate_speech(
         if ref_text and persist_ref_text_profile_id:
             _persist_profile_ref_text(persist_ref_text_profile_id, ref_text)
 
+    # #2764: choosing the best 15 s window of a long reference runs the
+    # installed recognizer over several windows — minutes on a CPU. Inside the
+    # engine call that time was billed to the generate budget and the job was
+    # abandoned ("exceeded 300s") before synthesis began. Do it here, on its own
+    # floor-scaled budget; the engine then recalls the remembered choice. Best
+    # effort: a timeout leaves the engine to rank inline exactly as before.
+    if ref_audio_path and ref_picks_own_passage and backend_cls is OmniVoiceBackend:
+        from services.tts_backend import prepare_reference_passage
+
+        try:
+            from omnivoice.utils.audio import CLONE_REF_MAX_WINDOWS
+
+            await _run_with_reference_lease(
+                ref_lease,
+                lambda release: run_on_gpu_pool_guarded(
+                    functools.partial(prepare_reference_passage, ref_audio_path),
+                    what="Reference passage selection",
+                    timeout=CLONE_REF_MAX_WINDOWS * _generate_timeout_s(
+                        "", execution_device=_routing["effective_device"]
+                    ),
+                    on_abandon=release,
+                )
+            )
+        except TimeoutError as e:
+            logger.warning("reference passage selection hung (%s); engine will rank inline", e)
+
     # #526: materialize a concrete seed when none was supplied (and no profile
     # pinned one) so the take is reproducible and we can hand it back via the
     # X-Seed header for the "keep this seed" control. An explicit request seed
@@ -2199,6 +2242,7 @@ async def generate_speech(
                                     position_temperature=position_temperature,
                                     class_temperature=class_temperature,
                                     dropped_sink=_dropped_sink,
+                                    preset_voice=preset_voice,
                                 ),
                                 what="TTS generate",
                                 min_vram_gb=_engine_min_vram_gb,
@@ -2377,11 +2421,13 @@ async def generate_speech(
                 # diagnostic bundle and opaque to the user (#1607). The raw
                 # exception is NOT logged: it can carry a reference-clip path or
                 # a provider secret, and only the journal scrubs before storing.
+                from core.public_errors import exception_origin, stream_generation_failure
+
+                _origin = exception_origin(exc)
                 logger.error(
-                    "Streaming generation failed unexpectedly (class=%s)",
-                    type(exc).__name__,
+                    "Streaming generation failed unexpectedly (class=%s%s)",
+                    type(exc).__name__, f"; {_origin}" if _origin else "",
                 )
-                from core.public_errors import stream_generation_failure
                 from core import error_journal
 
                 error_journal.record(
@@ -2427,6 +2473,7 @@ async def generate_speech(
                 position_temperature=position_temperature,
                 class_temperature=class_temperature,
                 dropped_sink=_dropped_text,
+                preset_voice=preset_voice,
             )
         else:
             _local_render = functools.partial(
@@ -2554,6 +2601,14 @@ async def generate_speech(
 
         _topic = classify(str(e))
         _owned = public_hint_for_topic(_topic) if _topic else ""
+        if _topic == "REFERENCE_STT_MISSING" and _owned:
+            # Structured so the client can show its localized copy (#2929/#2678)
+            # instead of the English sentence, and so the topic reaches the
+            # bug report.
+            raise HTTPException(
+                status_code=400,
+                detail={"docs_topic": _topic, "message": _owned, "hint": _owned},
+            ) from e
         raise HTTPException(status_code=400, detail=_owned or str(e)) from e
     except Exception as e:
         tb = traceback.format_exc()

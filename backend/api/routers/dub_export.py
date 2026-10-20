@@ -2257,6 +2257,10 @@ async def dub_export_stems(job_id: str, lang: str = Query(None)):
         raise HTTPException(status_code=400, detail="No dubbed audio track")
 
     bg_path = _optional_dub_artifact(job.get("no_vocals_path"), job_id)
+    if bg_path and _video_retime_plan_for(job, lang_label):
+        # The exported vocal track already lives on the fitted timeline. Its
+        # bed must use that same plan, just as mixed playback/downloads do.
+        bg_path = await _preserved_background(job, job_id, lang_label)
 
     zip_buffer = io.BytesIO()
     with zipfile.ZipFile(zip_buffer, "w", zipfile.ZIP_DEFLATED) as zf:

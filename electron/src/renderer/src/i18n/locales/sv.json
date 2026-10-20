@@ -22,6 +22,9 @@
     "preset32": "Original",
     "sizeUnknown": "Storleken visas efter genereringen."
   },
+  "presetVoice": {
+    "label": "Förinställd röst"
+  },
   "audioQuality": {
     "check": "Kontrollera ljud",
     "failed": "Ljudanalys är inte tillgänglig.",
@@ -352,7 +355,9 @@
   },
   "referenceAsr": {
     "busy": "Transkriberar...",
-    "retry": "Försök att transkriptera igen"
+    "retry": "Försök att transkriptera igen",
+    "install": "Installera {{label}} ({{size}} GB) för att transkribera automatiskt",
+    "installing": "Laddar ner {{label}}. Transkriberingen försöks igen när det är klart."
   },
   "engineSidebar": {
     "tts": "TTS",
@@ -762,6 +767,9 @@
     "burn_subs_title": "Återge undertexter direkt i MP4-videoströmmen (hardsubs). Använder formatet med dubbla undertexter när dubbla undertexter är på.",
     "timing_smart_fit": "Smart anpassning",
     "timing_smart_fit_title": "Delar upp anpassningen: snabbar upp ljudet något (tonhöjd bevaras, upp till 1,5×) och saktar ner det videosegmentet något (upp till 2×) så att tal i naturligt tempo får plats. Det som ändå inte ryms klipps och flaggas. Export omkodar videon.",
+    "fit_speed_hint": "Hastighetsgränser för Smart anpassning. Snävare gränser håller talet naturligt; vidare gränser får in fler rader utan att klippa. Standardvärdena passar de flesta videor.",
+    "fit_max_speed": "Snabbaste tempo",
+    "fit_min_speed": "Långsammaste tempo",
     "voice_match": "Röstmatchning:",
     "voice_match_title": "Röstmatchning — om varje dubbad rad klonas från sitt eget källklipp eller om alla rader från en talare delar en gemensam referens.",
     "voice_match_per_line": "Per rad",
@@ -2042,6 +2050,7 @@
     "setup_hint": "Hämta Python och appens beroenden (flera GB). Röstmodeller installeras separat när du väljer dem.",
     "installing": "Installerar…",
     "setup_space": "Frigör minst {{gib}} GiB på appens disk och försök igen.",
+    "repair_failed": "Den automatiska reparationen av Python-miljön blev inte klar. Kontrollera motorloggen och tryck på Försök igen.",
     "setup_access": "Tillåt skrivåtkomst till appens datamapp och försök igen.",
     "setup_unsupported_platform": "Den här Intel-Macen kan inte köra den lokala AI-backendservern — PyTorch saknar macOS Intel-hjul. Anslut en fjärrbackend nedan istället; ingen lokal installation behövs.",
     "setup_wrong_architecture": "Det här är Intel-versionen (x64) av VoiceStudio som körs via Rosetta på en Mac med Apple Silicon, så den lokala AI-backenden kan inte installeras. Avsluta appen, installera Apple Silicon-DMG:n (arm64) ovanpå och öppna den igen – dina röster och projekt finns kvar.",
@@ -2286,6 +2295,10 @@
     "lib_show_all": "Visa {{count}} valfria modeller",
     "env_dir": "Appmiljö",
     "env_dir_desc": "Python-runtime och AI-bibliotek.",
+    "env_dir_desc_scoped": "Python-miljö, AI-bibliotek, modeller, dina data och tillfälliga filer.",
+    "storage_data": "Data",
+    "storage_models": "Modeller",
+    "storage_temp": "Tillfälliga filer",
     "change": "Ändra…",
     "reset_default": "Återställ till standard",
     "region_label": "Nedladdningsregion"
@@ -2817,7 +2830,13 @@
     "audio_io_failed": "Ljudet kunde inte läsas eller sparas. Kontrollera filformat, ledigt diskutrymme och filbehörigheter. Kontrollera mappen under Inställningar → Lagring.",
     "no_audio_track": "Filen saknar ljudspår, så det finns inget tal att transkribera, dubba eller klona. Välj en video- eller ljudfil som innehåller ljud.",
     "transcription_media_tool": "Transkribering kräver ffmpeg, som VoiceStudio inte kunde hitta eller köra. Öppna Inställningar → Ljudverktyg och använd Ladda ned/Reparera, eller installera ffmpeg (macOS: brew install ffmpeg; Windows: winget install Gyan.FFmpeg; Linux: din pakethanterare) och starta om VoiceStudio. Du kan också peka FFMPEG_PATH mot en ffmpeg-fil.",
-    "transcription_pipe_lost": "Backend förlorade sin utdatakanal till appen under transkriberingen (broken pipe). Starta om VoiceStudio och försök igen."
+    "transcription_pipe_lost": "Backend förlorade sin utdatakanal till appen under transkriberingen (broken pipe). Starta om VoiceStudio och försök igen.",
+    "gpu_oom": "GPU:n fick slut på minne. Stäng andra GPU-tunga appar eller avlasta modeller och försök igen. Du kan också välja CPU under Inställningar → Prestanda och enhet eller välja en mindre TTS-motor.",
+    "host_memory_exhausted": "Datorn fick slut på minne. Stäng andra minnestunga appar och webbläsarflikar, avlasta modeller du inte använder, generera ett kortare stycke eller välj en lättare TTS-motor.",
+    "engine_dependency_missing": "Ett Python-paket som den här motorn behöver är inte installerat, så motorn kunde inte starta. Öppna Modellkatalogen, välj motorn och använd Installera / Reparera och starta sedan om VoiceStudio.",
+    "reference_stt_missing": "Rösten saknar transkription och ingen tal-till-text-modell är installerad för att skapa en. Skriv in vad referensklippet säger i transkriptionsrutan (klipp upp till 20 sekunder) eller installera en tal-till-text-modell i Modellkatalogen, välj den och generera igen.",
+    "proxy_gateway_error": "En proxy eller gateway mellan dig och VoiceStudio svarade HTTP {{status}} i stället för backend. Backend kanske fortfarande arbetar. Höj proxyns läs-timeout (i nginx proxy_read_timeout) för långa genereringar och kontrollera sedan Inställningar → Loggar → Backend.",
+    "route_not_found": "Den körande VoiceStudio-backenden har ingen {{route}}-ändpunkt. Starta om VoiceStudio så att appen och backend matchar; om det kvarstår, uppdatera båda till samma version."
   },
   "network": {
     "copied": "Kopierade",

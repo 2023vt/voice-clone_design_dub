@@ -19,6 +19,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
+- EPUB imports keep chapter headings and paragraph breaks when books use prefixed XHTML elements (#3078) — thanks @rudycelekli!
 - Engine sidecars no longer load PyTorch just to answer the Test Engine ping, and a failed test logs its reason locally (#3026) — thanks @tekay-de!
 
 ### Fixed

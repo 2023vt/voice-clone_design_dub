@@ -125,6 +125,11 @@ def apply_lexicon(text: str, lexicon: Optional[dict]) -> str:
     if pattern is None:
         return text
 
+    return _replace_lexicon(text, pattern, lookup)
+
+
+def _replace_lexicon(text: str, pattern: re.Pattern, lookup: dict[str, str]) -> str:
+    """Apply a prepared dictionary once, without recompiling for each text run."""
     def _repl(m: re.Match) -> str:
         return lookup[m.lastgroup]
 
@@ -409,8 +414,20 @@ def apply_pronunciation(
     if lexicon:
         # Project-local JSON overlays the DB defaults; project wins on conflict.
         merged.update(normalize_lexicon(lexicon))
-    out = apply_lexicon(text, merged) if merged else text
-    return apply_inline_overrides(out)
+    pattern, lookup = _compile(normalize_lexicon(merged))
+    if pattern is None:
+        return apply_inline_overrides(text)
+    # An explicit one-off respelling is the author's final choice. Substitute
+    # only outside ORIGINAL inline spans, even if a dictionary phrase could
+    # otherwise span across one. Compile once for the whole request.
+    parts: list[str] = []
+    last = 0
+    for inline in _INLINE_RE.finditer(text):
+        parts.append(_replace_lexicon(text[last:inline.start()], pattern, lookup))
+        parts.append(inline.group(0))
+        last = inline.end()
+    parts.append(_replace_lexicon(text[last:], pattern, lookup))
+    return apply_inline_overrides("".join(parts))
 
 
 # ── DB load/save ──────────────────────────────────────────────────────────────

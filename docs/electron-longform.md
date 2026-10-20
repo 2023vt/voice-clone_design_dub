@@ -20,6 +20,8 @@ Draft writes reuse the coalesced persistence helper and flush on lifecycle event
 
 Script voice tags now expose saved-profile assignments in the Cast section. Only names present in the current script are sent as `voice_map`; assignments persist for reuse if a tag is reintroduced. An assignment to a removed profile blocks rendering until changed or reset to Default. Chapter, word and estimated runtime counts reuse the Tauri script helpers.
 
+Inline pronunciation overrides (`[[replacement]]` or `[[term|replacement]]`) keep the author's respelling verbatim even when it matches a saved dictionary entry. Dictionary substitutions still apply to the surrounding narration.
+
 Audiobook Preview plan uses the backend parser and exposes per-chapter auditions. Auditions send the same voice, cast, language and pronunciation inputs as full renders, warming the shared cache. Editing those inputs clears stale auditions. Preview requests are aborted on navigation, never replace a full render, and expose their own Vidstack playback.
 
 Production overrides now expose synthesis steps, guidance, sampling temperatures, postprocessing, seed and repeat variation. Emotion controls appear when the active engine advertises support. Reset restores the shared Tauri defaults; untouched fields are omitted from requests. The extracted `longformOverrides` helper is used by both apps, and chapter auditions carry the same overrides as full renders. Seamless-join controls (gap between lines, gap between paragraphs, trim engine silence) live in the same panel; untouched or reset controls show the preserved server defaults (zero gaps, trimming off). Set gaps and enable trimming explicitly for seamless joins; see `docs/expressive-speech.md`.

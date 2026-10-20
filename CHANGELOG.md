@@ -19,6 +19,8 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
+- System Check and engine routing use CPU when the installed PyTorch build lacks kernels for the GPU, instead of reporting CUDA ready (#3067) — thanks @rudycelekli!
+
 - Engine sidecars no longer load PyTorch just to answer the Test Engine ping, and a failed test logs its reason locally (#3026) — thanks @tekay-de!
 
 ### Fixed

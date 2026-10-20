@@ -19,6 +19,8 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
+- Dub retiming and subtitle burns accept odd-sized screen recordings by padding at most one row and column for H.264 (#TBD) — thanks @rudycelekli!
+
 - Generated speech no longer starts and ends with silence, and `[pause]` markers give exactly the pause you asked for (Raw preset and explicit durations untouched) (#3080)
 - Engine sidecars no longer load PyTorch just to answer the Test Engine ping, and a failed test logs its reason locally (#3026) — thanks @tekay-de!
 

@@ -36,6 +36,14 @@ def _cli():
     return None
 
 
+def _command_env(cli):
+    # The app executable doubles as the GUI; scripts must explicitly select CLI
+    # mode. Copy the environment so PATH and user configuration are preserved.
+    if sys.platform == "darwin" and os.path.realpath(cli) == _MACOS_APP_CLI:
+        return {**os.environ, "TAILSCALE_BE_CLI": "1"}
+    return None
+
+
 def status() -> dict:
     out = {
         "installed": False,
@@ -49,7 +57,7 @@ def status() -> dict:
         return out
     out["installed"] = True
     try:
-        r = subprocess.run([cli, "status", "--json"], capture_output=True, text=True, timeout=10)
+        r = subprocess.run([cli, "status", "--json"], capture_output=True, text=True, timeout=10, env=_command_env(cli))
         if r.returncode != 0:
             return out
         data = json.loads(r.stdout or "{}")
@@ -65,7 +73,7 @@ def status() -> dict:
 
 def _run(args):
     try:
-        r = subprocess.run(args, capture_output=True, text=True, timeout=20)
+        r = subprocess.run(args, capture_output=True, text=True, timeout=20, env=_command_env(args[0]))
         if r.returncode != 0:
             diagnostic = (r.stderr or r.stdout or "tailscale serve failed").strip()
             logger.error(

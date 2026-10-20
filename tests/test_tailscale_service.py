@@ -1,5 +1,6 @@
 # tests/test_tailscale_service.py
 import json
+import pytest
 from unittest.mock import patch, MagicMock
 from services import tailscale as ts
 
@@ -136,3 +137,37 @@ def test_macos_app_bundle_is_ignored_on_other_platforms():
          patch.object(ts, "_MACOS_APP_CLI", _BUNDLED), \
          patch.object(ts.os, "access", _only_bundle_is_executable):
         assert ts.status()["installed"] is False
+
+
+def test_bundled_commands_force_cli_without_mutating_parent_environment(monkeypatch):
+    monkeypatch.setenv("TAILSCALE_BE_CLI", "0")
+    monkeypatch.setenv("TAILSCALE_TEST_PRESERVE", "kept")
+    run = MagicMock(return_value=MagicMock(returncode=0, stdout=json.dumps(_RUNNING)))
+    with patch.object(ts, "_cli", return_value=_BUNDLED), \
+         patch.object(ts.sys, "platform", "darwin"), \
+         patch.object(ts.subprocess, "run", run):
+        assert ts.status()["running"]
+        assert ts.serve_enable(3900)["ok"]
+        assert ts.serve_disable()["ok"]
+    assert len(run.call_args_list) == 4
+    for call in run.call_args_list:
+        assert call.kwargs.get("env", {}).get("TAILSCALE_BE_CLI") == "1"
+        assert call.kwargs["env"]["TAILSCALE_TEST_PRESERVE"] == "kept"
+    assert ts.os.environ["TAILSCALE_BE_CLI"] == "0"
+
+
+@pytest.mark.parametrize("platform", ["darwin", "linux", "win32"])
+def test_standalone_cli_keeps_inherited_environment(platform):
+    run = MagicMock(return_value=MagicMock(returncode=0, stdout=json.dumps(_RUNNING)))
+    with patch.object(ts, "_cli", return_value="/usr/local/bin/tailscale"), \
+         patch.object(ts.sys, "platform", platform), \
+         patch.object(ts.subprocess, "run", run):
+        assert ts.status()["running"]
+        assert ts.serve_disable()["ok"]
+    assert all(call.kwargs.get("env") is None for call in run.call_args_list)
+
+
+def test_path_symlink_to_bundle_also_forces_cli(monkeypatch):
+    with patch.object(ts.sys, "platform", "darwin"), \
+         patch.object(ts.os.path, "realpath", return_value=_BUNDLED):
+        assert ts._command_env("/usr/local/bin/tailscale")["TAILSCALE_BE_CLI"] == "1"

@@ -159,3 +159,7 @@ takes effect at the next retry boundary.
   the cache location with `HF_HOME` / `HF_HUB_CACHE`. An install also keeps
   10 GB free on the model disk after the download, so it needs the download
   size plus 10 GB; the warning in Model Catalogue shows both numbers.
+
+Deleting a model removes cached revisions of that model repository only. Other
+repositories (including forks sharing the same Git revision) and datasets with
+the same repository name remain cached.

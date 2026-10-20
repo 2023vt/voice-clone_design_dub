@@ -62,3 +62,56 @@ def test_temporary_background_mix_is_removed_on_every_exit(export_module, monkey
     exports = list((tmp_path / "exports").iterdir())
     assert len(exports) == (1 if outcome == "success" else 0)
     assert voice.read_bytes() == b"voice" and bed.read_bytes() == b"bed"
+
+
+def test_cancellation_reaps_real_encoder_before_removing_its_work_directory(export_module, monkeypatch, tmp_path):
+    from services import ffmpeg_utils
+    module = export_module
+    voice = tmp_path / "voice.wav"
+    voice.write_bytes(b"voice")
+    monkeypatch.setattr(module, "_existing_job_dir_or_404", lambda _: str(tmp_path))
+    monkeypatch.setattr(module, "_get_job", lambda _: {"dubbed_tracks": {"de": {"path": str(voice)}}})
+    monkeypatch.setattr(module, "_dub_artifact", lambda value, *a, **kw: value)
+    monkeypatch.setattr(module, "find_ffmpeg", lambda: "ffmpeg")
+    monkeypatch.setattr(module, "bed_mix_filter", lambda *a, **kw: "unused-mix")
+    monkeypatch.setattr(ffmpeg_utils, "_FFMPEG_SEMAPHORE", None)
+    async def background(*args):
+        return str(voice)
+    monkeypatch.setattr(module, "_preserved_background", background)
+    children, targets = [], []
+    async def spawn(cmd, **kwargs):
+        target = Path(cmd[-1])
+        targets.append(target)
+        # A real child holds the encoder output open until the production
+        # cancellation path kills and reaps it. No ffmpeg/model dependency.
+        child = await asyncio.create_subprocess_exec(
+            sys.executable, "-c",
+            "import sys,time; f=open(sys.argv[1],'wb'); f.write(b'partial'); f.flush(); time.sleep(30)",
+            str(target), **kwargs,
+        )
+        children.append(child)
+        return child
+    monkeypatch.setattr(ffmpeg_utils, "_spawn_with_retry", spawn)
+    async def exercise():
+        task = asyncio.create_task(module.dub_download_mp3(
+            "job", lang="de", preserve_bg=True, save_authorization="", bitrate="192k"))
+        try:
+            for _ in range(500):
+                if targets and targets[0].exists() and targets[0].stat().st_size:
+                    break
+                await asyncio.sleep(0.01)
+            else:
+                pytest.fail("Encoder did not open its temporary output")
+            task.cancel()
+            with pytest.raises(asyncio.CancelledError):
+                await task
+            assert children and all(child.returncode is not None for child in children)
+            assert not list((tmp_path / "exports").iterdir())
+        finally:
+            if not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+    asyncio.run(exercise())

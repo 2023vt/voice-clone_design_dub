@@ -159,3 +159,8 @@ takes effect at the next retry boundary.
   the cache location with `HF_HOME` / `HF_HUB_CACHE`. An install also keeps
   10 GB free on the model disk after the download, so it needs the download
   size plus 10 GB; the warning in Model Catalogue shows both numbers.
+
+The segmented downloader verifies both Hugging Face checksum formats before
+replacing a destination: SHA-256 for LFS weights and Git blob SHA-1 for files
+stored directly in Git, such as configurations and tokenizers. A mismatch
+leaves the previous destination intact.

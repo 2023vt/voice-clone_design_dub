@@ -87,3 +87,8 @@ running an 8B model whose stack pins `transformers==5.0`).
 - Forward-looking: PyTorch's experimental **wheel variants** (shipped in 2.8)
   will eventually let `uv install torch` auto-pick the right CUDA build, and
   uv already exposes `--torch-backend=auto`.
+
+If uninstall reports that an engine could not be removed, close processes using
+its files and check folder permissions, then retry. VoiceStudio keeps the
+engine's saved location until deletion succeeds, so a locked file does not
+make the remaining installation disappear from management.

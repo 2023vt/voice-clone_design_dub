@@ -3431,7 +3431,17 @@ def _transcribe_reference_candidates(
     deferred = _deferred_reference_release.get()
     if deferred is not None:
         deferred.used.extend(candidates)  # unloaded once, by release_reference_asr_after
-        return _try_reference_candidates(candidates, audio_path, release_after=True)
+
+        def drop_unhelpful(backend: ASRBackend) -> None:
+            # A recognizer that found no words is released NOW, before the next
+            # candidate (or the model's own fallback) loads beside it; the one
+            # that succeeds stays resident and is reused for the next window.
+            _release_reference_backend(backend)
+            deferred.used[:] = [b for b in deferred.used if b is not backend]
+
+        return _try_reference_candidates(
+            candidates, audio_path, release_after=True, on_failed=drop_unhelpful,
+        )
     # Sidecars serialize ASR and TTS; release even preloaded candidates skipped
     # after the first success before loading the much larger synthesis model.
     with contextlib.ExitStack() as releases:
@@ -3450,7 +3460,14 @@ def _release_reference_backend(backend: ASRBackend) -> None:
 
 def _try_reference_candidates(
     candidates: list[ASRBackend], audio_path: str, *, release_after: bool,
+    on_failed: "Callable[[ASRBackend], None] | None" = None,
 ) -> str:
+    """First candidate that produces words wins.
+
+    ``on_failed`` is called for every candidate that produced no words (or
+    raised) before the next one is tried, so a recognizer that did not help is
+    not kept loaded beside the one that is about to load.
+    """
     from services.model_acceptance import ModelLicenceNotAccepted
 
     for backend in candidates:
@@ -3471,6 +3488,8 @@ def _try_reference_candidates(
         finally:
             if not release_after and getattr(backend, "_reference_ephemeral", False):
                 _release_reference_backend(backend)
+        if on_failed is not None:
+            on_failed(backend)
     return ""
 
 

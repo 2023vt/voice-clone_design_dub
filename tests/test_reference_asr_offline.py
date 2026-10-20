@@ -510,6 +510,31 @@ def test_recognizers_are_released_before_the_models_prompt_builder_runs(monkeypa
     assert events == ["unload", "model prompt builder"]  # nothing unloaded again at exit
 
 
+def test_unhelpful_recognizer_is_released_before_the_next_one_works():
+    """The selected recognizer finds no words, an installed fallback does: the
+    first must be gone before the second starts, the second stays resident for
+    the next window, and each is unloaded exactly once overall."""
+    from services import asr_backend as ab
+
+    events = []
+
+    def backend(name, text):
+        return SimpleNamespace(
+            id=name,
+            transcribe=Mock(side_effect=lambda *_a, **_k: events.append(f"{name} transcribes") or {"text": text}),
+            unload=Mock(side_effect=lambda: events.append(f"{name} unloaded")),
+        )
+
+    first, second = backend("selected", ""), backend("fallback", "Words.")
+    with ab.release_reference_asr_after():
+        assert ab._transcribe_reference_candidates([first, second], "w1.wav") == "Words."
+        assert events == ["selected transcribes", "selected unloaded", "fallback transcribes"]
+        assert ab._transcribe_reference_candidates([first, second], "w2.wav") == "Words."  # next window
+        assert "fallback unloaded" not in events  # the helpful one is reused, not reloaded per window
+    assert events.count("fallback unloaded") == 1
+    assert events.count("selected unloaded") == 2  # once per window it failed, never twice in a row
+
+
 def test_release_now_outside_a_pass_is_a_noop():
     from services import asr_backend as ab
 

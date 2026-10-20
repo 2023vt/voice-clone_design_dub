@@ -1864,6 +1864,8 @@ async def dub_download_audio(
         raise HTTPException(status_code=404, detail="Job not found")
 
     tracks = job.get("dubbed_tracks", {})
+    if lang and lang not in tracks:
+        raise HTTPException(status_code=404, detail="Requested dubbed track not found")
     if lang and lang in tracks:
         wav_path = _dub_artifact(tracks[lang].get("path"), job_id, missing_detail="Audio file not found")
     elif tracks:
@@ -2158,6 +2160,8 @@ async def dub_download_mp3(
         raise HTTPException(status_code=404, detail="Job not found")
 
     tracks = job.get("dubbed_tracks", {})
+    if lang and lang not in tracks:
+        raise HTTPException(status_code=404, detail="Requested dubbed track not found")
     if lang and lang in tracks:
         wav_path = _dub_artifact(tracks[lang].get("path"), job_id, missing_detail="Audio file not found")
     elif tracks:
@@ -2242,6 +2246,8 @@ async def dub_export_stems(job_id: str, lang: str = Query(None)):
         raise HTTPException(status_code=404, detail="Job not found")
 
     tracks = job.get("dubbed_tracks", {})
+    if lang and lang not in tracks:
+        raise HTTPException(status_code=404, detail="Requested dubbed track not found")
     if not tracks:
         raise HTTPException(status_code=400, detail="No dubbed tracks generated yet")
 

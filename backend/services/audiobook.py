@@ -370,7 +370,8 @@ def synthesize_chapter(
     voice (``speed`` may be ``None`` for the engine default). Long spans are split with the ``chunked_tts`` splitter and
     crossfaded; inter-span ``pause_ms_after`` becomes silence. ``lexicon`` (when
     given) respells each span's text before chunking so the engine pronounces
-    tricky words correctly; a ``None``/empty lexicon is a no-op pass-through.
+    tricky words correctly; explicit ``[[...]]`` overrides take priority.
+    Without a lexicon or inline overrides, narration passes through unchanged.
     ``segment_cache`` (when given — a :class:`services.longform_render.
     SegmentCache`) is consulted per spoken span: a cached segment WAV is reused
     instead of synthesizing, and every freshly rendered span is stored the
@@ -386,7 +387,7 @@ def synthesize_chapter(
     from services.chunked_tts import (concatenate_audio_chunks,
                                       join_rendered_chunks,
                                       split_text_into_chunks)
-    from services.pronunciation import apply_lexicon
+    from services.pronunciation import apply_pronunciation
 
     from services.chunked_tts import split_paragraphs
 
@@ -399,7 +400,7 @@ def synthesize_chapter(
     planned_gap_ms = 0
     total_join_ms = 0
     for span in spans:
-        text = apply_lexicon(span.text, lexicon) if span.text else ""
+        text = apply_pronunciation(span.text, lexicon=lexicon) if span.text else ""
         paragraphs = (split_paragraphs(text) if paragraph_gap_ms > 0 else []) or [text]
         if not span.text:
             paragraphs = []

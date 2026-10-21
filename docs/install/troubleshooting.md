@@ -861,7 +861,8 @@ clears itself as soon as the job releases the event loop. If the dot turns
 The backend also never waits on its own log output: stdout/stderr go through a
 bounded buffer when the shell reads them through pipes, so a slow log reader (a
 model download's progress bar, a busy shell) can no longer freeze the event
-loop. If the buffer overflows, the log shows one `[log] N output chunk(s)
+loop. The request log goes through the same buffer, so it cannot block the loop
+either. If the buffer overflows, the log shows one `[log] N output chunk(s)
 dropped` line. Set `OMNIVOICE_BLOCKING_STDIO=1` to restore plain blocking
 writes. When the loop does stall, the backend log names the blocking call
 (`OMNIVOICE_LOOP_STALL_S`, default 4 s, `0` disables).

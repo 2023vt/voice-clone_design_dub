@@ -19,6 +19,7 @@ metadata and the backend fallback mirror it.
 
 ### Fixed
 
+- GPU acceleration report names a card the installed PyTorch build has no kernels for, instead of reporting a CUDA start that would work, pointing at a driver update that cannot add them, and listing the engines as GPU-bound (#3067) — thanks @Faisal-Fayaz!
 - Older synthesized takes play again with accurate play/pause controls after a newer generation (#3102)
 - Generation-complete notifications appear above the workspace instead of covering synthesis controls (#3102)
 - Generated speech no longer starts and ends with silence, and `[pause]` markers give exactly the pause you asked for (Raw preset and explicit durations untouched) (#3080)

@@ -41,6 +41,7 @@ async function fixture() {
   await mkdir(join(bundle, 'config'), { recursive: true });
   await mkdir(join(bundle, 'frontend', 'dist'), { recursive: true });
   await mkdir(join(bundle, 'omnivoice'));
+  await mkdir(join(bundle, 'scripts'));
   for (const file of [
     'pyproject.toml',
     'uv.lock',
@@ -50,6 +51,8 @@ async function fixture() {
     'config/app.json',
     'frontend/dist/index.html',
     'omnivoice/__init__.py',
+    'scripts/windows-rocm-recipe.json',
+    'scripts/smoke_windows_rocm.py',
   ]) {
     await writeFile(join(bundle, file), file);
   }
@@ -340,11 +343,12 @@ describe('packaged runtime setup', () => {
     ]);
     expect(ROCM_TORCH_INDEX).toContain('/rocm');
   });
-  it('ignores the ROCm opt-in where PyTorch publishes no ROCm wheels', async () => {
-    forcePlatform('win32');
+  it('leaves macOS on its native stack when ROCm is requested', async () => {
+    forcePlatform('darwin');
+    vi.spyOn(process, 'arch', 'get').mockReturnValue('arm64');
     const { bundle, project } = await fixture();
     vi.stubEnv('OMNIVOICE_TORCH_VARIANT', 'rocm');
-    expect(rocmTorchOptIn('win32')).toBe(false);
+    expect(rocmTorchOptIn('win32')).toBe(true);
     expect(rocmTorchOptIn('darwin')).toBe(false);
     expect(rocmTorchOptIn('linux')).toBe(true);
     const run = vi.fn(

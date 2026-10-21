@@ -95,6 +95,7 @@ Or download from [Releases](https://github.com/debpalash/VoiceStudio/releases/la
 | Hardware | Support |
 |---|---|
 | NVIDIA GPU (Windows / Linux) | CUDA acceleration |
+| AMD Radeon / supported Ryzen AI (Windows) | CPU by default; [opt-in Windows ROCm setup](docs/install/windows-rocm.md) for AMD's Windows 11 hardware matrix. Setup distinguishes package repair from host failures; install the VC++ runtime manually first. Optional engines have separate limits; Vulkan engines retain their own runtime. |
 | Apple Silicon | Metal (MPS) acceleration |
 | No dedicated GPU (Intel/AMD integrated graphics, older PCs) | Fully usable on the CPU, slower; setup installs the small CPU build of PyTorch (about 5 GB free disk) |
 | Windows on ARM (Snapdragon X etc.) | **Experimental**, validation pending: native ARM64 app, x64 Python backend under emulation, CPU only |

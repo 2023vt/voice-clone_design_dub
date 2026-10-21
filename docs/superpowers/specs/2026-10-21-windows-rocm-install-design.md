@@ -1,0 +1,22 @@
+# Full opt-in Windows ROCm installation in #3045
+
+The owner explicitly chose full Windows installation in this existing PR. Restore a complete, user-started source and Electron bootstrap instead of reusing Linux wheels or narrowing the PR to diagnostics. Defaults, Linux ROCm, CUDA, CPU and macOS remain unchanged. This is installation support for AMD's supported Windows stack, not a claim that every optional engine or Radeon is compatible.
+
+## Contract
+
+- One checked-in `scripts/windows-rocm-recipe.json` pins Windows x64 Python 3.12, AMD ROCm 7.2.1 Torch 2.9.1/audio 2.9.1/vision 0.24.1, the SDK runtime and official CTranslate2 4.8.2 HIP archive/member SHA-256 values. Reference contributions #2600/#2607 are available as git objects 906015fa and 51e4eb33; absorb focused, reviewed pieces rather than the draft wholesale. Credit community contributions in CHANGELOG.
+- Explicit `OMNIVOICE_TORCH_VARIANT=rocm` on Windows x64 selects this recipe. Unsupported Windows architectures fail clearly. Driver installation remains the user's prerequisite, with AMD's exact hardware/OS matrix linked. No automatic AMD selection, driver installation, model download or persistent system environment changes.
+- Before frozen dependency sync, exclude locked Torch-family, CTranslate2 and CUDA runtime packages. Install the matched Windows stack afterward with project constraints disabled. Do not overwrite existing data/models. Reuse only the correct ABI/architecture. Repair must never install locked CUDA over a healthy HIP runtime.
+- Small Python modules own recipe loading, checked archive installation, local DLL search initialization, verification and optional offline speech smoke. Electron and source setup invoke the same installer/verification entry point. Recipe bytes and ABI participate in Electron readiness. Packaged resources include every required recipe/helper.
+- Readiness requires exact package versions, the HIP build, synchronized GPU arithmetic with checked results, and HIP CTranslate2 discovery. Nonzero exit, timeout, crash and CPU fallback fail readiness. The optional explicit local-model/WAV smoke consumes real CT2 inference and identifies its scope separately from torch-only verification. No model/network acquisition in verification.
+- Actual backend/probe processes initialize HIP DLL search directories before importing faster-whisper/CT2; keep handles alive. Windows HIP CT2 routing is admitted only with the pinned compatible binary and usable GPU and honors CPU overrides. Ordinary CUDA and Linux HIP behavior remain intact.
+- Torchaudio 2.9 import compatibility must be addressed without changing older stacks. Full WhisperX/MIOpen and diarization limitations must remain explicit, with an actionable error or supported fallback rather than native hangs or false readiness. Do not represent CT2 discovery or a Torch matmul as CT2/WhisperX inference certification.
+- Existing sidecar Python/Torch pins are hard boundaries. IndexTTS is Python 3.10/3.11, CosyVoice pins 2.7, VoxCPM2 pins 2.11. Do not force the cp312/2.9 recipe onto those engines. Retain compatible manual HIP detection and document that optional sidecars have separate eligibility; no unsupported sidecar should be advertised ready because the main environment passed.
+
+## Verification and delivery
+
+Fail-before/pass-after tests cover opt-in/platform, ABI, exact versions, checksum/member validation, failed or timed-out GPU checks, stale recipe stamps, repair/reuse, CPU override and cross-platform default behavior. Use offline HF flags and an initially empty cache. New code/test modules stay at most 200 lines. Update README, Windows guide, credited changelog and PR body in the same branch. Independent agent review precedes pushing the existing PR branch. No merge, release or version bump; fresh Windows/AMD inference and upstream CI remain measured external gates.
+
+## Sources and overlapping work
+
+AMD's [7.2.1 installation guide](https://rocm.docs.amd.com/projects/radeon-ryzen/en/docs-7.2.1/docs/install/installryz/windows/install-pytorch.html) and [Windows matrix](https://rocm.docs.amd.com/projects/radeon-ryzen/en/docs-7.2.1/docs/compatibility/compatibilityrad/windows/windows_compatibility.html) define the supported stack. GitHub's v4.8.2 release API confirms the CT2 archive digest `43da4baa5feaee49f77e176277a9647f99c493173c81a0bc60f491cac97532c2`. #2908 uses a different source-only AMD recipe; reconcile rather than mix its versions. Documentation comments have been posted on #3042/#3045/#3053 with verified overlap references.

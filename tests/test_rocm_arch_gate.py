@@ -55,6 +55,7 @@ def _no_hsa_override(monkeypatch):
     # Bind the real cached probe up front — a test may monkeypatch the module
     # attribute, and this fixture's teardown runs before monkeypatch's undo.
     clear = device_caps.detect_host_caps.cache_clear
+    monkeypatch.setattr("sys.platform", "linux")  # Linux HSA remapping contract.
     monkeypatch.delenv("HSA_OVERRIDE_GFX_VERSION", raising=False)
     clear()
     yield

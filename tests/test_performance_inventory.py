@@ -180,3 +180,18 @@ def test_runtime_defaults_use_resolved_auto_without_probing(monkeypatch):
     })
     assert profiles.tts_defaults() == {"num_step": 64, "postprocess_output": True}
     assert profiles.asr_decode_defaults() == {"beam_size": 1, "best_of": 1}
+
+
+@pytest.mark.parametrize("verified,expected", [(True, 5), (False, 0)])
+def test_verified_windows_hip_asr_reserves_vram(local_inventory, monkeypatch, verified, expected):
+    monkeypatch.setattr(inventory, "hardware_snapshot", lambda: {
+        "device": "rocm", "ram_gb": 32, "vram_gb": 16, "cpu_threads": 16, "probe_ok": True,
+    })
+    monkeypatch.setattr("core.windows_rocm.ct2.hip_ct2_available", lambda: verified)
+    captured = {}
+    def capture(choice, hardware, candidates, *args, **kwargs):
+        captured.update(candidates)
+        return {"status": "ready"}
+    monkeypatch.setattr(inventory, "make_plan", capture)
+    inventory.profile_plan("max", {}, local_inventory)
+    assert captured["asr"][-1].vram == expected

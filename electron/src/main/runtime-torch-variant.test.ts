@@ -57,6 +57,7 @@ async function fixture() {
   await mkdir(join(bundle, 'config'), { recursive: true });
   await mkdir(join(bundle, 'frontend', 'dist'), { recursive: true });
   await mkdir(join(bundle, 'omnivoice'));
+  await mkdir(join(bundle, 'scripts'));
   for (const file of [
     'pyproject.toml',
     'README.md',
@@ -65,6 +66,8 @@ async function fixture() {
     'config/app.json',
     'frontend/dist/index.html',
     'omnivoice/__init__.py',
+    'scripts/windows-rocm-recipe.json',
+    'scripts/smoke_windows_rocm.py',
   ]) {
     await writeFile(join(bundle, file), file);
   }

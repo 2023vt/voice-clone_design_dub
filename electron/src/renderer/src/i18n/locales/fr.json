@@ -1411,7 +1411,7 @@
     "gpu_report_state_intel_unsupported": "{{gpu}} a été trouvé, mais aucun moteur installé ne peut utiliser les GPU Intel, tout s'exécute donc sur le CPU.",
     "gpu_report_state_unknown": "L'état du GPU n'a pas pu être déterminé.",
     "gpu_report_option_vulkan_engines": "Utilisez un moteur doté de son propre runtime GPU : audio.cpp s'exécute sur les GPU AMD Radeon via Vulkan (Réglages → Modèles → installer le runtime).",
-    "gpu_report_option_rocm_windows_manual": "VoiceStudio n'installe pas PyTorch avec ROCm sous Windows. AMD publie des wheels distincts pour les cartes Radeon récentes, mais ils exigent un PyTorch plus récent que celui avec lequel les moteurs sont testés, et certains moteurs cessent de fonctionner. N'essayez que si vous savez résoudre les problèmes (voir le guide d'installation Windows).",
+    "gpu_report_option_rocm_windows_manual": "Sur le matériel AMD compatible avec Windows 11 x64, activez l'installation de ROCm 7.2.1 par VoiceStudio avec OMNIVOICE_TORCH_VARIANT=rocm. S'il est déjà installé, relancez l'installation et vérifiez la matrice des pilotes et du matériel AMD. Les moteurs facultatifs ont leurs propres limites ; consultez le guide d'installation Windows.",
     "gpu_report_option_rocm_variant_linux": "Définissez OMNIVOICE_TORCH_VARIANT=rocm et relancez la configuration pour installer la version ROCm de PyTorch.",
     "gpu_report_option_rocm_device_access": "Vérifiez que le pilote amdgpu est chargé et que votre utilisateur peut ouvrir /dev/kfd (groupes render et video).",
     "gpu_report_option_reinstall_cuda_torch": "Réinstallez le runtime pour qu'il installe la version CUDA de PyTorch.",

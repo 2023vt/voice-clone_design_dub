@@ -168,6 +168,8 @@ export default {
     },
     { from: '../pyproject.toml', to: 'pyproject.toml' },
     { from: '../uv.lock', to: 'uv.lock' },
+    { from: '../scripts/windows-rocm-recipe.json', to: 'scripts/windows-rocm-recipe.json' },
+    { from: '../scripts/smoke_windows_rocm.py', to: 'scripts/smoke_windows_rocm.py' },
     { from: '../README.md', to: 'README.md' },
     { from: '../LICENSE', to: 'LICENSE' },
     { from: '../LICENSE-NOTICE.md', to: 'LICENSE-NOTICE.md' },

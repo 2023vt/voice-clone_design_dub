@@ -165,16 +165,23 @@ class IndexTTS2Backend(SubprocessBackend):
 
     @classmethod
     def _sidecar_torch_is_cuda_only(cls) -> bool:
-        """True only when the sidecar venv is KNOWN to hold a non-ROCm torch.
+        """Whether sidecar metadata cannot support an accelerated ROCm claim.
 
         ``gpu_compat`` claims ROCm because the one-click installer provisions a
         ROCm torch on ROCm hosts (#2371). A venv that predates that, or a
         user-managed clone, can still carry the CUDA wheel upstream resolves -
         which sees no AMD GPU, so the engine would run on the CPU while routing
-        reported acceleration (the PR #2423 review finding). Unknown (venv not
-        located yet, no torch wheel found) keeps the claim: this runs on every
-        engine-list refresh, so it must never spawn the interpreter probe.
+        reported acceleration (the PR #2423 review finding). Unknown environments
+        are conservative only for explicit Windows ROCm opt-in; defaults on
+        every platform retain their existing behavior.
+        This metadata check never spawns a probe or changes the sidecar pins.
         """
+        import sys
+
+        windows_rocm = (
+            sys.platform == "win32"
+            and os.environ.get("OMNIVOICE_TORCH_VARIANT", "").strip().lower() == "rocm"
+        )
         try:
             from engines.indextts import bootstrap
             from services.sidecar_install import venv_torch_hip
@@ -186,10 +193,11 @@ class IndexTTS2Backend(SubprocessBackend):
                 (p for p in bootstrap._probe_paths() if p.is_file()), None
             )
             if python is None:
-                return False
-            return venv_torch_hip(Path(python).parent.parent) is False
+                return windows_rocm
+            hip = venv_torch_hip(Path(python).parent.parent)
+            return hip is False or (hip is None and windows_rocm)
         except Exception:  # noqa: BLE001 - metadata only, never break the picker
-            return False
+            return windows_rocm
 
     @classmethod
     def runtime_compute_profile(cls, caps) -> dict:

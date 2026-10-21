@@ -662,12 +662,18 @@ def _phase_a_build_inner() -> None:
     # dlopen/LoadLibrary, and the one hard ordering invariant of this phase —
     # it must run before any ctranslate2/torch import (#1371).
     try:
+        from core.windows_rocm.runtime import initialize_dll_search
+
+        initialize_dll_search()
         from core.cudnn8 import preload as _preload_cudnn8
         _preload_cudnn8()
     except Exception:  # noqa: BLE001 — never block startup on a preload
         pass
 
     _startup_progress.begin_step("ml_imports")
+    from core.windows_rocm.pipelines import prepare_audio_imports
+
+    prepare_audio_imports()
     import torchaudio
     warnings.filterwarnings("ignore", category=UserWarning)
     # torchaudio 2.9 REMOVED set_audio_backend(); soundfile has been the only

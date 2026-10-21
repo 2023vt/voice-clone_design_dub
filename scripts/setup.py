@@ -5,7 +5,8 @@
    torch_cpu.dll, etc.) link against vcruntime140.dll and msvcp140.dll from
    the Microsoft Visual C++ 2015-2022 Redistributable. Fresh Windows installs
    (especially debloated/LTSC-style) don't ship it. We detect and auto-install
-   it silently before any `import torch` can fail.
+   it silently before any `import torch` can fail. Opted-in Windows ROCm
+   setup checks locally and requires manual installation instead.
 
 2. **CUDA: cuDNN 8 compat** — Ensures cuDNN 8 libraries are available for
    CTranslate2 (faster-whisper / WhisperX) alongside PyTorch 2.8+'s cuDNN 9.
@@ -16,7 +17,8 @@
    source install (`bun run desktop`) on an AMD GPU is not stuck on CPU. Runs
    AFTER `uv sync`, which always restores the locked CUDA build (#1665).
 
-Run automatically as part of `bun run setup:api` — no user action required.
+Run automatically as part of `bun run setup:api`. Windows ROCm setup requires
+manual VC++ installation first when that prerequisite is missing.
 
 Cross-platform:
   - Linux:   cuDNN 8 compat (.so.8 libs)
@@ -107,7 +109,8 @@ def _ensure_vcredist_windows():
         Error loading ...\\torch\\lib\\c10.dll or one of its dependencies.
 
     This function silently downloads and installs the official x64 redist
-    package from Microsoft if the runtime DLLs are missing.
+    package from Microsoft if the runtime DLLs are missing, except opted-in
+    Windows ROCm setup, which requires the prerequisite to be installed manually.
     """
     if sys.platform != "win32":
         return
@@ -120,6 +123,13 @@ def _ensure_vcredist_windows():
         return
     except OSError:
         pass
+
+    if _rocm_opt_in() is not None:
+        raise RuntimeError(
+            "Windows ROCm requires Microsoft Visual C++ 2015-2022 x64 Redistributable. "
+            "Install it manually from https://aka.ms/vs/17/release/vc_redist.x64.exe, "
+            "then rerun bun run setup:api. ROCm setup does not download this prerequisite."
+        )
 
     print("⚙ VC++ Redistributable not found — installing (required for PyTorch)...")
 
@@ -200,9 +210,20 @@ def _count_cudnn8_libs(lib_dir):
     return len(glob.glob(os.path.join(lib_dir, "libcudnn*.so.8")))
 
 
-def main():
+def main(argv=None):
     # ── Step 1: Windows VC++ Redistributable ──────────────────────────────
     _ensure_vcredist_windows()
+    if argv == ["--windows-prerequisites-only"]:
+        return
+
+    # The shared CLI targets this interpreter and never imports native packages
+    # into this parent before replacement. A requested Windows failure is fatal.
+    if sys.platform == "win32" and _rocm_opt_in() is not None:
+        subprocess.check_call(
+            [sys.executable, "-m", "backend.core.windows_rocm.install", "--uv", "uv"],
+            cwd=os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+        )
+        return
 
     # macOS — no CUDA, nothing to do
     if sys.platform == "darwin":
@@ -265,4 +286,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main(sys.argv[1:])

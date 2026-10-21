@@ -159,7 +159,7 @@ for (const platform of ["darwin", "linux"]) {
   }
 }
 
-test("Windows ROCm opt-in falls back to a supported CPU or CUDA wheel", async () => {
+test("Windows ROCm opt-in preserves the explicit recipe regardless of NVIDIA", async () => {
   for (const hasGpu of [false, true]) {
     assert.equal(
       await selectTorchVariant({
@@ -168,7 +168,7 @@ test("Windows ROCm opt-in falls back to a supported CPU or CUDA wheel", async ()
         arch: "x64",
         nvidiaAvailable: async () => hasGpu,
       }),
-      hasGpu ? "cuda" : "cpu",
+      "rocm",
     );
   }
   assert.equal(requestedTorchVariant({ OMNIVOICE_TORCH_VARIANT: "default" }), "cuda");

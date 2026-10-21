@@ -62,6 +62,9 @@ def _missing_module_is_omnivoice(exc: ModuleNotFoundError) -> bool:
 def _lazy_omnivoice():
     global _OmniVoice
     if _OmniVoice is None:
+        from core.windows_rocm.pipelines import prepare_audio_imports
+
+        prepare_audio_imports()
         try:
             # The class is OmniVoice — a library identifier, not product
             # branding. The VoiceStudio rename must not touch it (checkpoint
@@ -1509,6 +1512,8 @@ def _configure_rocm_if_needed(torch):
     overriding a natively-supported GPU forces it onto foreign kernels for no
     reason — so the map is a fallback, not an unconditional rewrite.
     """
+    if sys.platform == "win32":
+        return  # Windows uses AMD's exact native matrix, never Linux HSA remaps.
     from core.device_caps import (
         ROCM_GFX_OVERRIDES,
         build_arch_list,
@@ -1584,6 +1589,12 @@ def check_device_compatibility():
     except Exception:
         device_name = "GPU"
     if getattr(getattr(torch, "version", None), "hip", None) is not None:
+        if sys.platform == "win32":
+            return False, (
+                f"{device_name} ({device_arch}) is not supported by this Windows HIP "
+                "build. Check AMD's exact Windows GPU/driver/wheel matrix or select "
+                "CPU. HSA architecture remapping is not a supported Windows remedy."
+            )
         return False, (
             f"{device_name} ({device_arch}) is not supported by this ROCm "
             f"PyTorch build. Supported architectures: {', '.join(arch_list)}. "
@@ -4474,6 +4485,11 @@ def get_diarization_pipeline(return_error: bool = False):
         except Exception as exc:
             logger.exception("Could not prepare native Sortformer")
             return (None, _classify_diarization_error(exc)) if return_error else None
+    from core.windows_rocm.pipelines import pipeline_error, prepare_audio_imports
+
+    if reason := pipeline_error():
+        logger.warning("Speaker diarization unavailable: %s", reason)
+        return (None, DIARIZATION_ERR_LOAD) if return_error else None
     if _diar_pipeline is not None:
         return (_diar_pipeline, None) if return_error else _diar_pipeline
 
@@ -4501,6 +4517,7 @@ def get_diarization_pipeline(return_error: bool = False):
             WhisperXBackend._allow_vad_pickle_globals()
         except Exception as _glob_e:
             logger.debug("pyannote safe-globals allowlist skipped: %s", _glob_e)
+        prepare_audio_imports()
         from pyannote.audio import Pipeline
         logger.info("Loading Pyannote Diarization Pipeline...")
         from services.diarization_local import local_pipeline_config

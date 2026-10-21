@@ -198,6 +198,9 @@ def ensure_ctranslate2_loadable() -> tuple[bool, str]:
     external repair takes effect without restarting.
     """
 
+    from core.windows_rocm.runtime import initialize_dll_search
+
+    initialize_dll_search()  # Also covers indirect CT2 imports such as Argos.
     result: tuple[bool, str]
     if sys.platform != "linux":
         # Only Linux rejects an exec-stack request at dlopen time.

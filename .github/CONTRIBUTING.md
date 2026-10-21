@@ -406,6 +406,13 @@ hard rules from the first prompt.
     restricted networks, skipped when the user set an endpoint
     (`backend/services/endpoint_race.py`); and Hugging Face model downloads
     (gated on install state or an explicit user action).
+  - **Windows ROCm setup the user explicitly selects:** the matched AMD SDK
+    and PyTorch wheels from `repo.radeon.com`, and the pinned HIP CTranslate2
+    archive from OpenNMT/CTranslate2 GitHub Releases. This opt-in installer
+    uses the usual package indexes for dependency resolution; verification
+    and the optional local-model smoke test never acquire models or use the network.
+    The VC++ Redistributable is a manual prerequisite; opted-in Windows ROCm
+    source setup checks it locally and stops when it is missing.
   - **Galleries the user opens or enables:** the community gallery manifest
     from jsDelivr plus its GitHub-hosted previews
     (`backend/api/routers/community.py`); the voice-preview gallery's signed

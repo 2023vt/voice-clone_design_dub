@@ -88,6 +88,9 @@ def _get_model():
         ok, detail = ensure_ctranslate2_loadable()
         if not ok:
             raise ImportError(f"faster-whisper cannot load CTranslate2: {detail}")
+        from core.windows_rocm.ct2 import prepare_import
+
+        prepare_import()
         from faster_whisper import WhisperModel
         # Same weights as in-process faster-whisper: ASR_MODEL_FASTER selects
         # for BOTH variants, ASR_MODEL_FW stays as a sidecar-only override.
@@ -101,10 +104,10 @@ def _get_model():
         )
         try:
             # The probe honors the user compute-device override and the
-            # ROCm/CT2 incompatibility (#1529) — the child must agree with
+            # pinned Windows HIP CT2 boundary — the child must agree with
             # the parent's device decision, not re-derive its own.
-            from core.device_caps import detect_host_caps
-            device = "cuda" if detect_host_caps().family == "cuda" else "cpu"
+            from core.windows_rocm.ct2 import gpu_device_available
+            device = "cuda" if gpu_device_available() else "cpu"
         except Exception:
             # Fail SAFE: guessing "cuda" from torch here would bypass a cpu
             # override and hand CTranslate2 HIP-flavoured cuda on ROCm

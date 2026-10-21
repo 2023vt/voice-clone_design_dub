@@ -2024,6 +2024,9 @@ async def dub_transcribe_stream(
                         f"the underlying error. Falling back to a silence-gap "
                         f"heuristic; rapid speaker turns may be merged."
                     )
+                    from core.windows_rocm.pipelines import pipeline_error
+                    if compatibility := pipeline_error():
+                        detail += " " + compatibility
                     error_class = "DIARIZATION_LOAD_FAILED"
                 warning = {
                     "detail": detail + _hint_suffix(),

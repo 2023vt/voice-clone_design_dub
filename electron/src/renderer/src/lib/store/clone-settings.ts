@@ -1,6 +1,7 @@
 import { Store } from '@tanstack/store';
 import { useStore } from '@tanstack/react-store';
 import { debounce } from '@tanstack/react-pacer';
+import { onStorageKey } from '@/lib/storage-events';
 
 export const CLONE_SETTINGS_STORAGE_KEY = 'voicestudio.clone.settings.v1';
 const PERSIST_DEBOUNCE_MS = 250;
@@ -116,6 +117,12 @@ export const cloneSettingsStore = new Store<CloneSettings>(
 
 const persist = debounce(writeStorage, { wait: PERSIST_DEBOUNCE_MS });
 cloneSettingsStore.subscribe((settings) => persist(settings));
+// A value pulled by Cloud sync (or written by another window) replaces the in-memory copy,
+// so the next save never writes the old defaults back.
+onStorageKey(CLONE_SETTINGS_STORAGE_KEY, () => {
+  const next = parsePersistedCloneSettings(readStorage());
+  if (JSON.stringify(next) !== JSON.stringify(cloneSettingsStore.state)) cloneSettingsStore.setState(() => next);
+});
 
 export function useCloneSettings(): CloneSettings {
   return useStore(cloneSettingsStore);

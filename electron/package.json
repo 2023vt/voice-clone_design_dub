@@ -30,6 +30,7 @@
     "test:desktop-ui": "node tests/local-first.test.mjs && node tests/fake-health-backend.test.mjs && node tests/desktop-ui.test.mjs",
     "smoke:server": "vite --config tests/renderer-smoke.vite.config.mjs",
     "smoke:live-routes": "node tests/live-route-health.mjs",
+    "smoke:account-live": "node tests/account-sign-in-live.mjs",
     "check": "vp check",
     "dist": "bun run build:web && electron-vite build && node tests/packaging-contract.mjs && electron-builder --config electron-builder.config.mjs && node --input-type=module -e \"if (process.platform === 'linux') await import('./scripts/embed-appimage-update.mjs')\" && node tests/update-package-contract.mjs",
     "dist:dir": "bun run build:web && electron-vite build && node tests/packaging-contract.mjs && electron-builder --config electron-builder.config.mjs --dir",

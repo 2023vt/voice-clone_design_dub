@@ -30,6 +30,9 @@ export interface Profile {
   verified_own_voice?: boolean | number | null;
   consent_text?: string | null;
   consent_recorded_at?: string | null;
+  /** Sync consent attestation (S2): required before a voice can sync. */
+  consent_basis?: 'own_voice' | 'speaker_permission' | '' | null;
+  consent_attested_at?: string | null;
 }
 
 // ── History (`GET /history`) ───────────────────────────────────────────────

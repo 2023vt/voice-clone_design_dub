@@ -164,7 +164,7 @@ function assertSaveDataRequest(value: unknown): SaveDataRequest {
   };
 }
 
-function assertTrustedMainFrame(
+export function assertTrustedMainFrame(
   event: IpcMainInvokeEvent,
   owner: BrowserWindow | null,
 ): asserts owner is BrowserWindow {

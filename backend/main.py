@@ -1,3 +1,4 @@
+import importlib
 import os
 import sys
 
@@ -149,6 +150,10 @@ except ImportError:
 from services.hf_auth import apply_process_token_policy as _apply_hf_token_policy  # noqa: E402
 
 _apply_hf_token_policy()
+
+# Importing it removes Electron's account-bridge capability from os.environ, so
+# engine and tool subprocesses never inherit it.
+importlib.import_module("services.cloud_account")
 
 # ── cuDNN 8 library preload ─────────────────────────────────────────────
 # Moved into _phase_a_build (`native_preload` step, early-bind refactor): the
@@ -750,6 +755,7 @@ def _phase_a_build_inner() -> None:
     from api.routers import mcp_bindings as _mcp_bindings_router  # noqa: E402
     from api.routers import telephony_twilio as _telephony_twilio_router  # noqa: E402
     from api.routers import calls as _calls_router  # noqa: E402
+    from api.routers import cloud_sync as _cloud_sync_router  # noqa: E402
     _router_modules.extend([
         system, profiles, profile_images, exports, generation, voice_convert, dub_core, dub_generate,
         dub_export, dub_translate, projects, glossary, engines, tools,
@@ -758,7 +764,7 @@ def _phase_a_build_inner() -> None:
         openai_compat, tts_stream, marketplace, personas, sonitranslate,
         audiobook, longform_jobs, pronunciation, settings_router,
         media_tools_router, auth_router, _mcp_bindings_router,
-        _telephony_twilio_router, _calls_router,
+        _telephony_twilio_router, _calls_router, _cloud_sync_router,
     ])
     # Download-acceleration state, once, for triage-from-logs (FDL-03).
     try:
@@ -1151,6 +1157,18 @@ async def _phase_b(app: FastAPI) -> None:
     )
     app.state.mcp_task = mcp_task
     app.state.mcp_stop = mcp_stop
+
+    # VoiceStudio Cloud settings sync: idles (no Cloud call) unless main hands
+    # out a token, i.e. the user is signed in with sync switched on.
+    from services.cloud_sync.service import get_service as _cloud_sync
+
+    async def _start_cloud_sync() -> None:
+        try:
+            await _cloud_sync().start()
+        except Exception:  # noqa: BLE001 — optional feature: never blocks start-up
+            logger.exception("cloud sync did not start")
+
+    app.state.cloud_sync_task = asyncio.create_task(_start_cloud_sync())
     if mcp_mounted:
         logger.info("MCP server mounted at /mcp")
     # Phone calls (opt-in): the separate loopback telephony listener resumes
@@ -1298,6 +1316,13 @@ async def lifespan(app: FastAPI):
         model_loads_begin_shutdown()
     # Stop MCP first — signal its task to exit its own anyio context (correct
     # task-affinity), then bound the wait so a wedged manager can't hang exit.
+    if getattr(app.state, "cloud_sync_task", None) is not None:
+        from services.cloud_sync.service import get_service as _cloud_sync
+
+        try:
+            await asyncio.wait_for(_cloud_sync().stop(), timeout=5.0)
+        except Exception:  # noqa: BLE001
+            pass
     mcp_stop = getattr(app.state, "mcp_stop", None)
     mcp_task = getattr(app.state, "mcp_task", None)
     if mcp_stop is not None:

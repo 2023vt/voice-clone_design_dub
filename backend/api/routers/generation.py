@@ -511,9 +511,34 @@ def _note_generate_progress() -> None:
         pass
 
 
-def _render_with_pauses(gen_span, segments, sample_rate):
+def _trim_output_edges(audio_out, sample_rate):
+    """Strip the engine's own lead-in/tail silence from a finished take.
+
+    Engines pad every render with near-silence at both ends, so a plain
+    Generate used to start and end with an audible blank. Same helper and
+    floor as the dub path (50 ms of context kept; internal pauses and dead
+    renders untouched). Non-tensor output passes through unchanged.
+    """
+    import torch
+    from services.audio_dsp import trim_speech_padding
+
+    if not torch.is_tensor(audio_out):
+        return audio_out
+    return trim_speech_padding(audio_out, sample_rate)
+
+
+def _wants_edge_trim(effect_preset, duration=None):
+    """Edge trim applies unless the user asked for raw model output or an
+    explicit target duration (trimming would shorten what they asked for)."""
+    return (effect_preset or "broadcast") != "raw" and not duration
+
+
+def _render_with_pauses(gen_span, segments, sample_rate, *, trim_spans=False):
     """Synthesize ``[(text, pause_ms), ...]`` spans and stitch silence between
     them (issue #276).
+
+    ``trim_spans`` strips each span's engine padding first, so a requested
+    pause is the pause the user hears, not pause + the engine's own silence.
 
     ``gen_span(text) -> torch.Tensor`` synthesizes one text span (raw model
     output). A silence buffer of ``pause_ms`` is inserted after a span when
@@ -526,7 +551,10 @@ def _render_with_pauses(gen_span, segments, sample_rate):
     items = []  # ('a', tensor) for audio, ('s', n_samples) for silence
     for span_text, pause_ms in segments:
         if span_text and span_text.strip():
-            items.append(("a", gen_span(span_text)))
+            audio = gen_span(span_text)
+            if trim_spans:
+                audio = _trim_output_edges(audio, sample_rate)
+            items.append(("a", audio))
             _note_generate_progress()
         if pause_ms > 0:
             n = int(round(sample_rate * pause_ms / 1000.0))
@@ -572,9 +600,13 @@ def _sanitize_audio(audio_out):
 
 
 @_render_timed('effects')
-def _apply_effect_chain(audio_out, sample_rate, effect_preset, *, skip_mastering=False):
-    """Shared post-DSP for /generate: preset validation → mastering →
-    effect chain → loudness normalization.
+def _apply_effect_chain(audio_out, sample_rate, effect_preset, *, skip_mastering=False,
+                        trim_edges=False):
+    """Shared post-DSP for /generate: preset validation → edge trim →
+    mastering → effect chain → loudness normalization.
+
+    ``trim_edges`` is for a finished whole take only: streamed preview chunks
+    leave it off so they keep the same timing as the assembled take.
 
     ``skip_mastering`` honors a backend's ``applies_own_mastering`` flag
     (issue #312): studio engines (e.g. VoxCPM2's native 48 kHz output)
@@ -605,6 +637,9 @@ def _apply_effect_chain(audio_out, sample_rate, effect_preset, *, skip_mastering
     if preset == "raw":
         # Raw: skip all DSP — return raw model output
         return audio_out
+
+    if trim_edges:
+        audio_out = _trim_output_edges(audio_out, sample_rate)
 
     if not skip_mastering:
         audio_out = apply_mastering(audio_out, sample_rate=sample_rate)
@@ -1173,7 +1208,8 @@ def _run_inference(
                 # Per-span duration is left to the model; an explicit overall
                 # `duration` can't be meaningfully split across spans.
                 return _gen(span_text, None)[0]
-            audio_out = _render_with_pauses(_gen_span, segments, sr)
+            audio_out = _render_with_pauses(_gen_span, segments, sr,
+                                            trim_spans=_wants_edge_trim(effect_preset))
         else:
             # Wave 1.2: long text is split at sentence boundaries and the
             # per-chunk audio crossfaded — removes the length ceiling. Short
@@ -1203,7 +1239,12 @@ def _run_inference(
 
         # Apply DSP effect preset. The VoiceStudio model never masters its own
         # output, so mastering always runs here (unchanged behavior).
-        return _apply_effect_chain(audio_out, sr, effect_preset)
+        # Pause renders were trimmed per span above; trimming the whole take
+        # would also eat a deliberate leading/trailing [pause].
+        return _apply_effect_chain(
+            audio_out, sr, effect_preset,
+            trim_edges=not has_pause and _wants_edge_trim(effect_preset, duration),
+        )
 
     except ValueError as e:
         # Don't wrap validation errors in OOM message
@@ -1276,7 +1317,8 @@ def _run_backend_inference(
                     span_kwargs["seed"] = used_seed
                 first_span = False
                 return trace_call("synthesis", backend.generate, span_text, duration=None, **span_kwargs)
-            audio_out = _render_with_pauses(_gen_span, segments, sr)
+            audio_out = _render_with_pauses(_gen_span, segments, sr,
+                                            trim_spans=_wants_edge_trim(effect_preset))
         else:
             # Wave 1.2: sentence-boundary chunking for long text (see
             # _run_inference for the rationale; behavior is identical here).
@@ -1310,6 +1352,7 @@ def _run_backend_inference(
         return _apply_effect_chain(
             audio_out, sr, effect_preset,
             skip_mastering=getattr(backend, "applies_own_mastering", False),
+            trim_edges=not has_pause and _wants_edge_trim(effect_preset, duration),
         )
 
     except ValueError as e:
@@ -2213,7 +2256,8 @@ async def generate_speech(
                                                      sink=_dropped_sink)
                 skip = (getattr(_backend, "applies_own_mastering", False)
                         if _backend is not None else False)
-                return _apply_effect_chain(audio_out, sr, effect_preset, skip_mastering=skip)
+                return _apply_effect_chain(audio_out, sr, effect_preset, skip_mastering=skip,
+                                           trim_edges=_wants_edge_trim(effect_preset))
             except ValueError:
                 raise
             except Exception as e:

@@ -37,6 +37,7 @@ import {
   devRendererPort,
   resolveSpawnPlan,
   managedBackendSpawnOptions,
+  setBackendOnlyEnv,
   spawnFailureMessage,
   startupTimeoutMessage,
 } from './backend';
@@ -263,4 +264,18 @@ it('tells the backend the dev renderer port so Sharing reports the real UI port'
   vi.stubEnv('OMNIVOICE_UI_PORT', '');
   vi.stubEnv('ELECTRON_RENDERER_URL', '');
   expect(managedBackendSpawnOptions(3900).env.OMNIVOICE_UI_PORT).toBe('');
+});
+
+it('hands backend-only capabilities to the managed backend alone, never to process.env', () => {
+  setBackendOnlyEnv({ VOICESTUDIO_ACCOUNT_BRIDGE_URL: 'http://127.0.0.1:1', VOICESTUDIO_ACCOUNT_BRIDGE_TOKEN: 'cap' });
+  try {
+    expect(managedBackendSpawnOptions(3900).env).toMatchObject({
+      VOICESTUDIO_ACCOUNT_BRIDGE_URL: 'http://127.0.0.1:1',
+      VOICESTUDIO_ACCOUNT_BRIDGE_TOKEN: 'cap',
+    });
+    expect(process.env.VOICESTUDIO_ACCOUNT_BRIDGE_TOKEN).toBeUndefined();
+  } finally {
+    setBackendOnlyEnv({ VOICESTUDIO_ACCOUNT_BRIDGE_URL: undefined, VOICESTUDIO_ACCOUNT_BRIDGE_TOKEN: undefined });
+  }
+  expect(managedBackendSpawnOptions(3900).env.VOICESTUDIO_ACCOUNT_BRIDGE_TOKEN).toBeUndefined();
 });

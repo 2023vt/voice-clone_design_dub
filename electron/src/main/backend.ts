@@ -556,13 +556,27 @@ function childEnv(
   return env;
 }
 
+/**
+ * Capabilities only the managed backend may hold (loopback bridges into main).
+ * Kept out of process.env so no other child (agent CLIs, browsers, xdg-open,
+ * setup tools) can inherit them.
+ */
+const backendOnlyEnv: Record<string, string> = {};
+
+export function setBackendOnlyEnv(vars: Record<string, string | undefined>): void {
+  for (const [key, value] of Object.entries(vars)) {
+    if (value === undefined) delete backendOnlyEnv[key];
+    else backendOnlyEnv[key] = value;
+  }
+}
+
 export function managedBackendSpawnOptions(
   port: number,
   region: RuntimeRegion = 'auto',
   platform = process.platform,
 ): { env: NodeJS.ProcessEnv; stdio: StdioOptions; drainFd: number | null } {
   const drainFd = platform === 'win32' ? null : 3;
-  const env = childEnv(port, region, platform);
+  const env = { ...childEnv(port, region, platform), ...backendOnlyEnv };
   if (drainFd !== null) env.OMNIVOICE_DESKTOP_DRAIN_FD = String(drainFd);
   return {
     env,

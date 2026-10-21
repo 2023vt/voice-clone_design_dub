@@ -337,6 +337,12 @@ archived Tauri app, which rendered with WebKitGTK.)
 
 ## 5. Windows Triton / torch.compile OOM
 
+Startup only preloads the native OmniVoice model when OmniVoice is the selected
+TTS engine (and the host uses its native backend). Selecting another engine,
+such as VoxCPM2, leaves OmniVoice unloaded at startup to preserve memory for
+that engine. `OMNIVOICE_TTS_BACKEND`, when set, takes precedence over the saved
+engine choice. Models still load on demand when requested.
+
 **Symptom:** the first synthesis call fails with `OutOfMemoryError: CUDA out
 of memory` or `RuntimeError: Triton compilation failed`, especially on
 <16 GB VRAM GPUs.

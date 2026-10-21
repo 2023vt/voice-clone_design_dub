@@ -23,6 +23,7 @@ metadata and the backend fallback mirror it.
 - Generation-complete notifications appear above the workspace instead of covering synthesis controls (#3102)
 - Generated speech no longer starts and ends with silence, and `[pause]` markers give exactly the pause you asked for (Raw preset and explicit durations untouched) (#3080)
 - Engine sidecars no longer load PyTorch just to answer the Test Engine ping, and a failed test logs its reason locally (#3026) — thanks @tekay-de!
+- OmniVoice GGUF loads only the weights you already installed, and reports itself unavailable with the install steps when the pinned weight pair is missing instead of fetching weights behind your back (#3042)
 
 ### Fixed
 
@@ -38,6 +39,10 @@ metadata and the backend fallback mirror it.
 ### Fixed
 
 - The installed app now rebuilds a Python environment that antivirus or disk cleanup removed, once per launch with the usual setup progress, instead of stopping at a setup error; your voices and projects are untouched (#3032) — thanks @afraniohugo and @javalovelinux-cmd!
+
+### Changed
+
+- Optional Vulkan builds for OmniVoice GGUF on Windows and Linux use compatible dynamic CPU variants, with CPU fallback, conservative automatic quants, native device overrides, and generation deadlines (#3042) — thanks @dutch2005!
 
 ### Docs
 

@@ -44,7 +44,7 @@ const app = await electron.launch({
     ...launchEnvironment,
     ELECTRON_RENDERER_URL: "",
     VOICESTUDIO_CLOUD_ENV: "dev",
-    VOICESTUDIO_ELECTRON_PROXY_PORT: "49305",
+    VOICESTUDIO_ELECTRON_PROXY_PORT: "0",
     VOICESTUDIO_SKIP_BACKEND: "1",
     VOICESTUDIO_ALLOW_MULTIPLE_INSTANCES: "1",
   },

@@ -51,6 +51,7 @@ metadata and the backend fallback mirror it.
 
 ### CI
 
+- Desktop UI tests no longer fail at random when Electron's debugger takes the dev proxy's port; the proxy now binds an OS-assigned port (#3126)
 - Desktop request-guard self-tests stay deterministic when app requests arrive during cleanup (#2676)
 
 - New `mobile` workflow builds and tests both phone apps; a contract test fails when their theme or API description drifts from the desktop app (#2965)

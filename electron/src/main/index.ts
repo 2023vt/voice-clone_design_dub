@@ -10,7 +10,7 @@ import { electronApp, is, optimizer } from '@electron-toolkit/utils';
 import { BackendSupervisor, backendRoot } from './backend';
 import { registerIpc, wireWindowMaximizeEvents } from './ipc';
 import { APP_ORIGIN, installAppProtocol, registerAppScheme } from './protocol';
-import { startDevBackendProxy } from './dev-backend-proxy';
+import { electronProxyPort, startDevBackendProxy } from './dev-backend-proxy';
 import { DesktopUpdater, registerUpdateIpc } from './updater';
 import { registerRepairAgents } from './repair-agents';
 import { installRendererPermissions } from './media-permissions';
@@ -24,7 +24,7 @@ import {
 import { activateLiveWindow, isLiveWindow } from './window-safety';
 import { startAccount } from './account';
 import { installAppIdentity, installMacApplicationMenu } from './app-identity';
-import { APP_ID, DEFAULT_ELECTRON_PROXY_PORT, PRODUCT_NAME } from '../../../config/app-config.mjs';
+import { APP_ID, PRODUCT_NAME } from '../../../config/app-config.mjs';
 
 // Packaged GUI launches can inherit a short-lived terminal pipe. When that
 // launcher exits, diagnostic console writes emit EPIPE asynchronously and can
@@ -288,7 +288,7 @@ if (process.env.VOICESTUDIO_ALLOW_MULTIPLE_INSTANCES !== '1' && !app.requestSing
         const proxy = await startDevBackendProxy(
           () => backend.baseUrl,
           () => backend.requestHeaders(),
-          Number(process.env.VOICESTUDIO_ELECTRON_PROXY_PORT) || DEFAULT_ELECTRON_PROXY_PORT,
+          electronProxyPort(process.env.VOICESTUDIO_ELECTRON_PROXY_PORT),
           process.env.ELECTRON_RENDERER_URL
             ? [new URL(process.env.ELECTRON_RENDERER_URL).origin]
             : [],

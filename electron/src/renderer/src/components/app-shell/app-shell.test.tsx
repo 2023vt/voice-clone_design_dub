@@ -13,7 +13,6 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('./workspace-sidebar', () => ({
   WorkspaceSidebar: () => <aside data-testid="main-sidebar" />,
 }));
-vi.mock('./sponsor-footer', () => ({ SponsorFooter: () => null }));
 vi.mock('./repair-agent-dock', () => ({ RepairAgentDock: () => null }));
 vi.mock('./system-notifications', () => ({ SystemNotifications: () => null }));
 vi.mock('./account-corner', () => ({ AccountCorner: () => <div data-testid="account-corner" /> }));

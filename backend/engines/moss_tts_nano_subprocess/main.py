@@ -14,8 +14,10 @@ from __future__ import annotations
 
 import base64
 import contextlib
+import inspect
 import json
 import os
+from pathlib import Path
 import re
 import struct
 import sys
@@ -145,6 +147,40 @@ def _load_service(stdout):
             # install folder (and see _handle_synthesize: one file, reused).
             output_dir=tempfile.mkdtemp(prefix="moss-tts-nano-"),
         )
+        from huggingface_hub import try_to_load_from_cache  # noqa: PLC0415
+        from huggingface_hub.constants import HF_HUB_CACHE  # noqa: PLC0415
+
+        # Upstream's text-tokenizer loader creates another HF cache beside its
+        # dynamically imported model file, then relocates HF_MODULES_CACHE into
+        # it. This defeats the app's short Windows cache path (#3137) and makes
+        # the tokenizer miss files already downloaded into the shared Hub cache.
+        # Keep both cache roots chosen by Hugging Face, including user overrides.
+        load_model = service._load_model_locked
+
+        def load_model_with_shared_cache():
+            model = load_model()
+            cache_dir = HF_HUB_CACHE
+            # Older successful installs may have the SentencePiece tokenizer
+            # only in the upstream cache. Keep it usable offline, without
+            # creating that nested cache on new installs or moving modules.
+            if not os.path.isdir(service.checkpoint_path):
+                legacy_cache = Path(inspect.getfile(type(model))).parent / ".cache" / "huggingface"
+                if (
+                    legacy_cache.is_dir()
+                    and not isinstance(try_to_load_from_cache(
+                        service.checkpoint_path, "tokenizer.model", cache_dir=HF_HUB_CACHE,
+                    ), str)
+                    and isinstance(try_to_load_from_cache(
+                        service.checkpoint_path, "tokenizer.model", cache_dir=legacy_cache,
+                    ), str)
+                ):
+                    cache_dir = str(legacy_cache)
+            model._resolve_hf_cache_dir = lambda: cache_dir
+            model._patch_hf_dynamic_module_cache_dir = lambda cache_dir: None
+            return model
+
+        # Inference errors and dtype recovery can discard and reload the model.
+        service._load_model_locked = load_model_with_shared_cache
         _with_retries(lambda: service.preload(load_model=True))
         _SERVICE = service
     _send(stdout, {"op": "progress", "stage": "loading_model", "percent": 100})

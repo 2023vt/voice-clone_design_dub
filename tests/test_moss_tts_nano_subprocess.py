@@ -19,17 +19,44 @@ import pytest
 _MAIN = Path(__file__).resolve().parents[1] / "backend/engines/moss_tts_nano_subprocess/main.py"
 
 
-def _load_sidecar(monkeypatch, calls, *, sample_rate=48000, channels=2, samples=960):
+class _EmptyModel:
+    pass
+
+
+def _load_sidecar(
+    monkeypatch, calls, *, sample_rate=48000, channels=2, samples=960,
+    model_factory=_EmptyModel, fail_first_synthesis=False,
+):
     class NanoTTSService:
         def __init__(self, **kw):
             calls.append(("init", kw))
             self.output_dir = Path(kw["output_dir"])
+            self.checkpoint_path = kw["checkpoint_path"]
+            self._model = None
+            self._failed = False
+
+        def _load_model_locked(self):
+            if self._model is None:
+                self._model = model_factory()
+            return self._model
 
         def preload(self, **kw):
             calls.append(("preload", kw))
+            if kw.get("load_model"):
+                self._load_model_locked()
+
+        def get_model(self):
+            return self._load_model_locked()
 
         def synthesize(self, **kw):
             calls.append(("synthesize", kw))
+            model = self._load_model_locked()
+            if hasattr(model, "load_text_tokenizer"):
+                model.load_text_tokenizer()
+            if fail_first_synthesis and not self._failed:
+                self._failed = True
+                self._model = None  # Upstream discards the model on inference errors.
+                raise RuntimeError("connection interrupted during inference")
             shape = (samples, channels) if channels > 1 else (samples,)
             return {"waveform_numpy": np.full(shape, 0.25, dtype=np.float32), "sample_rate": sample_rate}
 
@@ -109,6 +136,113 @@ def test_only_the_cold_call_sends_progress(monkeypatch):
     sidecar._handle_synthesize({"text": "two"}, second)
     assert any(f["op"] == "progress" for f in _frames(first))
     assert [f["op"] for f in _frames(second)] == ["audio"]
+
+
+@pytest.mark.parametrize("custom_modules_cache", [False, True])
+@pytest.mark.parametrize("fail_first_synthesis", [False, True])
+def test_tokenizer_reuses_hub_cache_without_relocating_dynamic_modules(
+    monkeypatch, tmp_path, custom_modules_cache, fail_first_synthesis,
+):
+    """Nano's tokenizer must not nest a new HF cache inside its loaded module.
+
+    Upstream's _load_text_tokenizer calls these two hooks before loading its
+    tokenizer. Its default hooks use __file__/.cache/huggingface and change
+    HF_MODULES_CACHE, growing Windows paths beyond the short app cache (#3137).
+    """
+    from huggingface_hub import constants
+    from transformers import dynamic_module_utils
+
+    hub_cache = tmp_path / "hub"
+    modules_cache = tmp_path / ("custom-modules" if custom_modules_cache else "modules")
+    model_code = modules_cache / "transformers_modules" / "MOSS_hyphen_TTS_hyphen_Nano" / ("a" * 40)
+    monkeypatch.setattr(constants, "HF_HUB_CACHE", str(hub_cache))
+    monkeypatch.setattr(dynamic_module_utils, "HF_MODULES_CACHE", str(modules_cache))
+    if custom_modules_cache:
+        monkeypatch.setenv("HF_MODULES_CACHE", str(modules_cache))
+    else:
+        monkeypatch.delenv("HF_MODULES_CACHE", raising=False)
+
+    class NanoModel:
+        def _resolve_hf_cache_dir(self):
+            return str(model_code / ".cache" / "huggingface")
+
+        def _patch_hf_dynamic_module_cache_dir(self, cache_dir):
+            nested_modules = str(Path(cache_dir) / "modules")
+            monkeypatch.setenv("HF_MODULES_CACHE", nested_modules)
+            monkeypatch.setattr(dynamic_module_utils, "HF_MODULES_CACHE", nested_modules)
+
+        def load_text_tokenizer(self):
+            cache_dir = self._resolve_hf_cache_dir()
+            self._patch_hf_dynamic_module_cache_dir(cache_dir)
+            tokenizer = Path(cache_dir) / "tokenizer.model"
+            tokenizer.parent.mkdir(parents=True, exist_ok=True)
+            tokenizer.write_bytes(b"cached tokenizer")
+
+    sidecar = _load_sidecar(
+        monkeypatch, [], model_factory=NanoModel,
+        fail_first_synthesis=fail_first_synthesis,
+    )
+    monkeypatch.setattr(sidecar.time, "sleep", lambda seconds: None)
+    out = io.BytesIO()
+    sidecar._handle_synthesize({"text": "hello"}, out)
+    sidecar._handle_synthesize({"text": "again"}, out)
+
+    assert (hub_cache / "tokenizer.model").is_file()
+    assert dynamic_module_utils.HF_MODULES_CACHE == str(modules_cache)
+    assert sidecar.os.environ.get("HF_MODULES_CACHE") == (
+        str(modules_cache) if custom_modules_cache else None
+    )
+    assert not (model_code / ".cache").exists()
+    assert [frame["op"] for frame in _frames(out)].count("audio") == 2
+
+
+@pytest.mark.parametrize("shared_cached", [False, True])
+def test_previously_cached_tokenizer_stays_available_offline(monkeypatch, tmp_path, shared_cached):
+    """Older installs may have downloaded tokenizer files only beside model code."""
+    from huggingface_hub import constants
+    from transformers import dynamic_module_utils
+    from transformers.utils import cached_file
+
+    hub_cache = tmp_path / "hub"
+    model_code = tmp_path / "modules" / "modeling_moss_tts_nano.py"
+    legacy_cache = model_code.parent / ".cache" / "huggingface"
+    repo = "OpenMOSS-Team/MOSS-TTS-Nano"
+    revision = "a" * 40
+    for cache in [legacy_cache] + ([hub_cache] if shared_cached else []):
+        storage = cache / "models--OpenMOSS-Team--MOSS-TTS-Nano"
+        snapshot = storage / "snapshots" / revision
+        snapshot.mkdir(parents=True)
+        (snapshot / "tokenizer.model").write_bytes(b"existing tokenizer")
+        (storage / "refs").mkdir()
+        (storage / "refs" / "main").write_text(revision, encoding="utf-8")
+
+    monkeypatch.setattr(constants, "HF_HUB_CACHE", str(hub_cache))
+    original_modules_cache = dynamic_module_utils.HF_MODULES_CACHE
+    module = types.ModuleType("_legacy_nano_model")
+    module.__file__ = str(model_code)
+    monkeypatch.setitem(sys.modules, module.__name__, module)
+    used_caches = []
+
+    class NanoModel:
+        def load_text_tokenizer(self):
+            cache_dir = self._resolve_hf_cache_dir()
+            self._patch_hf_dynamic_module_cache_dir(cache_dir)
+            path = cached_file(repo, "tokenizer.model", cache_dir=cache_dir, local_files_only=True)
+            assert Path(path).read_bytes() == b"existing tokenizer"
+            used_caches.append(Path(cache_dir))
+
+    NanoModel.__module__ = module.__name__
+    sidecar = _load_sidecar(
+        monkeypatch, [], model_factory=NanoModel, fail_first_synthesis=True,
+    )
+    monkeypatch.setattr(sidecar.time, "sleep", lambda seconds: None)
+    out = io.BytesIO()
+
+    sidecar._handle_synthesize({"text": "hello"}, out)
+
+    assert used_caches == [hub_cache if shared_cached else legacy_cache] * 2
+    assert dynamic_module_utils.HF_MODULES_CACHE == original_modules_cache
+    assert _frames(out)[-1]["op"] == "audio"
 
 
 def test_the_sidecar_imports_nothing_from_the_app():

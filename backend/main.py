@@ -668,7 +668,14 @@ def _phase_a_build_inner() -> None:
         pass
 
     _startup_progress.begin_step("ml_imports")
-    import torchaudio
+    try:
+        import torchaudio  # noqa: F401
+    except Exception as exc:  # noqa: BLE001
+        logging.getLogger("omnivoice.model").exception(
+            "torchaudio import failed during ml_imports (startup will continue degraded): %s",
+            exc,
+        )
+        torchaudio = None  # type: ignore[assignment]
     warnings.filterwarnings("ignore", category=UserWarning)
     # torchaudio 2.9 REMOVED set_audio_backend(); soundfile has been the only
     # backend since 2.0, so the call was already a no-op there and is simply
@@ -686,8 +693,11 @@ def _phase_a_build_inner() -> None:
     # lists sm_120 in get_arch_list(). CU128_ARCHS in
     # tests/test_cuda_arch_compat.py records the same list, captured verbatim
     # from a real cu128 build in #1285.
-    if hasattr(torchaudio, "set_audio_backend"):
-        torchaudio.set_audio_backend("soundfile")
+    try:
+        if torchaudio is not None and hasattr(torchaudio, "set_audio_backend"):
+            torchaudio.set_audio_backend("soundfile")
+    except Exception:  # noqa: BLE001
+        pass
     from utils import hf_progress
     # HF tqdm patch before any library import that can trigger
     # hf_hub_download (transformers, mlx_whisper, …).

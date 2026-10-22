@@ -335,6 +335,9 @@ function useGenerateController(): UseGenerateClone {
           ),
           wavBits: settings.wavBits,
           effectPreset: settings.effectPreset,
+          presetVoice: activeTts?.preset_voices?.includes(settings.presetVoice)
+            ? settings.presetVoice
+            : undefined,
           cfg: settings.cfg,
           speed: settings.speed,
           tShift: settings.tShift,
@@ -352,7 +355,7 @@ function useGenerateController(): UseGenerateClone {
         announceResultNotices(result);
         setLatestOutput(result, design?.text ?? settings.text);
         recordActionBreadcrumb(`generate:${reportMode}:complete`);
-        toast.success(tr('tts.generationComplete'));
+        toast.success(tr('tts.generationComplete'), { position: 'top-right' });
         if (!design) rememberTake(result.id, settings);
         void Promise.all([
           queryClient.invalidateQueries({ queryKey: queryKeys.history }),
@@ -389,7 +392,7 @@ function useGenerateController(): UseGenerateClone {
           .catch(() => {});
       }
     },
-    [queryClient, onProgress, blocker, designBlockerFor, instructVocabulary],
+    [queryClient, onProgress, blocker, designBlockerFor, instructVocabulary, activeTts],
   );
 
   const cancel = useCallback(() => {
